@@ -36,6 +36,7 @@ Accepted ADRs in `docs/adr/` (one per decision), an up-to-date `GLOSSARY.md`, an
 - [Grilling: UI framework and canvas library](issues/11-ui-framework-canvas.md): React + TypeScript; an app-owned Annotation model ([ADR 0005](../../docs/adr/0005-app-owned-annotation-model.md)); persistent 200-step undo kept in local app data with 2-month expiry. The canvas library goes to a prototype.
 - [Grilling: Distribution and updates](issues/09-distribution-updates.md): tag-triggered public GitHub Releases, manual install-over updates, unsigned, no network calls ([ADR 0006](../../docs/adr/0006-manual-updates-unsigned-no-network.md)).
 - [Grilling: Claiming Print Screen from Snipping Tool](issues/10-print-screen-hotkey.md): detect the Snipping Tool setting, show a one-time notice deep-linking to the Windows toggle, and make the hotkey rebindable (default Print Screen, fallback Ctrl+Shift+S).
+- [Prototype: Konva vs Fabric text editing](issues/12-konva-vs-fabric-prototype.md): Fabric.js, chosen for its built-in on-canvas text editing; callouts use a Textbox with synced box and tail shapes.
 
 ## Not yet specified
 

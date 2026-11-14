@@ -13,7 +13,7 @@ A Windows desktop app for capturing and annotating screenshots, in the style of 
 
 ## Stack
 
-[Tauri 2](docs/adr/0001-tauri-2-per-user-nsis.md): a React + TypeScript UI with Rust for the Windows integration, shipped as a per-user NSIS installer (no admin). Builds run on GitHub Actions; the work laptop only downloads and installs.
+[Tauri 2](docs/adr/0001-tauri-2-per-user-nsis.md): a React + TypeScript UI with a Fabric.js canvas, and Rust for the Windows integration, shipped as a per-user NSIS installer (no admin). Builds run on GitHub Actions; the work laptop only downloads and installs.
 
 ## Install and update
 

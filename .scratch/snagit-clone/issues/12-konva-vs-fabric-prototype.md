@@ -1,7 +1,7 @@
 # Prototype: Konva vs Fabric text editing
 
 Type: prototype
-Status: claimed
+Status: resolved
 Blocked by: 11
 
 ## Question
@@ -21,4 +21,14 @@ Prototype built: a single page with a Konva/Fabric switch, sharing one app-owned
 - **Live:** https://claude.ai/artifact/2wAmPKLCAnpre24qsqa2MY
 - **Source:** branch `prototype/konva-vs-fabric`, `prototypes/canvas-compare/index.html` (throwaway, never merged).
 
-Awaiting Andrew's verdict.
+Konva initially failed to load from cdnjs and was fixed by switching to jsDelivr in version 2.
+
+## Answer
+
+**Fabric.js**: Andrew tried both and prefers Fabric (2026-11-14). Its built-in on-canvas text editing (a real caret, drag-select, arrow keys) was the deciding factor.
+
+**Notes for implementation, learned from the prototype**
+- **Text:** `Textbox` with `paintFirst: 'stroke'` plus a doubled `strokeWidth` gives the outline look. Lock vertical scaling; horizontal handles change the wrap width, not the font size.
+- **Callout:** Fabric can't edit text inside a `Group`. The prototype kept the `Textbox` as the selectable object and drew the box and tail as non-interactive shapes synced on move, scale and change, with a separate draggable tail handle. That works; tidy it into one Callout adapter.
+- **Pixelate blur** (for later): Fabric has a built-in `Pixelate` image filter.
+- **Model:** both libraries round-tripped the same app-owned model unchanged, which confirms ADR 0005. Switching libraries later stays cheap, so no separate ADR.
