@@ -1,0 +1,254 @@
+<title>Konva vs Fabric</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* Layout: toolbar row, canvas stage, model panel; library switch pinned at the bottom. PROTOTYPE, throwaway. */
+:root{
+  --bg:#f3f4f7; --panel:#ffffff; --fg:#1b1e27; --muted:#5d6475; --line:#d9dce5; --accent:#2f5bea; --accent-fg:#ffffff;
+  --font:"Segoe UI",system-ui,sans-serif; --mono:ui-monospace,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#14161c;--panel:#1d2029;--fg:#e8eaf0;--muted:#9aa1b2;--line:#323644;--accent:#6d8cff;--accent-fg:#0d1020;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#14161c;--panel:#1d2029;--fg:#e8eaf0;--muted:#9aa1b2;--line:#323644;--accent:#6d8cff;--accent-fg:#0d1020;color-scheme:dark}
+body{background:var(--bg);color:var(--fg);font-family:var(--font);padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:12px 90px}
+h1{font-size:18px;margin:0 0 4px}
+p.lede{margin:0 0 12px;color:var(--muted);max-width:75ch}
+.bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:8px;margin-bottom:10px}
+.bar .grp{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.bar .sep{width:1px;align-self:stretch;background:var(--line)}
+button,select,input{font:inherit;color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:5px 9px}
+button{cursor:pointer}
+button[aria-pressed="true"]{background:var(--accent);color:var(--accent-fg);border-color:var(--accent)}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+input[type=number]{width:64px}
+input[type=color]{padding:0;width:34px;height:30px}
+label{display:flex;gap:4px;align-items:center;color:var(--muted);font-size:13px}
+.work{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:10px}
+@media (max-width:1100px){.work{grid-template-columns:minmax(0,1fr)}}
+.stagewrap{overflow:auto;border:1px solid var(--line);border-radius:8px;background:var(--panel);position:relative}
+#stage{width:900px;height:560px;position:relative}
+#stage canvas{display:block}
+aside{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px;min-width:0}
+aside h2{font-size:13px;margin:0 0 6px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+pre{font-family:var(--mono);font-size:11.5px;white-space:pre-wrap;word-break:break-all;margin:0;max-height:480px;overflow:auto}
+.switch{position:fixed;left:0;right:0;bottom:0;display:flex;justify-content:center;gap:8px;padding:10px max(16px,env(safe-area-inset-right,0px)) calc(10px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));background:var(--panel);border-top:1px solid var(--line);z-index:5}
+.switch b{align-self:center;color:var(--muted);font-weight:500}
+.tip{font-size:13px;color:var(--muted);margin:8px 0 0}
+textarea.konva-edit{position:absolute;border:1px dashed var(--accent);background:transparent;margin:0;padding:0;overflow:hidden;outline:none;resize:none;line-height:1.2;z-index:3}
+</style>
+
+<h1 id="h">Canvas prototype</h1>
+<p class="lede">Throwaway prototype to choose the editor's canvas library. Try the same steps in both libraries using the switch at the bottom; your Annotations carry over because both read and write the same app-owned model (shown on the right).</p>
+
+<div class="bar">
+  <div class="grp" role="group" aria-label="Tool">
+    <button id="t-select" data-tool="select">Select</button>
+    <button id="t-text" data-tool="text">Text</button>
+    <button id="t-callout" data-tool="callout">Callout</button>
+    <button id="t-arrow" data-tool="arrow">Arrow</button>
+  </div>
+  <div class="sep"></div>
+  <div class="grp">
+    <label for="p-color">Color <input type="color" id="p-color" value="#e02424"></label>
+    <label for="p-size">Font size <input type="number" id="p-size" min="8" max="200" value="24" list="sizes"></label>
+    <datalist id="sizes"><option>10</option><option>12</option><option>14</option><option>18</option><option>24</option><option>32</option><option>48</option><option>72</option></datalist>
+    <label for="p-bold"><input type="checkbox" id="p-bold"> Bold</label>
+    <label for="p-outline"><input type="checkbox" id="p-outline" checked> Outline</label>
+    <label for="p-ocolor">Outline color <input type="color" id="p-ocolor" value="#ffffff"></label>
+    <label for="p-owidth">width <input type="number" id="p-owidth" min="1" max="10" value="3"></label>
+    <label for="p-tail"><input type="checkbox" id="p-tail" checked> Callout tail</label>
+  </div>
+  <div class="sep"></div>
+  <div class="grp">
+    <button id="b-delete">Delete selected</button>
+    <button id="b-reset">Reset sample</button>
+  </div>
+</div>
+
+<div class="work">
+  <div class="stagewrap"><div id="stage"></div></div>
+  <aside><h2>App-owned Annotation model</h2><pre id="model"></pre></aside>
+</div>
+<p class="tip">Try: Text tool → click the image and type. Double-click existing text to edit it. Callout: drag the small round handle to move the tail. Select tool → drag or resize. Delete key removes the selected item (when not typing).</p>
+
+<div class="switch" role="group" aria-label="Library">
+  <b>Library:</b>
+  <button id="lib-konva">Konva</button>
+  <button id="lib-fabric">Fabric.js</button>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/konva/9.3.6/konva.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/fabric@6.4.3/dist/index.min.js"></script>
+<script>
+// ---------- shared app-owned model (ADR 0005) ----------
+const W=900,H=560,FONT='"Segoe UI", system-ui, sans-serif';
+const lib=(new URLSearchParams(location.search).get('lib')||(location.hash.slice(1))||'konva')==='fabric'?'fabric':'konva';
+document.getElementById('h').textContent='Canvas prototype: '+(lib==='konva'?'Konva':'Fabric.js');
+document.getElementById('lib-'+lib).setAttribute('aria-pressed','true');
+const sample=()=>[
+  {id:'a1',type:'text',x:60,y:60,w:300,text:'Click Save before closing',font:{size:28,bold:true},color:'#e02424',outline:{on:true,color:'#ffffff',width:3}},
+  {id:'a2',type:'callout',x:520,y:120,w:240,text:'This field is required',font:{size:18,bold:false},color:'#e02424',outline:{on:false,color:'#ffffff',width:3},tail:{on:true,x:470,y:290}},
+  {id:'a3',type:'arrow',x:300,y:420,dx:160,dy:-90,stroke:{color:'#e02424',width:5}}
+];
+let anns; try{anns=JSON.parse(sessionStorage.getItem('proto-anns'))}catch(e){}
+if(!Array.isArray(anns)) anns=sample();
+let nextId=100;
+const save=()=>{try{sessionStorage.setItem('proto-anns',JSON.stringify(anns))}catch(e){}; document.getElementById('model').textContent=JSON.stringify(anns,null,1)};
+const byId=id=>anns.find(a=>a.id===id);
+for(const b of document.querySelectorAll('.switch button')) b.onclick=()=>{save(); location.hash=b.id.slice(4); location.reload()};
+document.getElementById('b-reset').onclick=()=>{anns=sample(); save(); location.reload()};
+
+let tool='select';
+const setTool=t=>{tool=t; for(const b of document.querySelectorAll('[data-tool]')) b.setAttribute('aria-pressed',b.dataset.tool===t)};
+for(const b of document.querySelectorAll('[data-tool]')) b.onclick=()=>setTool(b.dataset.tool);
+setTool('select');
+const P=id=>document.getElementById(id);
+const props=()=>({color:P('p-color').value,size:+P('p-size').value||24,bold:P('p-bold').checked,outline:{on:P('p-outline').checked,color:P('p-ocolor').value,width:+P('p-owidth').value||3},tail:P('p-tail').checked});
+const newAnn=(type,x,y)=>{const p=props(); const id='n'+(nextId++);
+  if(type==='text') return {id,type,x,y,w:260,text:'',font:{size:p.size,bold:p.bold},color:p.color,outline:p.outline};
+  if(type==='callout') return {id,type,x,y,w:220,text:'',font:{size:p.size,bold:p.bold},color:p.color,outline:{...p.outline,on:false},tail:{on:p.tail,x:x-50,y:y+110}};
+  return {id,type:'arrow',x,y,dx:1,dy:1,stroke:{color:p.color,width:5}}};
+
+// fake screenshot background
+function backdrop(){const c=document.createElement('canvas');c.width=W;c.height=H;const g=c.getContext('2d');
+  g.fillStyle='#f6f7f9';g.fillRect(0,0,W,H);g.fillStyle='#2b3245';g.fillRect(0,0,W,44);g.fillStyle='#fff';g.font='16px Segoe UI, sans-serif';g.fillText('Customer record  ›  Edit',16,28);
+  g.fillStyle='#ffffff';g.fillRect(30,70,500,440);g.strokeStyle='#dfe2e8';g.strokeRect(30,70,500,440);
+  const rows=['Account name','Primary contact','Email','Phone','Region','Notes'];g.font='14px Segoe UI, sans-serif';
+  rows.forEach((r,i)=>{g.fillStyle='#5d6475';g.fillText(r,50,120+i*62);g.strokeStyle='#cfd3dc';g.strokeRect(50,128+i*62,450,30)});
+  g.fillStyle='#e8f0ff';g.fillRect(560,70,320,440);g.fillStyle='#1e5bd8';g.fillRect(580,450,120,36);g.fillStyle='#fff';g.fillText('Save',622,473);
+  g.fillStyle='#ffcc00';g.fillRect(580,100,280,60);g.fillStyle='#1b1e27';g.fillText('Warning: unsaved changes',600,135);
+  return c.toDataURL()}
+
+// tail polygon helper (box center ±12 to tip)
+const tailPts=(a,h)=>{const cx=a.x+a.w/2,cy=a.y+h/2;return [cx-14,cy,cx+14,cy,a.tail.x,a.tail.y]};
+const PAD=10;
+
+function onDeleteKey(fn){document.addEventListener('keydown',e=>{if(e.key==='Delete'&&!/TEXTAREA|INPUT/.test(document.activeElement.tagName))fn()})}
+
+// =============== KONVA ===============
+function runKonva(){
+  const stage=new Konva.Stage({container:'stage',width:W,height:H});
+  const bg=new Konva.Layer(),layer=new Konva.Layer();stage.add(bg,layer);
+  const img=new Image();img.onload=()=>{bg.add(new Konva.Image({image:img}));bg.draw()};img.src=backdrop();
+  const tr=new Konva.Transformer({rotateEnabled:false,enabledAnchors:['middle-left','middle-right'],boundBoxFunc:(o,n)=>n.width<40?o:n});
+  layer.add(tr);
+  let selected=null;const nodes={};
+  function textNode(a){return {text:a.text||' ',fontSize:a.font.size,fontFamily:FONT,fontStyle:a.font.bold?'bold':'normal',fill:a.color,width:a.w,
+    stroke:a.outline.on?a.outline.color:null,strokeWidth:a.outline.on?a.outline.width*2:0,fillAfterStrokeEnabled:true,lineJoin:'round'}}
+  function build(a){
+    let g;
+    if(a.type==='text'){g=new Konva.Text({...textNode(a),x:a.x,y:a.y,draggable:true});g.on('dragend',()=>{a.x=g.x();a.y=g.y();save()});
+      g.on('transform',()=>{g.width(Math.max(40,g.width()*g.scaleX()));g.scaleX(1)});g.on('transformend',()=>{a.w=g.width();a.x=g.x();save()});
+      g.on('dblclick dbltap',()=>edit(a,g,g));}
+    else if(a.type==='callout'){g=new Konva.Group({x:0,y:0,draggable:true});
+      const t=new Konva.Text({...textNode(a),x:a.x+PAD,y:a.y+PAD,width:a.w-2*PAD,name:'t'});
+      const h=()=>t.height()+2*PAD;
+      const tail=new Konva.Line({closed:true,fill:'#fff',stroke:a.color,strokeWidth:2,name:'tail'}),
+            cover=new Konva.Line({closed:true,fill:'#fff',name:'cover'}),
+            box=new Konva.Rect({fill:'#fff',stroke:a.color,strokeWidth:2,cornerRadius:6,name:'box'}),
+            handle=new Konva.Circle({radius:7,fill:a.color,stroke:'#fff',strokeWidth:2,draggable:true,name:'handle'});
+      g.add(tail,box,cover,t,handle);
+      g.redraw=()=>{const hh=h();box.setAttrs({x:a.x,y:a.y,width:a.w,height:hh,stroke:a.color});t.setAttrs({...textNode(a),x:a.x+PAD,y:a.y+PAD,width:a.w-2*PAD});
+        const pts=tailPts(a,hh);tail.setAttrs({points:pts,visible:a.tail.on,stroke:a.color});cover.setAttrs({points:[pts[0]+2,pts[1],pts[2]-2,pts[3],(pts[0]+pts[2])/2,pts[1]+ (a.tail.y>pts[1]?6:-6)],visible:a.tail.on});
+        handle.setAttrs({x:a.tail.x,y:a.tail.y,visible:a.tail.on&&selected===a.id,fill:a.color})};
+      handle.on('dragmove',e=>{e.cancelBubble=true;a.tail.x=handle.x();a.tail.y=handle.y();g.redraw()});handle.on('dragend',e=>{e.cancelBubble=true;save()});
+      handle.on('dragstart',e=>{e.cancelBubble=true});
+      g.on('dragend',e=>{if(e.target!==g)return;const dx=g.x(),dy=g.y();a.x+=dx;a.y+=dy;a.tail.x+=dx;a.tail.y+=dy;g.position({x:0,y:0});g.redraw();save()});
+      g.on('dblclick dbltap',()=>edit(a,t,g));g.textNode=t;g.redraw();}
+    else {g=new Konva.Arrow({x:a.x,y:a.y,points:[0,0,a.dx,a.dy],stroke:a.stroke.color,fill:a.stroke.color,strokeWidth:a.stroke.width,pointerLength:16,pointerWidth:16,hitStrokeWidth:20,draggable:true});
+      g.on('dragend',()=>{a.x=g.x();a.y=g.y();save()});}
+    g.annId=a.id;g.on('mousedown tap',e=>{if(tool==='select'){select(a.id)}});layer.add(g);nodes[a.id]=g;tr.moveToTop();return g}
+  function select(id){selected=id;const n=id&&nodes[id];const a=id&&byId(id);
+    tr.nodes(n&&a.type==='text'?[n]:[]);for(const k in nodes) if(nodes[k].redraw) nodes[k].redraw();layer.draw();
+    if(a&&a.font){P('p-size').value=a.font.size;P('p-bold').checked=a.font.bold;P('p-color').value=a.color;P('p-outline').checked=a.outline.on;P('p-ocolor').value=a.outline.color;P('p-owidth').value=a.outline.width;if(a.tail)P('p-tail').checked=a.tail.on}}
+  function edit(a,t,g){
+    const ta=document.createElement('textarea');ta.className='konva-edit';const pos=t.absolutePosition();
+    Object.assign(ta.style,{left:pos.x+'px',top:pos.y+'px',width:(t.width()+4)+'px',height:(t.height()+a.font.size)+'px',fontSize:a.font.size+'px',fontFamily:FONT,fontWeight:a.font.bold?'bold':'normal',color:a.color});
+    ta.value=a.text;document.getElementById('stage').appendChild(ta);t.visible(false);layer.draw();ta.focus();ta.select();
+    const grow=()=>{ta.style.height='auto';ta.style.height=ta.scrollHeight+'px'};ta.addEventListener('input',()=>{a.text=ta.value;grow()});grow();
+    const done=()=>{ta.remove();a.text=ta.value;if(!a.text.trim()){remove(a.id);return}t.visible(true);t.text(a.text);if(g.redraw)g.redraw();layer.draw();save()};
+    ta.addEventListener('blur',done,{once:true});ta.addEventListener('keydown',e=>{if(e.key==='Escape'||(e.key==='Enter'&&e.ctrlKey))ta.blur()})}
+  function remove(id){anns=anns.filter(a=>a.id!==id);if(nodes[id]){nodes[id].destroy();delete nodes[id]}tr.nodes([]);selected=null;layer.draw();save()}
+  anns.forEach(build);layer.draw();save();
+  let drawing=null;
+  stage.on('mousedown',e=>{const p=stage.getPointerPosition();
+    if(tool==='select'){if(e.target===stage||e.target.getLayer()===bg)select(null);return}
+    const a=newAnn(tool,p.x,p.y);anns.push(a);const g=build(a);select(a.id);
+    if(a.type==='arrow'){drawing={a,g}}else{setTool('select');setTimeout(()=>edit(a,a.type==='text'?g:g.textNode,g),60)}});
+  stage.on('mousemove',()=>{if(!drawing)return;const p=stage.getPointerPosition();drawing.a.dx=p.x-drawing.a.x;drawing.a.dy=p.y-drawing.a.y;drawing.g.points([0,0,drawing.a.dx,drawing.a.dy]);layer.batchDraw()});
+  stage.on('mouseup',()=>{if(drawing){if(Math.hypot(drawing.a.dx,drawing.a.dy)<8)remove(drawing.a.id);drawing=null;setTool('select');save()}});
+  const applyProps=()=>{const a=selected&&byId(selected);if(!a)return;const p=props();
+    if(a.type==='arrow'){a.stroke.color=p.color;nodes[a.id].setAttrs({stroke:p.color,fill:p.color})}
+    else{a.color=p.color;a.font={size:p.size,bold:p.bold};a.outline=a.type==='text'?p.outline:{...p.outline};if(a.tail)a.tail.on=p.tail;
+      const n=nodes[a.id];if(n.redraw)n.redraw();else n.setAttrs(textNode(a));tr.forceUpdate()}
+    layer.draw();save()};
+  for(const id of ['p-color','p-size','p-bold','p-outline','p-ocolor','p-owidth','p-tail'])P(id).addEventListener('input',applyProps);
+  P('b-delete').onclick=()=>selected&&remove(selected);onDeleteKey(()=>selected&&remove(selected));
+}
+
+// =============== FABRIC ===============
+function runFabric(){
+  const el=document.createElement('canvas');el.width=W;el.height=H;document.getElementById('stage').appendChild(el);
+  const c=new fabric.Canvas(el,{selection:false,preserveObjectStacking:true});
+  fabric.FabricImage.fromURL(backdrop()).then(img=>{c.backgroundImage=img;c.requestRenderAll()});
+  const objs={};
+  const textOpts=a=>({fontSize:a.font.size,fontFamily:FONT,fontWeight:a.font.bold?'bold':'normal',fill:a.color,
+    stroke:a.outline.on?a.outline.color:null,strokeWidth:a.outline.on?a.outline.width*2:0,paintFirst:'stroke',strokeLineJoin:'round'});
+  function build(a){
+    if(a.type==='text'){
+      const t=new fabric.Textbox(a.text,{...textOpts(a),left:a.x,top:a.y,width:a.w,editingBorderColor:'#2f5bea',lockScalingY:true,lockRotation:true,hasRotatingPoint:false});
+      t.setControlsVisibility({mt:false,mb:false,tl:false,tr:false,bl:false,br:false,mtr:false});
+      t.on('changed',()=>{a.text=t.text;save()});t.on('modified',()=>{a.x=t.left;a.y=t.top;a.w=t.width;save()});
+      t.on('editing:exited',()=>{a.text=t.text;if(!a.text.trim())remove(a.id);save()});
+      t.annId=a.id;c.add(t);objs[a.id]={main:t};return t}
+    if(a.type==='callout'){
+      const t=new fabric.Textbox(a.text,{...textOpts(a),left:a.x+PAD,top:a.y+PAD,width:a.w-2*PAD,lockScalingY:true,lockRotation:true});
+      t.setControlsVisibility({mt:false,mb:false,tl:false,tr:false,bl:false,br:false,mtr:false});
+      const base={selectable:false,evented:false,objectCaching:false};
+      const box=new fabric.Rect({...base,fill:'#fff',stroke:a.color,strokeWidth:2,rx:6,ry:6});
+      const tail=new fabric.Polygon([{x:0,y:0},{x:1,y:1},{x:2,y:0}],{...base,fill:'#fff',stroke:a.color,strokeWidth:2});
+      const cover=new fabric.Polygon([{x:0,y:0},{x:1,y:1},{x:2,y:0}],{...base,fill:'#fff'});
+      const handle=new fabric.Circle({radius:7,fill:a.color,stroke:'#fff',strokeWidth:2,originX:'center',originY:'center',hasControls:false,hasBorders:false,visible:false});
+      const o={main:t,box,tail,cover,handle};
+      o.redraw=()=>{a.x=t.left-PAD;a.y=t.top-PAD;a.w=t.width+2*PAD;const hh=t.height+2*PAD;
+        box.set({left:a.x,top:a.y,width:a.w,height:hh,stroke:a.color});
+        const p=tailPts(a,hh);const mk=pts=>{const poly=new fabric.Polygon(pts,{});return poly};
+        c.remove(o.tail,o.cover);
+        o.tail=new fabric.Polygon([{x:p[0],y:p[1]},{x:p[2],y:p[3]},{x:p[4],y:p[5]}],{...base,fill:'#fff',stroke:a.color,strokeWidth:2,visible:a.tail.on});
+        const dir=a.tail.y>p[1]?6:-6;
+        o.cover=new fabric.Polygon([{x:p[0]+2,y:p[1]},{x:p[2]-2,y:p[3]},{x:(p[0]+p[2])/2,y:p[1]+dir}],{...base,fill:'#fff',visible:a.tail.on});
+        const i=c.getObjects().indexOf(box);c.insertAt(i,o.tail);c.insertAt(c.getObjects().indexOf(box)+1,o.cover);
+        handle.set({left:a.tail.x,top:a.tail.y,fill:a.color,visible:a.tail.on&&c.getActiveObject()&&(c.getActiveObject()===t||c.getActiveObject()===handle)});handle.setCoords();c.requestRenderAll()};
+      let last=null;
+      t.on('moving',()=>{if(last){const dx=t.left-last.x,dy=t.top-last.y;a.tail.x+=dx;a.tail.y+=dy}last={x:t.left,y:t.top};o.redraw()});
+      t.on('mousedown',()=>{last={x:t.left,y:t.top}});
+      t.on('scaling',()=>{t.set({width:Math.max(40,t.width*t.scaleX),scaleX:1});o.redraw()});
+      t.on('changed',()=>{a.text=t.text;o.redraw();save()});t.on('modified',()=>{o.redraw();save()});
+      t.on('editing:exited',()=>{a.text=t.text;if(!a.text.trim())remove(a.id);else{o.redraw();save()}});
+      handle.on('moving',()=>{a.tail.x=handle.left;a.tail.y=handle.top;o.redraw()});handle.on('modified',save);
+      t.annId=a.id;handle.annId=a.id;c.add(box,t,handle);objs[a.id]=o;o.redraw();return t}
+    const len=Math.hypot(a.dx,a.dy)||1,ang=Math.atan2(a.dy,a.dx)*180/Math.PI;
+    const line=new fabric.Line([0,0,len-14,0],{stroke:a.stroke.color,strokeWidth:a.stroke.width,originY:'center'});
+    const head=new fabric.Triangle({left:len,top:0,width:18,height:18,fill:a.stroke.color,angle:90,originX:'center',originY:'center'});
+    const g=new fabric.Group([line,head],{left:a.x,top:a.y,angle:ang,originX:'left',originY:'center',lockRotation:false});
+    g.on('modified',()=>{a.x=g.left;a.y=g.top;save()});g.annId=a.id;c.add(g);objs[a.id]={main:g};return g}
+  function remove(id){const o=objs[id];if(o)for(const k of ['main','box','tail','cover','handle'])if(o[k])c.remove(o[k]);delete objs[id];anns=anns.filter(a=>a.id!==id);c.discardActiveObject();c.requestRenderAll();save()}
+  anns.forEach(build);save();
+  const refreshHandles=()=>{for(const k in objs)if(objs[k].redraw)objs[k].redraw()};
+  c.on('selection:created',e=>{refreshHandles();loadProps()});c.on('selection:updated',()=>{refreshHandles();loadProps()});c.on('selection:cleared',refreshHandles);
+  const sel=()=>{const o=c.getActiveObject();return o&&byId(o.annId)};
+  function loadProps(){const a=sel();if(!a||!a.font)return;P('p-size').value=a.font.size;P('p-bold').checked=a.font.bold;P('p-color').value=a.color;P('p-outline').checked=a.outline.on;P('p-ocolor').value=a.outline.color;P('p-owidth').value=a.outline.width;if(a.tail)P('p-tail').checked=a.tail.on}
+  let drawing=null;
+  c.on('mouse:down',e=>{if(tool==='select')return;const p=c.getScenePoint(e.e);const a=newAnn(tool,p.x,p.y);anns.push(a);
+    if(a.type==='arrow'){drawing={a};return}
+    const t=build(a);setTool('select');c.setActiveObject(t);t.enterEditing();t.hiddenTextarea&&t.hiddenTextarea.focus();c.requestRenderAll()});
+  c.on('mouse:up',e=>{if(!drawing)return;const p=c.getScenePoint(e.e);const a=drawing.a;a.dx=p.x-a.x;a.dy=p.y-a.y;drawing=null;
+    if(Math.hypot(a.dx,a.dy)<8){anns=anns.filter(x=>x!==a)}else{c.setActiveObject(build(a))}setTool('select');save();c.requestRenderAll()});
+  const applyProps=()=>{const a=sel();if(!a)return;const p=props();const o=objs[a.id];
+    if(a.type==='arrow'){a.stroke.color=p.color;o.main.getObjects()[0].set({stroke:p.color});o.main.getObjects()[1].set({fill:p.color})}
+    else{a.color=p.color;a.font={size:p.size,bold:p.bold};a.outline={...p.outline};if(a.tail)a.tail.on=p.tail;o.main.set(textOpts(a));o.main.initDimensions&&o.main.initDimensions();if(o.redraw)o.redraw()}
+    c.requestRenderAll();save()};
+  for(const id of ['p-color','p-size','p-bold','p-outline','p-ocolor','p-owidth','p-tail'])P(id).addEventListener('input',applyProps);
+  const del=()=>{const a=sel();if(a&&!(objs[a.id].main.isEditing))remove(a.id)};P('b-delete').onclick=del;onDeleteKey(del);
+}
+
+lib==='konva'?runKonva():runFabric();
+</script>
