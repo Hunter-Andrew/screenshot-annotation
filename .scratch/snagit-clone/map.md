@@ -39,6 +39,7 @@ Accepted ADRs in `docs/adr/` (one per decision), an up-to-date `GLOSSARY.md`, an
 - [Prototype: Konva vs Fabric text editing](issues/12-konva-vs-fabric-prototype.md): Fabric.js, chosen for its built-in on-canvas text editing; callouts use a Textbox with synced box and tail shapes.
 - [Prototype: Editor layout and tool behavior](issues/04-editor-ux-prototype.md): Snagit-style side panels (tools left, Style right, actions top, Library Strip bottom) with single-key tool shortcuts.
 - [Prototype: Library window](issues/08-library-ux-prototype.md): "All captures" opens a full-window date-grouped grid; hover Copy/✕, multi-select delete with Undo, and Capture plus delay buttons in the top bar.
+- [Grilling: Settings screen](issues/13-settings-screen.md): a small Settings window (hotkey, launch at sign-in, read-only Library folder, reset tool styles, About); tray menu with left-click to open the editor; closing the editor hides it to the tray.
 
 ## Not yet specified
 
