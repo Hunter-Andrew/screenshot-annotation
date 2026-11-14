@@ -6,11 +6,15 @@
 
 **Status:** resolved
 
-- [x] CI on windows-latest runs unit + e2e tests and uploads the per-user installer on every push
-- [x] Installer installs with no admin (ADR 0001)
-- [x] Tray icon with Settings and Exit; Exit quits
+- [ ] CI on windows-latest runs unit + e2e tests and uploads the per-user installer on every push
+- [ ] Installer installs with no admin (ADR 0001)
+- [ ] Tray icon with Settings and Exit; Exit quits
 - [x] Settings → About shows the version; Check for updates opens the Releases page in the browser; no other network calls (ADR 0006)
-- [x] Second launch focuses the existing instance
+- [ ] Second launch focuses the existing instance
 - [x] Platform bridge interface exists with a fake used by an e2e test that opens Settings
 
 Spec: `.scratch/snagit-clone/spec.md`.
+
+## Comments
+
+Unticked boxes are Windows-only and unverified (no Windows in the build sandbox): to be confirmed by the first CI run and by Andrew on the work laptop via the release checklist.
