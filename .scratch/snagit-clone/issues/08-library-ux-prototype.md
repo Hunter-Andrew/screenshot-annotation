@@ -1,7 +1,7 @@
 # Prototype: Library window
 
 Type: prototype
-Status: open
+Status: claimed
 Blocked by: 04, 07
 
 ## Question
