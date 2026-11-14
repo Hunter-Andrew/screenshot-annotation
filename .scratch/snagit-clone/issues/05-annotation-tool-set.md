@@ -1,7 +1,7 @@
 # Grilling: Annotation tools and their properties
 
 Type: grilling
-Status: open
+Status: claimed
 Blocked by: 
 
 ## Question
