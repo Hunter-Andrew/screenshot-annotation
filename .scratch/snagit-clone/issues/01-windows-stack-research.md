@@ -18,3 +18,13 @@ Compare **Electron**, **Tauri (WebView2)** and **native .NET (WPF or WinUI 3)** 
 - **Code signing:** what happens to an unsigned installer under SmartScreen.
 
 Recommend a shortlist of at most 2 candidates.
+
+## Answer
+
+Shortlist:
+1. **.NET WPF** (self-contained, per-user via Velopack or Inno Setup `PrivilegesRequired=lowest`). Direct Win32 access for capture (PerMonitorV2 BitBlt / Windows.Graphics.Capture), RegisterHotKey, and multi-format clipboard (DIB + "PNG"); builds with the `dotnet` CLI on `windows-latest`. The cost is a hand-built annotation canvas.
+2. **Tauri 2** (NSIS `currentUser`, WebView2 preinstalled on Win11 and pushed to Win10). Smallest footprint and a ready canvas (Konva/Fabric), but capture and PNG clipboard need custom Rust/Win32 code.
+
+Electron was dropped: heavier, with no advantage over Tauri. Risks: PrtScn is consumed by the Win11 Snipping Tool setting (a spike is needed; fall back or offer to toggle the HKCU setting), and unsigned installers trigger SmartScreen or may be blocked by corporate policy. Docs could not be re-fetched in this session (network allowlist), so citations are marked ⚠ for re-verification.
+
+Full findings: branch research/windows-stack, file research/windows-stack.md

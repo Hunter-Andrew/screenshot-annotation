@@ -27,6 +27,8 @@ Accepted ADRs in `docs/adr/` (one per decision), an up-to-date `GLOSSARY.md`, an
 
 ## Decisions so far
 
+- [Research: Windows tech stack candidates](issues/01-windows-stack-research.md): shortlist .NET WPF (best Win32 fit) and Tauri 2 (smallest, web canvas); Electron dropped.
+
 ## Not yet specified
 
 - Ordered build plan / milestones (needs stack + UX decisions first).
