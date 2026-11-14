@@ -1,7 +1,7 @@
 # Research: Windows tech stack candidates
 
 Type: research
-Status: open
+Status: resolved
 Blocked by: 
 
 ## Question
