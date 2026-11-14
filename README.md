@@ -7,7 +7,7 @@ A cross-platform desktop app for capturing and annotating screenshots, in the st
 ## Workflow
 
 1. **Capture**: press the hotkey (default `Ctrl/Cmd+Shift+2`) and drag a region, click a window, or press Enter for the full screen.
-2. **Annotate**: text, arrows, lines, freehand pen, rectangles, ellipses, highlighter, blur, numbered steps, and crop.
+2. **Annotate**: text, callouts, arrows, lines, freehand pen, rectangles, ellipses, highlighter, pixelate blur, and crop. Everything stays editable.
 3. **Copy**: one click (or `Ctrl/Cmd+C`) puts the flattened image on the clipboard.
 4. **Library**: browse every past capture and reopen it; annotations stay editable.
 
