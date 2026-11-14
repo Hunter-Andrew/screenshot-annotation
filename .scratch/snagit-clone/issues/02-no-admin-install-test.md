@@ -1,7 +1,7 @@
 # Task: Prove a per-user install works on the work laptop
 
 Type: task
-Status: open
+Status: claimed
 Blocked by: 01
 
 ## Question
