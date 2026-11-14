@@ -1,7 +1,7 @@
 # Grilling: Capture flow
 
 Type: grilling
-Status: open
+Status: claimed
 Blocked by: 
 
 ## Question
