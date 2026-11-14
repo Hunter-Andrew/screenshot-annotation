@@ -34,6 +34,7 @@ Accepted ADRs in `docs/adr/` (one per decision), an up-to-date `GLOSSARY.md`, an
 - [Grilling: Capture flow](issues/06-capture-flow.md): one hotkey and overlay with region, window and monitor modes, one monitor per capture, release captures instantly into a single pre-warmed editor ([ADR 0003](../../docs/adr/0003-prewarmed-hidden-windows.md)), and a Library Strip along the editor's bottom.
 - [Grilling: Annotated Image storage format](issues/07-annotated-image-storage.md): one finished-looking PNG per image in month folders, with the Capture and Annotations embedded; Exports are always plain ([ADR 0004](../../docs/adr/0004-single-png-with-embedded-editable-data.md)).
 - [Grilling: UI framework and canvas library](issues/11-ui-framework-canvas.md): React + TypeScript; an app-owned Annotation model ([ADR 0005](../../docs/adr/0005-app-owned-annotation-model.md)); persistent 200-step undo kept in local app data with 2-month expiry. The canvas library goes to a prototype.
+- [Grilling: Distribution and updates](issues/09-distribution-updates.md): tag-triggered public GitHub Releases, manual install-over updates, unsigned, no network calls ([ADR 0006](../../docs/adr/0006-manual-updates-unsigned-no-network.md)).
 
 ## Not yet specified
 

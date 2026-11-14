@@ -15,6 +15,10 @@ A Windows desktop app for capturing and annotating screenshots, in the style of 
 
 [Tauri 2](docs/adr/0001-tauri-2-per-user-nsis.md): a React + TypeScript UI with Rust for the Windows integration, shipped as a per-user NSIS installer (no admin). Builds run on GitHub Actions; the work laptop only downloads and installs.
 
+## Install and update
+
+Once released: download the latest `Setup.exe` from [Releases](https://github.com/Hunter-Andrew/screenshot-annotation/releases) and run it. No admin is needed. Windows SmartScreen may say "Windows protected your PC"; choose **More info → Run anyway**. To update, run the newer setup over the old one; your Library and settings are kept. The app never connects to the internet.
+
 ## Architecture decisions
 
 | ADR | Title | Status |
@@ -24,6 +28,7 @@ A Windows desktop app for capturing and annotating screenshots, in the style of 
 | [0003](docs/adr/0003-prewarmed-hidden-windows.md) | Keep overlay and editor windows pre-warmed | Accepted |
 | [0004](docs/adr/0004-single-png-with-embedded-editable-data.md) | One PNG per Annotated Image, with editable data embedded | Accepted |
 | [0005](docs/adr/0005-app-owned-annotation-model.md) | Annotations use an app-owned model | Accepted |
+| [0006](docs/adr/0006-manual-updates-unsigned-no-network.md) | Manual updates from public GitHub Releases; unsigned; no network | Accepted |
 
 ## Development
 
