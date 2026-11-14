@@ -19,7 +19,9 @@ A cross-platform desktop app for capturing and annotating screenshots, in the st
 
 | ADR | Title | Status |
 | --- | --- | --- |
-| [0001](docs/adr/0001-architecture.md) | Architecture | Proposed |
+| [0001](docs/adr/0001-tauri-2-per-user-nsis.md) | Tauri 2 with a per-user NSIS installer | Accepted |
+| [0002](docs/adr/0002-non-destructive-blur-and-crop.md) | Blur and crop are non-destructive | Accepted |
+| [0003](docs/adr/0003-prewarmed-hidden-windows.md) | Keep overlay and editor windows pre-warmed | Accepted |
 
 ## Development
 
