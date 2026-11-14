@@ -1,7 +1,7 @@
 # Prototype: Konva vs Fabric text editing
 
 Type: prototype
-Status: open
+Status: claimed
 Blocked by: 11
 
 ## Question
