@@ -1,7 +1,7 @@
 # Prototype: Editor layout and tool behavior
 
 Type: prototype
-Status: open
+Status: claimed
 Blocked by: 12
 
 ## Question
