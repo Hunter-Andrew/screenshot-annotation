@@ -1,7 +1,7 @@
 # Grilling: Settings screen
 
 Type: grilling
-Status: open
+Status: claimed
 Blocked by: 
 
 ## Question
