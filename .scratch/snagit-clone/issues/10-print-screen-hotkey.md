@@ -1,7 +1,7 @@
 # Grilling: Claiming Print Screen from Snipping Tool
 
 Type: grilling
-Status: open
+Status: claimed
 Blocked by: 03
 
 ## Question
