@@ -24,6 +24,10 @@ _Avoid_: Trim, cut
 The collection of every Annotated Image the user has made.
 _Avoid_: History, gallery
 
+**Library Strip**:
+The horizontal row of Annotated Image thumbnails along the bottom of the editor; one of two views of the Library (the other is the full grid).
+_Avoid_: Tray (means the Windows system tray), filmstrip, recent captures
+
 **Export**:
 The flattened image produced from an Annotated Image, e.g. for the clipboard.
 _Avoid_: Render, output

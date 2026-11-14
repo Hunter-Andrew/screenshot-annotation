@@ -1,7 +1,7 @@
 # Grilling: Annotated Image storage format
 
 Type: grilling
-Status: open
+Status: claimed
 Blocked by: 
 
 ## Question
