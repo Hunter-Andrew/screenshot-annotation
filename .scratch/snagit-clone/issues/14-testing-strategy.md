@@ -1,7 +1,7 @@
 # Grilling: Testing strategy
 
 Type: grilling
-Status: open
+Status: claimed
 Blocked by: 
 
 ## Question
