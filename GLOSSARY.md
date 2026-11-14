@@ -29,5 +29,5 @@ The horizontal row of Annotated Image thumbnails along the bottom of the editor;
 _Avoid_: Tray (means the Windows system tray), filmstrip, recent captures
 
 **Export**:
-The flattened image produced from an Annotated Image, e.g. for the clipboard.
+The flattened image produced from an Annotated Image for use outside the app (clipboard or Save as). It is a plain image that never carries the editable data or the original Capture.
 _Avoid_: Render, output

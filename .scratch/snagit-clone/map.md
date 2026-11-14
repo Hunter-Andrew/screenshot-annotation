@@ -32,13 +32,13 @@ Accepted ADRs in `docs/adr/` (one per decision), an up-to-date `GLOSSARY.md`, an
 - [Grilling: Choose the tech stack](issues/03-choose-stack.md): Tauri 2 + per-user NSIS installer, built on GitHub Actions ([ADR 0001](../../docs/adr/0001-tauri-2-per-user-nsis.md)).
 - [Grilling: Annotation tools and their properties](issues/05-annotation-tool-set.md): 8 tools (arrow, line, pen, rect, ellipse, text, callout, highlighter, pixelate blur) built from shared property groups; crop and blur are non-destructive ([ADR 0002](../../docs/adr/0002-non-destructive-blur-and-crop.md)).
 - [Grilling: Capture flow](issues/06-capture-flow.md): one hotkey and overlay with region, window and monitor modes, one monitor per capture, release captures instantly into a single pre-warmed editor ([ADR 0003](../../docs/adr/0003-prewarmed-hidden-windows.md)), and a Library Strip along the editor's bottom.
+- [Grilling: Annotated Image storage format](issues/07-annotated-image-storage.md): one finished-looking PNG per image in month folders, with the Capture and Annotations embedded; Exports are always plain ([ADR 0004](../../docs/adr/0004-single-png-with-embedded-editable-data.md)).
 
 ## Not yet specified
 
 - Ordered build plan / milestones (needs stack + UX decisions first).
 - Testing strategy (depends on stack).
 - Settings surface (hotkey rebinding, default colors, startup toggle): what is configurable and where.
-- Behavior when the Library is on OneDrive and files are cloud-only or mid-sync.
 - Accessibility and keyboard-only operation of the editor.
 
 ## Out of scope

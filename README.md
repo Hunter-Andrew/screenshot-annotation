@@ -9,7 +9,7 @@ A Windows desktop app for capturing and annotating screenshots, in the style of 
 1. **Capture**: press Print Screen (fallback `Ctrl+Shift+S`). Drag a region, click a window, or press Space for the whole monitor. There's an optional 3/5/10 s delay. The editor opens instantly.
 2. **Annotate**: text, callouts, arrows, lines, freehand pen, rectangles, ellipses, highlighter, pixelate blur, and crop. Everything stays editable.
 3. **Copy**: one click puts the finished image on the clipboard. "Save as PNG…" is also available.
-4. **Library**: a strip of thumbnails along the bottom of the editor (expandable to a full grid) to browse every past capture, reopen it with annotations still editable, and delete in one step. Stored in `Pictures\Screenshot Annotation`.
+4. **Library**: a strip of thumbnails along the bottom of the editor (expandable to a full grid) to browse every past capture, reopen it with annotations still editable, and delete in one step. Each image is one PNG in `Pictures\Screenshot Annotation` that opens anywhere and stays editable in the app.
 
 ## Stack
 
@@ -22,6 +22,7 @@ A Windows desktop app for capturing and annotating screenshots, in the style of 
 | [0001](docs/adr/0001-tauri-2-per-user-nsis.md) | Tauri 2 with a per-user NSIS installer | Accepted |
 | [0002](docs/adr/0002-non-destructive-blur-and-crop.md) | Blur and crop are non-destructive | Accepted |
 | [0003](docs/adr/0003-prewarmed-hidden-windows.md) | Keep overlay and editor windows pre-warmed | Accepted |
+| [0004](docs/adr/0004-single-png-with-embedded-editable-data.md) | One PNG per Annotated Image, with editable data embedded | Accepted |
 
 ## Development
 
