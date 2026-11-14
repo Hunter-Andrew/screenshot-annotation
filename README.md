@@ -13,7 +13,7 @@ A Windows desktop app for capturing and annotating screenshots, in the style of 
 
 ## Stack
 
-[Tauri 2](docs/adr/0001-tauri-2-per-user-nsis.md): a TypeScript UI with Rust for the Windows integration, shipped as a per-user NSIS installer (no admin). Builds run on GitHub Actions; the work laptop only downloads and installs.
+[Tauri 2](docs/adr/0001-tauri-2-per-user-nsis.md): a React + TypeScript UI with Rust for the Windows integration, shipped as a per-user NSIS installer (no admin). Builds run on GitHub Actions; the work laptop only downloads and installs.
 
 ## Architecture decisions
 
@@ -23,6 +23,7 @@ A Windows desktop app for capturing and annotating screenshots, in the style of 
 | [0002](docs/adr/0002-non-destructive-blur-and-crop.md) | Blur and crop are non-destructive | Accepted |
 | [0003](docs/adr/0003-prewarmed-hidden-windows.md) | Keep overlay and editor windows pre-warmed | Accepted |
 | [0004](docs/adr/0004-single-png-with-embedded-editable-data.md) | One PNG per Annotated Image, with editable data embedded | Accepted |
+| [0005](docs/adr/0005-app-owned-annotation-model.md) | Annotations use an app-owned model | Accepted |
 
 ## Development
 
