@@ -29,6 +29,7 @@ Accepted ADRs in `docs/adr/` (one per decision), an up-to-date `GLOSSARY.md`, an
 
 - [Research: Windows tech stack candidates](issues/01-windows-stack-research.md): shortlist .NET WPF (best Win32 fit) and Tauri 2 (smallest, web canvas); Electron dropped.
 - [Task: Prove a per-user install works on the work laptop](issues/02-no-admin-install-test.md): both Tauri and .NET install, run, capture and copy without admin (SmartScreen can be bypassed). Print Screen gets swallowed by Snipping Tool.
+- [Grilling: Choose the tech stack](issues/03-choose-stack.md): Tauri 2 + per-user NSIS installer, built on GitHub Actions ([ADR 0001](../../docs/adr/0001-tauri-2-per-user-nsis.md)).
 
 ## Not yet specified
 

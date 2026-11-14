@@ -11,9 +11,9 @@ A cross-platform desktop app for capturing and annotating screenshots, in the st
 3. **Copy**: one click (or `Ctrl/Cmd+C`) puts the flattened image on the clipboard.
 4. **Library**: browse every past capture and reopen it; annotations stay editable.
 
-## Planned stack
+## Stack
 
-Electron, TypeScript, React, Vite, and Konva. Captures are stored locally and non-destructively (original image + annotation JSON).
+[Tauri 2](docs/adr/0001-tauri-2-per-user-nsis.md): a TypeScript UI with Rust for the Windows integration, shipped as a per-user NSIS installer (no admin). Builds run on GitHub Actions; the work laptop only downloads and installs.
 
 ## Architecture decisions
 
