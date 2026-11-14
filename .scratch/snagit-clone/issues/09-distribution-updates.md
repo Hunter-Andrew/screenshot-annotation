@@ -1,7 +1,7 @@
 # Grilling: Distribution and updates
 
 Type: grilling
-Status: open
+Status: claimed
 Blocked by: 03
 
 ## Question
