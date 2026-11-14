@@ -1,7 +1,7 @@
 # Grilling: Build order and milestones
 
 Type: grilling
-Status: open
+Status: claimed
 Blocked by: 08, 13, 14
 
 ## Question
