@@ -16,7 +16,7 @@ const nsis = config.bundle.windows.nsis;
 function hooks(): string {
   const text = readFileSync(resolve(tauriDir, nsis.installerHooks), "utf8");
   return text
-    .split("\n")
+    .split(/\r?\n/)
     .map((line) => line.replace(/^\s*[;#].*$/, ""))
     .join("\n");
 }
