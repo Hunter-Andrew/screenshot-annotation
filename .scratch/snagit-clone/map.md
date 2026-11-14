@@ -38,6 +38,7 @@ Accepted ADRs in `docs/adr/` (one per decision), an up-to-date `GLOSSARY.md`, an
 - [Grilling: Claiming Print Screen from Snipping Tool](issues/10-print-screen-hotkey.md): detect the Snipping Tool setting, show a one-time notice deep-linking to the Windows toggle, and make the hotkey rebindable (default Print Screen, fallback Ctrl+Shift+S).
 - [Prototype: Konva vs Fabric text editing](issues/12-konva-vs-fabric-prototype.md): Fabric.js, chosen for its built-in on-canvas text editing; callouts use a Textbox with synced box and tail shapes.
 - [Prototype: Editor layout and tool behavior](issues/04-editor-ux-prototype.md): Snagit-style side panels (tools left, Style right, actions top, Library Strip bottom) with single-key tool shortcuts.
+- [Prototype: Library window](issues/08-library-ux-prototype.md): "All captures" opens a full-window date-grouped grid; hover Copy/✕, multi-select delete with Undo, and Capture plus delay buttons in the top bar.
 
 ## Not yet specified
 

@@ -1,7 +1,7 @@
 # Prototype: Library window
 
 Type: prototype
-Status: claimed
+Status: resolved
 Blocked by: 04, 07
 
 ## Question
@@ -20,4 +20,17 @@ Prototype: the chosen editor shell (layout A) with a working Library Strip and t
 
 All variants share date grouping, hover Copy/✕, Ctrl/Shift multi-select, the Delete key with an Undo notice, and Capture / in 3s / 5s / 10s buttons.
 
-Awaiting Andrew's verdict.
+Verdict below.
+
+## Answer
+
+**Variant B: full-window grid.** Andrew chose it on 2026-11-14.
+- **Opening it:** "⤢ All captures (N)" at the end of the Library Strip switches the whole window to the grid. The tool and Style panels and the strip are hidden while it's open. "Back to editor" or **Esc** returns.
+- **Grid:** large thumbnails (~230 px wide), grouped under date headings (Today, Yesterday, weekday + date, then month), each showing its time and pixel size.
+- **Header bar:** the capture count and selection count; "Delete N" and "Clear selection" when items are selected; "Back to editor (Esc)".
+- **Opening an image:** click a thumbnail to open it in the editor.
+- **Deleting** works the same in the grid and the strip: a hover ✕ (plus a hover Copy), Ctrl/Shift+click multi-select, the Delete key, and the Recycle Bin with an Undo notice.
+- **Capture and delay timer:** the top bar holds Capture plus "in 3s / 5s / 10s", next to the tray menu entries.
+- **Empty state:** "No captures yet. Press Print Screen to take one."
+
+The in-canvas grid (A) and grid with preview pane (C) were rejected. The Library Strip stays as prototyped (~150 px thumbnails with hover Copy/✕).
