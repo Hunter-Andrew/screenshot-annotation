@@ -259,7 +259,7 @@ The app makes no network calls. Updates are manual installs from public GitHub R
 
 **Build order:** milestones M0 Skeleton (v0.1) → M1 Capture → Copy (v0.2) → M2 Annotate (v0.3) → M3 Library (v0.4) → M4 Complete (v1.0).
 - M1 already saves captures in the final format.
-- M0 is ticketed separately; later milestones are ticketed when reached.
+- Ticketed as 24 vertical slices in `.scratch/v1/issues/`.
 
 ## Testing Decisions
 
