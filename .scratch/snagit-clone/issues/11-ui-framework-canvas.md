@@ -1,7 +1,7 @@
 # Grilling: UI framework and canvas library
 
 Type: grilling
-Status: open
+Status: claimed
 Blocked by: 03
 
 ## Question
