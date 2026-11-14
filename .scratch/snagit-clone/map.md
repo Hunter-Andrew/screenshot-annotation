@@ -40,6 +40,7 @@ Accepted ADRs in `docs/adr/` (one per decision), an up-to-date `GLOSSARY.md`, an
 - [Prototype: Editor layout and tool behavior](issues/04-editor-ux-prototype.md): Snagit-style side panels (tools left, Style right, actions top, Library Strip bottom) with single-key tool shortcuts.
 - [Prototype: Library window](issues/08-library-ux-prototype.md): "All captures" opens a full-window date-grouped grid; hover Copy/✕, multi-select delete with Undo, and Capture plus delay buttons in the top bar.
 - [Grilling: Settings screen](issues/13-settings-screen.md): a small Settings window (hotkey, launch at sign-in, read-only Library folder, reset tool styles, About); tray menu with left-click to open the editor; closing the editor hides it to the tray.
+- [Grilling: Testing strategy](issues/14-testing-strategy.md): test-first unit tests for the model, PNG embedding, export safety, history and Library; a small Playwright end-to-end suite; Windows CI gating releases; a manual 10-minute release checklist (including speed) that agents remind Andrew to run.
 
 ## Not yet specified
 

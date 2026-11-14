@@ -11,3 +11,7 @@ Default vocabulary (needs-triage, needs-info, ready-for-agent, ready-for-human, 
 ### Domain docs
 
 Single-context: one root `GLOSSARY.md` plus `docs/adr/`. See `docs/agents/domain.md`.
+
+### Releases
+
+Before tagging or publishing any release (`vX.Y.Z`), remind Andrew to run the manual checklist in `docs/release-checklist.md` on his work laptop, and don't call the release done until he confirms it passed.
