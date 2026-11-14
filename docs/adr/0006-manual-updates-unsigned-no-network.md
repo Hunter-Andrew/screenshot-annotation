@@ -10,3 +10,7 @@ New versions are published as GitHub Releases on this public repo when a `vX.Y.Z
 
 - **Tauri updater with an update-signing key:** rejected; Andrew prefers manual updates.
 - **Private repo:** rejected; downloads would need a GitHub sign-in on the work laptop.
+
+## Update 2026-11-14: signing is now required for the work laptop
+
+Windows Smart App Control (unlike SmartScreen) blocks an unsigned installer with no "Run anyway" option, so the unsigned assumption above no longer holds there. CI now signs the installer with Azure Trusted Signing whenever the signing secrets are configured (see `.github/workflows/ci.yml`) and fails the build if the result is not validly signed. Without the secrets the build is unsigned, as before. A new signing identity may still need to build reputation, so check the release on the laptop before relying on it.
