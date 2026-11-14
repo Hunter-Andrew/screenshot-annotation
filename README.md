@@ -1,15 +1,15 @@
 # screenshot-annotation
 
-A cross-platform desktop app for capturing and annotating screenshots, in the style of Snagit (images only, no video).
+A Windows desktop app for capturing and annotating screenshots, in the style of Snagit (images only, no video). It installs per-user, with no admin rights needed.
 
-> **Status:** Design phase. No code yet. See the architecture decision in [docs/adr/0001-architecture.md](docs/adr/0001-architecture.md).
+> **Status:** Planning. No app code yet. Open decisions are tracked in [.scratch/snagit-clone/map.md](.scratch/snagit-clone/map.md); terms are defined in [GLOSSARY.md](GLOSSARY.md).
 
 ## Workflow
 
-1. **Capture**: press the hotkey (default `Ctrl/Cmd+Shift+2`) and drag a region, click a window, or press Enter for the full screen.
+1. **Capture**: press Print Screen (fallback `Ctrl+Shift+S`). Drag a region, click a window, or press Space for the whole monitor. There's an optional 3/5/10 s delay. The editor opens instantly.
 2. **Annotate**: text, callouts, arrows, lines, freehand pen, rectangles, ellipses, highlighter, pixelate blur, and crop. Everything stays editable.
-3. **Copy**: one click (or `Ctrl/Cmd+C`) puts the flattened image on the clipboard.
-4. **Library**: a strip of thumbnails along the bottom of the editor (expandable to a full grid) to browse every past capture and reopen it; annotations stay editable.
+3. **Copy**: one click puts the finished image on the clipboard. "Save as PNG…" is also available.
+4. **Library**: a strip of thumbnails along the bottom of the editor (expandable to a full grid) to browse every past capture, reopen it with annotations still editable, and delete in one step. Stored in `Pictures\Screenshot Annotation`.
 
 ## Stack
 
@@ -25,7 +25,7 @@ A cross-platform desktop app for capturing and annotating screenshots, in the st
 
 ## Development
 
-Setup instructions will be added once implementation begins.
+Setup instructions will be added once implementation begins. The `probes/` folder and `.github/workflows/probes.yml` are throwaway install tests and will be removed.
 
 ## License
 
