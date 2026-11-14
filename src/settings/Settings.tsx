@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import type { PlatformBridge } from "../platform/bridge";
-
-export const RELEASES_URL = "https://github.com/Hunter-Andrew/screenshot-annotation/releases";
+import { MAIN_STYLE, RELEASES_URL } from "../shared/constants";
 
 export function Settings({ bridge }: { bridge: PlatformBridge }) {
   const [version, setVersion] = useState<string | null>(null);
@@ -10,7 +9,7 @@ export function Settings({ bridge }: { bridge: PlatformBridge }) {
   }, [bridge]);
 
   return (
-    <main style={{ fontFamily: "system-ui, sans-serif", padding: 16 }}>
+    <main style={MAIN_STYLE}>
       <h1 style={{ fontSize: 18 }}>Settings</h1>
       <section aria-labelledby="about-heading">
         <h2 id="about-heading" style={{ fontSize: 15 }}>
