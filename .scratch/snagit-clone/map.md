@@ -35,12 +35,13 @@ Accepted ADRs in `docs/adr/` (one per decision), an up-to-date `GLOSSARY.md`, an
 - [Grilling: Annotated Image storage format](issues/07-annotated-image-storage.md): one finished-looking PNG per image in month folders, with the Capture and Annotations embedded; Exports are always plain ([ADR 0004](../../docs/adr/0004-single-png-with-embedded-editable-data.md)).
 - [Grilling: UI framework and canvas library](issues/11-ui-framework-canvas.md): React + TypeScript; an app-owned Annotation model ([ADR 0005](../../docs/adr/0005-app-owned-annotation-model.md)); persistent 200-step undo kept in local app data with 2-month expiry. The canvas library goes to a prototype.
 - [Grilling: Distribution and updates](issues/09-distribution-updates.md): tag-triggered public GitHub Releases, manual install-over updates, unsigned, no network calls ([ADR 0006](../../docs/adr/0006-manual-updates-unsigned-no-network.md)).
+- [Grilling: Claiming Print Screen from Snipping Tool](issues/10-print-screen-hotkey.md): detect the Snipping Tool setting, show a one-time notice deep-linking to the Windows toggle, and make the hotkey rebindable (default Print Screen, fallback Ctrl+Shift+S).
 
 ## Not yet specified
 
 - Ordered build plan / milestones (needs stack + UX decisions first).
 - Testing strategy (depends on stack).
-- Settings surface (hotkey rebinding, default colors, startup toggle): what is configurable and where.
+- Settings surface (hotkey rebinding, startup toggle, delete-app-data, etc.): layout and where it lives.
 - Accessibility and keyboard-only operation of the editor.
 
 ## Out of scope
@@ -53,5 +54,6 @@ Accepted ADRs in `docs/adr/` (one per decision), an up-to-date `GLOSSARY.md`, an
 - Version history of an Annotated Image.
 - Step numbers: deferred to a future phase ([Annotation tools and their properties](issues/05-annotation-tool-set.md)).
 - Magnifier / spotlight tools; curved or elbow arrows; non-pixelate blur; "permanently apply blur".
+- Low-level keyboard hooks to steal Print Screen ([Claiming Print Screen from Snipping Tool](issues/10-print-screen-hotkey.md)).
 - macOS / Linux.
 - Browser-based app.
