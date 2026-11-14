@@ -16,6 +16,10 @@ _Avoid_: Shape, markup, object
 A Capture together with its Annotations, kept editable.
 _Avoid_: Document, project, file
 
+**Crop**:
+The visible area of an Annotated Image. It narrows what is shown and exported without discarding any of the Capture.
+_Avoid_: Trim, cut
+
 **Library**:
 The collection of every Annotated Image the user has made.
 _Avoid_: History, gallery
