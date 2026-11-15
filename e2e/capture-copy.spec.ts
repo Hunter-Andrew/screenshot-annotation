@@ -81,3 +81,24 @@ test("Save as PNG… writes a plain PNG and Discard removes the Library file", a
   await expect(page.getByText("Press Ctrl+Shift+S to capture")).toBeVisible();
   expect(await page.evaluate(() => window.__fakeBridge.libraryFiles.length)).toBe(0);
 });
+
+test("a new capture is already on the clipboard as a plain PNG, and the editor says so", async ({ page }) => {
+  await page.goto("/");
+  // The platform copies the Capture when it delivers it; the fake bridge stands in for that.
+  await page.evaluate((rgba) => {
+    (window.__fakeBridge as unknown as { simulateCapture(s: object): void }).simulateCapture({
+      width: 2,
+      height: 2,
+      rgba,
+      clipboard: "copied",
+    });
+  }, PIXELS);
+
+  await expect(page.getByRole("status")).toContainText("Copied to clipboard");
+  await expect(page.getByRole("img", { name: "Capture" })).toBeVisible();
+  const copied = await page.evaluate(() => window.__fakeBridge.copiedImages.map((b) => Array.from(b)));
+  expect(copied).toHaveLength(1);
+  const clipboard = Uint8Array.from(copied[0]!);
+  expect(hasChunk(clipboard, "snAP")).toBe(false);
+  expect(decodePixels(clipboard)).toEqual({ width: 2, height: 2, rgba: PIXELS });
+});

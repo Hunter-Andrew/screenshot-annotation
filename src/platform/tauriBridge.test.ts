@@ -26,16 +26,37 @@ describe("unpackFrame", () => {
 
 describe("unpackCapture", () => {
   it("accepts a plain byte array too, and treats an empty reply as no capture", () => {
-    const bytes = new Uint8Array(16 + 2);
+    const bytes = new Uint8Array(17 + 2);
     const view = new DataView(bytes.buffer);
     view.setUint32(0, 5, true);
     view.setUint32(4, 4, true);
     view.setFloat64(8, 1500, true);
-    bytes.set([7, 8], 16);
+    bytes[16] = 0;
+    bytes.set([7, 8], 17);
     const capture = unpackCapture(Array.from(bytes) as unknown as ArrayBuffer);
     expect([capture?.width, capture?.height, capture?.capturedAt.getTime()]).toEqual([5, 4, 1500]);
     expect(Array.from(capture!.png)).toEqual([7, 8]);
     expect(unpackCapture(new ArrayBuffer(0))).toBeNull();
     expect(unpackCapture([] as unknown as ArrayBuffer)).toBeNull();
+  });
+});
+
+describe("unpackCapture clipboard outcome", () => {
+  const body = (flag: number) => {
+    const bytes = new Uint8Array(17 + 2);
+    const view = new DataView(bytes.buffer);
+    view.setUint32(0, 5, true);
+    view.setUint32(4, 4, true);
+    view.setFloat64(8, 1500, true);
+    bytes[16] = flag;
+    bytes.set([7, 8], 17);
+    return bytes.buffer;
+  };
+
+  it("reads whether the platform copied the capture, failed to, or did not try", () => {
+    expect(unpackCapture(body(0))?.clipboard).toBeUndefined();
+    expect(unpackCapture(body(1))?.clipboard).toBe("copied");
+    expect(unpackCapture(body(2))?.clipboard).toBe("failed");
+    expect(Array.from(unpackCapture(body(1))!.png)).toEqual([7, 8]);
   });
 });

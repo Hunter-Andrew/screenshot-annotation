@@ -12,6 +12,12 @@ export interface CaptureResult {
   /** When the screen was read; names the Library file. */
   capturedAt: Date;
   png: Uint8Array;
+  /**
+   * What the platform did with the clipboard when it delivered this Capture: it copies the plain
+   * cropped Capture itself, once per new capture ("copied" or "failed"). Absent: it did not try.
+   * The editor only reports this; it never copies a new capture on its own.
+   */
+  clipboard?: "copied" | "failed";
 }
 
 /** One monitor frozen at the moment of the hotkey: a plain PNG at the monitor's native resolution. */
@@ -42,6 +48,8 @@ export interface HotkeyState {
   accelerator: string;
   /** False when the OS refused the combination at startup (another app has it). */
   registered: boolean;
+  /** Bare Print Screen only: the Raw Input listener could not start (details in capture.log). */
+  rawInputFailed?: boolean;
 }
 
 export type SetHotkeyResult =
@@ -89,9 +97,19 @@ export interface PlatformBridge {
    * the platform also tears every overlay down and tells the user what went wrong. Never throws.
    */
   logOverlay(message: string, fatal?: boolean): Promise<void>;
-  /** Toggle the magnifier on every overlay (keys reach only the focused overlay window). */
-  toggleOverlayMagnifier(): Promise<void>;
-  onOverlayMagnifier(handler: () => void): Promise<() => void>;
+  /**
+   * Whether the capture overlay shows its magnifier: a stored setting (default true on a fresh
+   * install) that each overlay reads when it starts and the Settings window can change too.
+   */
+  getMagnifier(): Promise<boolean>;
+  /**
+   * Store the magnifier setting at once and tell every overlay (and Settings) the new value via
+   * `onOverlayMagnifier`. If the platform cannot write the file it keeps the value in memory for
+   * this run and logs the failure; the overlay is never broken by it.
+   */
+  setMagnifier(enabled: boolean): Promise<void>;
+  /** The magnifier setting changed (from any window); delivers the new value, not a toggle. */
+  onOverlayMagnifier(handler: (enabled: boolean) => void): Promise<() => void>;
 
   /** The capture hotkey (an accelerator such as "ctrl+shift+s") and whether the OS accepted it. */
   getHotkey(): Promise<HotkeyState>;
@@ -104,11 +122,17 @@ export interface PlatformBridge {
   /**
    * Whether the Windows setting PrintScreenKeyForSnippingEnabled leaves Print Screen with Snipping
    * Tool (anything but an explicit 0; read-only, the app never writes it), and whether the user
-   * already answered the one-time notice.
+   * already answered the one-time notice. `snippingEnabled` is re-read from the registry on every
+   * call, so callers can poll it (e.g. when the Settings window regains focus).
    */
   getPrintScreenNotice(): Promise<{ snippingEnabled: boolean; dismissed: boolean }>;
   /** Record that the notice was answered so it is never shown again. */
   dismissPrintScreenNotice(): Promise<void>;
+  /**
+   * Write a line to the diagnostics log (`capture.log`) from the Settings page, e.g. what the hotkey
+   * recorder received. Never throws.
+   */
+  logSettings(message: string): Promise<void>;
   /** Open Windows Settings at Accessibility > Keyboard. */
   openKeyboardAccessibilitySettings(): Promise<void>;
 

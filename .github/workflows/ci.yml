@@ -18,6 +18,37 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Smart App Control blocks unsigned installers, so an unsigned build must never be mistaken
+      # for a signed one: it is named ...-UNSIGNED, flagged in the run summary, and a release
+      # tag (v*) refuses to build without signing. Half-configured signing is an error too.
+      - name: Check signing configuration
+        id: signing
+        shell: bash
+        run: |
+          missing=()
+          [ -z "$AZURE_CLIENT_ID" ] && missing+=("secret AZURE_CLIENT_ID")
+          [ -z "$AZURE_CLIENT_SECRET" ] && missing+=("secret AZURE_CLIENT_SECRET")
+          [ -z "$AZURE_TENANT_ID" ] && missing+=("secret AZURE_TENANT_ID")
+          [ -z "$TRUSTED_SIGNING_ENDPOINT" ] && missing+=("variable TRUSTED_SIGNING_ENDPOINT")
+          [ -z "$TRUSTED_SIGNING_ACCOUNT" ] && missing+=("variable TRUSTED_SIGNING_ACCOUNT")
+          [ -z "$TRUSTED_SIGNING_PROFILE" ] && missing+=("variable TRUSTED_SIGNING_PROFILE")
+          if [ ${#missing[@]} -eq 0 ]; then
+            echo "signed=true" >> "$GITHUB_OUTPUT"
+            echo "artifact=Screenshot-Annotation-Setup" >> "$GITHUB_OUTPUT"
+            echo "Signing: configured (Azure Trusted Signing)." >> "$GITHUB_STEP_SUMMARY"
+          else
+            list="$(IFS=,; echo "${missing[*]}")"
+            echo "signed=false" >> "$GITHUB_OUTPUT"
+            echo "artifact=Screenshot-Annotation-Setup-UNSIGNED" >> "$GITHUB_OUTPUT"
+            echo "::warning title=Installer will be UNSIGNED::Smart App Control blocks unsigned installers. Not configured: $list"
+            echo "### UNSIGNED installer" >> "$GITHUB_STEP_SUMMARY"
+            echo "Smart App Control will block this build. Not configured: $list. Add them under Settings > Secrets and variables > Actions (secrets AZURE_*, variables TRUSTED_SIGNING_*)." >> "$GITHUB_STEP_SUMMARY"
+            if [ "${#missing[@]}" -lt 6 ] || [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+              echo "::error::Signing is required here (a release tag, or only partly configured). Not configured: $list"
+              exit 1
+            fi
+          fi
+
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -53,21 +84,21 @@ jobs:
       # exist (ADR 0006); otherwise the build is unsigned, as before. Smart App Control blocks
       # unsigned installers, so releases should be signed.
       - name: Install signing tool
-        if: env.AZURE_CLIENT_ID != ''
+        if: steps.signing.outputs.signed == 'true'
         run: cargo install trusted-signing-cli --locked
 
       - name: Build installer (signed)
-        if: env.AZURE_CLIENT_ID != ''
+        if: steps.signing.outputs.signed == 'true'
         shell: bash
         run: |
           npx tauri build --config "{\"bundle\":{\"windows\":{\"signCommand\":\"trusted-signing-cli -e $TRUSTED_SIGNING_ENDPOINT -a $TRUSTED_SIGNING_ACCOUNT -c $TRUSTED_SIGNING_PROFILE -d \\\"Screenshot Annotation\\\" %1\"}}}"
 
       - name: Build installer (unsigned)
-        if: env.AZURE_CLIENT_ID == ''
+        if: steps.signing.outputs.signed != 'true'
         run: npx tauri build
 
       - name: Verify signature
-        if: env.AZURE_CLIENT_ID != ''
+        if: steps.signing.outputs.signed == 'true'
         shell: pwsh
         run: |
           Get-ChildItem src-tauri/target/release/bundle/nsis/*.exe | ForEach-Object {
@@ -78,7 +109,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: Screenshot-Annotation-Setup
+          name: ${{ steps.signing.outputs.artifact }}
           path: src-tauri/target/release/bundle/nsis/*.exe
           if-no-files-found: error
 

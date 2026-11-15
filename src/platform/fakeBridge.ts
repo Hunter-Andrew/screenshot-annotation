@@ -7,6 +7,8 @@ export interface SimulatedShot {
   height: number;
   rgba: ArrayLike<number>;
   capturedAt?: Date;
+  /** What the platform's automatic clipboard copy did: "copied" puts the plain PNG on the fake clipboard. */
+  clipboard?: "copied" | "failed";
 }
 
 export interface FakeBridge extends PlatformBridge {
@@ -44,6 +46,14 @@ export interface FakeBridge extends PlatformBridge {
   readonly takenHotkeys: Set<string>;
   /** How many times the Accessibility > Keyboard deep link was opened. */
   readonly keyboardSettingsOpened: number;
+  /** Lines the Settings page wrote to the diagnostics log. */
+  readonly settingsLogs: string[];
+  /** Mimic the user flipping the Windows Print Screen toggle (true = still opens Snipping Tool). */
+  setPrintScreenSnipping(enabled: boolean): void;
+  /** Whether the one-time Print Screen notice was answered. */
+  readonly printScreenNoticeDismissed: boolean;
+  /** The stored magnifier setting (`fake.magnifier` in the fake storage; on for a fresh fake). */
+  readonly magnifier: boolean;
 }
 
 /** Fake setting storage; the browser build passes localStorage so e2e reloads keep it. */
@@ -67,6 +77,8 @@ export function createFakeBridge(
     version?: string;
     /** Windows' PrintScreenKeyForSnippingEnabled reads as on (the default) or explicitly 0. */
     printScreenSnippingEnabled?: boolean;
+    /** The Raw Input listener for bare Print Screen cannot start (the backend then reports it as not registered). */
+    rawInputFails?: boolean;
     storage?: FakeStorage;
     overlayFrames?: Record<number, { width: number; height: number }>;
     /** Windows per monitor (topmost first, native pixels local to the monitor); none by default. */
@@ -81,13 +93,15 @@ export function createFakeBridge(
   let hotkey = store.getItem("fake.hotkey") ?? "ctrl+shift+s";
   const takenHotkeys = new Set<string>();
   let keyboardSettingsOpened = 0;
+  let snippingEnabled = options.printScreenSnippingEnabled ?? true;
+  const settingsLogs: string[] = [];
   const overlayFrameRequests: number[] = [];
   const overlayWindowRequests: number[] = [];
   const readyOverlays: number[] = [];
   const overlayOutcomes: OverlayOutcome[] = [];
   const overlayLogs: { message: string; fatal: boolean }[] = [];
   let overlayFrameFailure: string | null = null;
-  const magnifierHandlers = new Set<() => void>();
+  const magnifierHandlers = new Set<(enabled: boolean) => void>();
   const openedUrls: string[] = [];
   const copiedImages: Uint8Array[] = [];
   const libraryFiles: { path: string; bytes: Uint8Array }[] = [];
@@ -103,11 +117,14 @@ export function createFakeBridge(
     handlers.forEach((handler) => handler(capture));
   };
   const simulateCapture = (shot: SimulatedShot) => {
+    const png = encodeRgbaPng(shot.width, shot.height, Uint8Array.from(shot.rgba));
+    if (shot.clipboard === "copied") copiedImages.push(png);
     deliver({
       width: shot.width,
       height: shot.height,
       capturedAt: shot.capturedAt ?? new Date(),
-      png: encodeRgbaPng(shot.width, shot.height, Uint8Array.from(shot.rgba)),
+      png,
+      clipboard: shot.clipboard,
     });
   };
 
@@ -136,10 +153,20 @@ export function createFakeBridge(
       return hotkey;
     },
     takenHotkeys,
+    settingsLogs,
+    setPrintScreenSnipping: (enabled) => {
+      snippingEnabled = enabled;
+    },
+    get printScreenNoticeDismissed() {
+      return store.getItem("fake.printScreenNoticeDismissed") === "1";
+    },
     get keyboardSettingsOpened() {
       return keyboardSettingsOpened;
     },
-    getHotkey: async () => ({ accelerator: hotkey, registered: true }),
+    getHotkey: async () => {
+      const rawInputFailed = options.rawInputFails === true && hotkey === "PrintScreen";
+      return { accelerator: hotkey, registered: !rawInputFailed, rawInputFailed };
+    },
     setHotkey: async (accelerator) => {
       if (accelerator === hotkey) return { ok: true };
       if (takenHotkeys.has(accelerator)) return { ok: false, reason: "conflict" };
@@ -148,10 +175,13 @@ export function createFakeBridge(
       return { ok: true };
     },
     getPrintScreenNotice: async () => ({
-      snippingEnabled: options.printScreenSnippingEnabled ?? true,
+      snippingEnabled,
       dismissed: store.getItem("fake.printScreenNoticeDismissed") === "1",
     }),
     dismissPrintScreenNotice: async () => store.setItem("fake.printScreenNoticeDismissed", "1"),
+    logSettings: async (message) => {
+      settingsLogs.push(message);
+    },
     openKeyboardAccessibilitySettings: async () => {
       keyboardSettingsOpened++;
     },
@@ -204,7 +234,14 @@ export function createFakeBridge(
     logOverlay: async (message, fatal = false) => {
       overlayLogs.push({ message, fatal });
     },
-    toggleOverlayMagnifier: async () => magnifierHandlers.forEach((handler) => handler()),
+    get magnifier() {
+      return store.getItem("fake.magnifier") !== "0";
+    },
+    getMagnifier: async () => store.getItem("fake.magnifier") !== "0",
+    setMagnifier: async (enabled) => {
+      store.setItem("fake.magnifier", enabled ? "1" : "0");
+      magnifierHandlers.forEach((handler) => handler(enabled));
+    },
     onOverlayMagnifier: async (handler) => {
       magnifierHandlers.add(handler);
       return () => {

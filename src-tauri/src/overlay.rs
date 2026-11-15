@@ -13,7 +13,7 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
 use tauri::ipc::Response;
-use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, PhysicalSize, WebviewUrl, WebviewWindowBuilder};
+use tauri::{AppHandle, Manager, PhysicalPosition, PhysicalSize, WebviewUrl, WebviewWindowBuilder};
 
 use crate::capture::{self, MonitorFrame};
 use crate::capture_image::encode_png;
@@ -22,8 +22,9 @@ use crate::geometry::{self, MonitorBounds, Region};
 use crate::watchdog::{self, Verdict};
 
 const LABEL_PREFIX: &str = "overlay-";
-/// Event telling every overlay to toggle its magnifier (a key press only reaches one window).
-const MAGNIFIER_EVENT: &str = "overlay-magnifier";
+/// Event carrying the new magnifier setting (a bool) to every window: a key press only reaches one
+/// overlay, and the Settings checkbox changes it from yet another window. Sent by `set_magnifier`.
+pub const MAGNIFIER_EVENT: &str = "overlay-magnifier";
 
 /// What the overlay page reports; mirrors `OverlayOutcome` in `src/platform/bridge.ts`.
 #[derive(Deserialize)]
@@ -398,11 +399,6 @@ pub fn overlay_log(app: AppHandle, message: String, fatal: Option<bool>) {
     if fatal.unwrap_or(false) && app.state::<OverlayState>().busy.load(Ordering::SeqCst) {
         fail(&app, &format!("The capture overlay page failed: {message}"));
     }
-}
-
-#[tauri::command]
-pub fn overlay_toggle_magnifier(app: AppHandle) {
-    let _ = app.emit(MAGNIFIER_EVENT, ());
 }
 
 fn kind(outcome: &Outcome) -> &'static str {

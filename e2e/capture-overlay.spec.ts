@@ -41,13 +41,50 @@ test("a drag that leaves the window stops at the monitor edge", async ({ page })
     .toEqual([{ kind: "region", monitor: 1, region: { x: 600, y: 340, width: 40, height: 20 } }]);
 });
 
-test("M toggles the magnifier, Space takes the monitor, Esc cancels", async ({ page }) => {
+test("the magnifier is on for a fresh install; M turns it off and the next overlay remembers", async ({ page }) => {
   await page.mouse.move(100, 60);
-  await page.keyboard.press("m");
-  await expect(page.getByTestId("magnifier")).toBeVisible();
+  await expect(page.getByTestId("magnifier")).toBeVisible(); // no key press needed
+
   await page.keyboard.press("m");
   await expect(page.getByTestId("magnifier")).toHaveCount(0);
 
+  // The next capture opens a new overlay window: it starts in the stored state (off).
+  await page.reload();
+  await expect(page.getByRole("img", { name: "Frozen screen" })).toBeVisible();
+  await page.mouse.move(100, 60);
+  await page.mouse.move(101, 61);
+  await expect(page.getByTestId("guide-x")).toBeVisible();
+  await expect(page.getByTestId("magnifier")).toHaveCount(0);
+
+  await page.keyboard.press("M");
+  await expect(page.getByTestId("magnifier")).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole("img", { name: "Frozen screen" })).toBeVisible();
+  await page.mouse.move(100, 60);
+  await page.mouse.move(101, 61);
+  await expect(page.getByTestId("magnifier")).toBeVisible();
+});
+
+test("the Settings checkbox and the overlay share the stored magnifier value", async ({ page }) => {
+  await page.goto("/#settings"); // the beforeEach page is the overlay; a hash change alone does not re-route
+  await page.reload();
+  const box = page.getByRole("checkbox", { name: "Show the magnifier in the capture overlay" });
+  await expect(box).toBeChecked();
+  await box.uncheck();
+  await page.goto("/#overlay/1");
+  await page.reload();
+  await expect(page.getByRole("img", { name: "Frozen screen" })).toBeVisible();
+  await page.mouse.move(100, 60);
+  await page.mouse.move(101, 61);
+  await expect(page.getByTestId("guide-x")).toBeVisible();
+  await expect(page.getByTestId("magnifier")).toHaveCount(0);
+  await page.keyboard.press("m"); // back on from the overlay
+  await page.goto("/#settings");
+  await page.reload();
+  await expect(page.getByRole("checkbox", { name: "Show the magnifier in the capture overlay" })).toBeChecked();
+});
+
+test("Space takes the monitor", async ({ page }) => {
   await page.keyboard.press("Space");
   await expect
     .poll(() => outcomes(page))

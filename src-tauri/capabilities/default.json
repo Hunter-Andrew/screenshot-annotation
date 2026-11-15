@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Permissions for the Settings, editor and capture overlay windows. App commands (app_version, open_url, start_capture, take_capture, copy_image, library_save, library_discard, save_png_as, get_hotkey, set_hotkey, get_print_screen_notice, dismiss_print_screen_notice, open_keyboard_accessibility_settings, overlay_frame, overlay_windows, overlay_ready, overlay_log, overlay_finish, overlay_toggle_magnifier) are always allowed.",
+  "description": "Permissions for the Settings, editor and capture overlay windows. App commands (app_version, open_url, start_capture, take_capture, copy_image, library_save, library_discard, save_png_as, get_hotkey, set_hotkey, get_print_screen_notice, settings_log, dismiss_print_screen_notice, open_keyboard_accessibility_settings, overlay_frame, overlay_windows, overlay_ready, overlay_log, overlay_finish, get_magnifier, set_magnifier) are always allowed.",
   "windows": ["settings", "editor", "overlay-*"],
   "permissions": ["core:default"]
 }

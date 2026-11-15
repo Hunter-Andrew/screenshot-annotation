@@ -21,9 +21,38 @@ pub fn value_from_raw(is_dword: bool, bytes: &[u8]) -> Option<u32> {
     String::from_utf16(&units).ok()?.trim_end_matches('\0').trim().parse().ok()
 }
 
-/// Whether Print Screen currently belongs to Snipping Tool (see `snipping_enabled_from`).
+/// One look at the registry value: what was read (`None`: missing or unreadable) and how, for the log.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Reading {
+    pub value: Option<u32>,
+    pub note: String,
+}
+
+impl Reading {
+    /// Whether Print Screen currently belongs to Snipping Tool (see `snipping_enabled_from`).
+    pub fn enabled(&self) -> bool {
+        snipping_enabled_from(self.value)
+    }
+
+    /// One log line: the raw value, how it was read, and what it means.
+    pub fn describe(&self) -> String {
+        let value = self.value.map_or_else(|| "<unset>".to_string(), |v| v.to_string());
+        let meaning = if self.enabled() {
+            "Snipping Tool keeps Print Screen"
+        } else {
+            "Print Screen is free for other apps"
+        };
+        format!(
+            "PrintScreenKeyForSnippingEnabled={value} ({}): snipping_enabled={}, {meaning}",
+            self.note,
+            self.enabled()
+        )
+    }
+}
+
+/// Reads the registry value now (never cached; the user flips it while the app runs).
 #[cfg(windows)]
-pub fn snipping_enabled() -> bool {
+pub fn read() -> Reading {
     use windows::core::w;
     use windows::Win32::System::Registry::{
         RegGetValueW, HKEY_CURRENT_USER, REG_DWORD, REG_VALUE_TYPE, RRF_RT_REG_DWORD, RRF_RT_REG_SZ,
@@ -43,14 +72,19 @@ pub fn snipping_enabled() -> bool {
             Some(&mut size),
         )
     };
-    let value = if status.is_ok() { value_from_raw(kind == REG_DWORD, &buf[..size as usize]) } else { None };
-    snipping_enabled_from(value)
+    if !status.is_ok() {
+        return Reading { value: None, note: format!("not read, status {}", status.0) };
+    }
+    let is_dword = kind == REG_DWORD;
+    let value = value_from_raw(is_dword, &buf[..(size as usize).min(buf.len())]);
+    let note = format!("{}{}", if is_dword { "REG_DWORD" } else { "REG_SZ" }, if value.is_none() { ", unparseable" } else { "" });
+    Reading { value, note }
 }
 
 /// Non-Windows builds (tests, dev): behave like an untouched Windows 11.
 #[cfg(not(windows))]
-pub fn snipping_enabled() -> bool {
-    true
+pub fn read() -> Reading {
+    Reading { value: None, note: "not Windows".into() }
 }
 
 #[cfg(test)]
@@ -78,5 +112,25 @@ mod tests {
     #[test]
     fn the_deep_link_targets_the_accessibility_keyboard_page() {
         assert_eq!(SETTINGS_URI, "ms-settings:easeofaccess-keyboard");
+    }
+
+    #[test]
+    fn a_reading_describes_itself_for_the_log() {
+        let on = Reading { value: Some(1), note: "REG_DWORD".into() };
+        assert_eq!(
+            on.describe(),
+            "PrintScreenKeyForSnippingEnabled=1 (REG_DWORD): snipping_enabled=true, Snipping Tool keeps Print Screen"
+        );
+        let off = Reading { value: Some(0), note: "REG_SZ".into() };
+        assert_eq!(
+            off.describe(),
+            "PrintScreenKeyForSnippingEnabled=0 (REG_SZ): snipping_enabled=false, Print Screen is free for other apps"
+        );
+        let missing = Reading { value: None, note: "value not found (status 2)".into() };
+        assert_eq!(
+            missing.describe(),
+            "PrintScreenKeyForSnippingEnabled=<unset> (value not found (status 2)): snipping_enabled=true, Snipping Tool keeps Print Screen"
+        );
+        assert!(missing.enabled() && on.enabled() && !off.enabled());
     }
 }

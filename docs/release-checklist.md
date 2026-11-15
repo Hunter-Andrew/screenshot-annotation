@@ -53,6 +53,17 @@ There are no automated speed checks; judge by hand.
 - [x] **M1** Perceived speed feels instant: release to editor in under about 300 ms.
 - [ ] **M4** Speed still holds with the pre-warmed windows (the targets above), including the first capture after sign-in.
 
+## Troubleshooting: Print Screen and `settings.json`
+
+The app's data folder is `%APPDATA%\io.github.hunter-andrew.screenshot-annotation` (the `identifier` in `src-tauri/tauri.conf.json`). It holds `settings.json` and the diagnostics log `capture.log` (tray menu "Open log folder").
+
+`settings.json` has two fields:
+
+- `hotkey`: the capture hotkey, e.g. `"ctrl+shift+s"` or `"PrintScreen"`. Change it in Settings, not by hand.
+- `printScreenNoticeDismissed`: `true` means "you answered the one-time Print Screen notice" (you clicked either of its two buttons). It only stops that notice from showing again. It does not mean Print Screen works or that the Windows setting is off. To see the notice once more, quit the app, set it to `false`, and start the app.
+
+If Print Screen is the hotkey and does nothing: Windows may still be giving the key to Snipping Tool. Settings shows a warning under the hotkey field while that is the case (it reads Windows live and clears itself when you return to the window after turning the setting off). Turn off "Use the Print screen button to open screen capturing" in Windows Settings > Accessibility > Keyboard; the app never changes that setting. If there is no warning and it still does nothing, send Claude `capture.log`: it records every hotkey registration and its result, every `set_hotkey` outcome, every hotkey press the app receives (`hotkey event: ...`), what the hotkey recorder received (`settings page: hotkey recorder: ...`), and the Windows setting reading (`PrintScreenKeyForSnippingEnabled=...`). No `hotkey event` line after pressing the key means Windows did not deliver it to the app. Bare Print Screen is not registered with `RegisterHotKey` at all: it is watched through Raw Input (ADR 0007), so look for `raw input: PrintScreen ...` lines instead; Windows still copies the whole screen to the clipboard when it is pressed, and the capture replaces that copy.
+
 ## Before tagging
 
 - [ ] The version in `package.json` and `src-tauri/tauri.conf.json` matches the tag.

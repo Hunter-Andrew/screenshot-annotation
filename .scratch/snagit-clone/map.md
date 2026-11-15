@@ -41,7 +41,7 @@ Accepted ADRs in `docs/adr/` (one per decision), an up-to-date `GLOSSARY.md`, an
 - [Prototype: Library window](issues/08-library-ux-prototype.md): "All captures" opens a full-window date-grouped grid; hover Copy/✕, multi-select delete with Undo, and Capture plus delay buttons in the top bar.
 - [Grilling: Settings screen](issues/13-settings-screen.md): a small Settings window (hotkey, launch at sign-in, read-only Library folder, reset tool styles, About); tray menu with left-click to open the editor; closing the editor hides it to the tray.
 - [Grilling: Testing strategy](issues/14-testing-strategy.md): test-first unit tests for the model, PNG embedding, export safety, history and Library; a small Playwright end-to-end suite; Windows CI gating releases; a manual 10-minute release checklist (including speed) that agents remind Andrew to run.
-- [Grilling: Build order and milestones](issues/15-build-order.md): M0 skeleton (v0.1) → M1 capture and copy (v0.2) → M2 annotate (v0.3) → M3 Library (v0.4) → M4 complete (v1.0); all milestones are ticketed as vertical slices in `.scratch/v1/issues/`.
+- [Grilling: Build order and milestones](issues/15-build-order.md): M0 skeleton (v0.1) → M1 capture and copy (v0.2) → M2 annotate (v0.3) → M3 Library (v0.4) → M4 complete (v1.0) → M5 shortcuts (v1.1, added 2026-11-15); all milestones are ticketed as vertical slices in `.scratch/v1/issues/`.
 
 **Map complete (2026-11-14):** no open decisions remain; implementation starts with M0.
 

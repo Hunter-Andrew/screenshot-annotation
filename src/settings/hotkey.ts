@@ -78,3 +78,13 @@ export function formatCombo(accelerator: string): string {
     })
     .join("+");
 }
+
+/** Whether the accelerator is exactly Print Screen, no modifiers (the one hotkey the backend watches via Raw Input). */
+export function isBarePrintScreen(accelerator: string): boolean {
+  return accelerator === "PrintScreen";
+}
+
+/** Whether the key part of an accelerator is Print Screen (alone or with modifiers). */
+export function usesPrintScreen(accelerator: string): boolean {
+  return accelerator.split("+").pop() === "PrintScreen";
+}
