@@ -392,9 +392,10 @@ pub async fn overlay_ready(app: AppHandle, state: tauri::State<'_, OverlayState>
     .map(|_| ())
 }
 
-/// The overlay page reports a line (and, with `fatal`, a failure that ends the capture).
+/// The overlay page reports a line (and, with `fatal`, a failure that ends the capture). Async: a
+/// fatal failure puts the editor back, which may create its window (ticket 36).
 #[tauri::command]
-pub fn overlay_log(app: AppHandle, message: String, fatal: Option<bool>) {
+pub async fn overlay_log(app: AppHandle, message: String, fatal: Option<bool>) {
     diag::log(&format!("page: {message}"));
     if fatal.unwrap_or(false) && app.state::<OverlayState>().busy.load(Ordering::SeqCst) {
         fail(&app, &format!("The capture overlay page failed: {message}"));

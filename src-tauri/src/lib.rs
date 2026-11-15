@@ -15,6 +15,7 @@ mod raw_input;
 mod settings;
 mod url_guard;
 mod watchdog;
+mod window_open;
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
@@ -417,8 +418,14 @@ fn history_purge_before(app: AppHandle, cutoff_ms: f64) -> Result<usize, String>
 }
 
 /// Opens the Settings window (the editor's gear button).
+///
+/// Must stay `async` (ticket 36): a plain `fn` command runs on the main thread, inside WebView2's
+/// own message callback, and creating a window there deadlocks on Windows (a blank white window
+/// that cannot be closed, then a frozen app). An async command runs on a worker thread, which
+/// waits while the main thread builds the window. `windowThreading.test.ts` enforces this.
 #[tauri::command]
-fn open_settings(app: AppHandle) {
+async fn open_settings(app: AppHandle) {
+    diag::log("settings requested (editor gear button)");
     show_settings(&app);
 }
 
@@ -470,17 +477,80 @@ fn focus(win: &tauri::WebviewWindow) {
     let _ = win.set_focus();
 }
 
-/// Show the Settings window, creating it on first use and focusing it if it already exists.
-fn show_settings(app: &AppHandle) {
-    if let Some(win) = app.get_webview_window(SETTINGS_LABEL) {
-        focus(&win);
-        return;
+/// Run window work on a thread of its own and return at once. Everything that reacts to a native
+/// event on the main thread (tray click and menu, a second launch of the app) goes through this:
+/// Tauri documents that creating a window from a synchronous command or an event handler
+/// deadlocks on Windows. A worker thread may block until the main thread has built the window.
+fn on_worker_thread(app: &AppHandle, work: fn(&AppHandle)) {
+    let app = app.clone();
+    std::thread::spawn(move || work(&app));
+}
+
+/// `show_settings` for callers on the main thread (tray menu).
+fn request_settings(app: &AppHandle, source: &str) {
+    diag::log(&format!("settings requested ({source})"));
+    on_worker_thread(app, show_settings);
+}
+
+/// `show_editor` for callers on the main thread (tray click and menu, a second launch).
+fn request_editor(app: &AppHandle, source: &str) {
+    diag::log(&format!("editor requested ({source})"));
+    on_worker_thread(app, show_editor);
+}
+
+/// Creates the window `label` with `create`, unless one already exists (then that one is returned,
+/// `false` for "not created now"). A window the user has just closed keeps its label for a moment;
+/// creating the same label then fails, so that is retried (see `window_open.rs`), looking for the
+/// existing window again each time. Every outcome goes to `capture.log`. Call from a worker thread.
+fn create_or_existing(
+    app: &AppHandle,
+    label: &str,
+    create: impl Fn() -> tauri::Result<tauri::WebviewWindow>,
+) -> Option<(tauri::WebviewWindow, bool)> {
+    use window_open::Attempt;
+    let (result, attempts) = window_open::retry(&window_open::RETRY_PAUSES, std::thread::sleep, || {
+        if let Some(win) = app.get_webview_window(label) {
+            return Attempt::Done((win, false));
+        }
+        match create() {
+            Ok(win) => Attempt::Done((win, true)),
+            Err(e @ (tauri::Error::WebviewLabelAlreadyExists(_) | tauri::Error::WindowLabelAlreadyExists(_))) => {
+                Attempt::LabelTaken(e)
+            }
+            Err(e) => Attempt::Failed(e),
+        }
+    });
+    match result {
+        Ok((win, created)) => {
+            diag::log(&format!(
+                "{label} window: {} (attempt {attempts})",
+                if created { "created" } else { "already open" }
+            ));
+            Some((win, created))
+        }
+        Err(e) => {
+            diag::log(&format!("{label} window: could not be created after {attempts} attempt(s): {e}"));
+            None
+        }
     }
-    let _ = new_window(app, SETTINGS_LABEL,WebviewUrl::App("index.html#settings".into()))
-        .title("Settings")
-        .inner_size(460.0, 440.0)
-        .resizable(false)
-        .build();
+}
+
+/// Show the Settings window, creating it on first use and focusing it if it already exists. Never
+/// call from the main thread or a sync command (see `open_settings`); use `request_settings`.
+fn show_settings(app: &AppHandle) {
+    let make = || {
+        new_window(app, SETTINGS_LABEL, WebviewUrl::App("index.html#settings".into()))
+            .title("Settings")
+            .inner_size(460.0, 440.0)
+            .resizable(false)
+            .build()
+    };
+    if let Some((win, created)) = create_or_existing(app, SETTINGS_LABEL, make) {
+        if !created {
+            focus(&win);
+            diag::log("settings window: focused");
+        }
+    }
 }
 
 /// The editor's maximized/normal state as the user last left it this session (set when the window
@@ -503,7 +573,8 @@ pub(crate) fn hide_editor(win: &tauri::WebviewWindow) {
 /// Show the editor window maximized (normal chrome kept), creating it on first use (pre-warming is
 /// ticket 24). A window the user is looking at is only focused, never resized. A hidden one is
 /// shown in the state the user left it (maximized on its first show), so this works the same for
-/// a window that is created hidden and kept loaded.
+/// a window that is created hidden and kept loaded. Never call from the main thread or a sync
+/// command; use `request_editor`.
 fn show_editor(app: &AppHandle) {
     let remembered = *app.state::<EditorMaximized>().0.lock().unwrap();
     let maximize = editor_window::should_maximize(remembered);
@@ -518,12 +589,19 @@ fn show_editor(app: &AppHandle) {
         focus(&win);
         return;
     }
-    let _ = new_window(app, EDITOR_LABEL,WebviewUrl::App("index.html".into()))
-        .title("Screenshot Annotation")
-        .inner_size(1100.0, 720.0)
-        .min_inner_size(760.0, 480.0)
-        .maximized(maximize)
-        .build();
+    let make = || {
+        new_window(app, EDITOR_LABEL, WebviewUrl::App("index.html".into()))
+            .title("Screenshot Annotation")
+            .inner_size(1100.0, 720.0)
+            .min_inner_size(760.0, 480.0)
+            .maximized(maximize)
+            .build()
+    };
+    if let Some((win, created)) = create_or_existing(app, EDITOR_LABEL, make) {
+        if !created {
+            focus(&win);
+        }
+    }
 }
 
 /// Start a capture (hotkey, tray): freeze the screen and open the overlay; see overlay.rs.
@@ -582,11 +660,19 @@ pub fn run() {
                     remember_editor_state(&win);
                 }
             }
+            // Settings closes on its own and touches no other window; the log shows it did.
+            if window.label() == SETTINGS_LABEL {
+                match event {
+                    tauri::WindowEvent::CloseRequested { .. } => diag::log("settings window: close requested"),
+                    tauri::WindowEvent::Destroyed => diag::log("settings window: closed (label free)"),
+                    _ => {}
+                }
+            }
         })
         .manage(RawInput::default())
         .manage(overlay::OverlayState::default())
         // A second launch focuses the running instance.
-        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| show_editor(app)))
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| request_editor(app, "second launch")))
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
@@ -651,7 +737,7 @@ pub fn run() {
             app.manage(AppSettings { dir, data: Mutex::new(loaded) });
             if notice_pending {
                 // First run: open Settings, where the one-time Print Screen notice lives.
-                show_settings(app.handle());
+                request_settings(app.handle(), "first run notice");
             }
 
             let capture = MenuItem::with_id(app, "capture", "Capture", true, None::<&str>)?;
@@ -673,14 +759,14 @@ pub fn run() {
                         ..
                     } = event
                     {
-                        show_editor(tray.app_handle());
+                        request_editor(tray.app_handle(), "tray icon click");
                     }
                 })
                 .on_menu_event(|app, event| match event.id.as_ref() {
                     "capture" => capture_async(app.clone(), "tray"),
                     "log" => open_log_folder(),
-                    "editor" => show_editor(app),
-                    "settings" => show_settings(app),
+                    "editor" => request_editor(app, "tray menu"),
+                    "settings" => request_settings(app, "tray menu"),
                     "exit" => app.exit(0),
                     _ => {}
                 })
