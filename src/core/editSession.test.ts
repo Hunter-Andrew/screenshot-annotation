@@ -88,3 +88,96 @@ describe("EditSession", () => {
     expect(calls).toBe(0);
   });
 });
+
+describe("EditSession undo and redo", () => {
+  /** A clock the test moves by hand, so each edit is a step of its own unless a test says otherwise. */
+  const clock = () => {
+    let t = 0;
+    return { now: () => (t += 10_000) };
+  };
+  const make = () => createEditSession(createFromCapture(capture()), clock());
+  const ids = (s: { image: { model: { annotations: { id: string }[] } } }) => s.image.model.annotations.map((a) => a.id);
+
+  it("undoes and redoes every kind of edit, and tells subscribers so the canvas redraws", () => {
+    const session = make();
+    const seen: string[] = [];
+    session.apply({ kind: "add", annotation: arrow("a") });
+    session.apply({ kind: "add", annotation: arrow("b") });
+    session.apply({ kind: "update", id: "a", patch: { x2: 7 } });
+    session.apply({ kind: "reorder", id: "a", to: 1 });
+    session.apply({ kind: "delete", id: "b" });
+    const final = session.image.model;
+    session.subscribe(({ edit }) => seen.push(edit.kind));
+
+    while (session.undo());
+    expect(session.image.model.annotations).toEqual([]);
+    expect(session.canUndo).toBe(false);
+    while (session.redo());
+    expect(session.image.model).toEqual(final);
+    expect(session.canRedo).toBe(false);
+    expect(seen).toHaveLength(10);
+  });
+
+  it("undoing a delete puts the Annotation back in its old place in the stack", () => {
+    const session = make();
+    for (const id of ["a", "b", "c"]) session.apply({ kind: "add", annotation: arrow(id) });
+    session.apply({ kind: "delete", id: "b" });
+    expect(ids(session)).toEqual(["a", "c"]);
+
+    session.undo();
+
+    expect(ids(session)).toEqual(["a", "b", "c"]);
+  });
+
+  it("a new edit after an undo ends the redo branch", () => {
+    const session = make();
+    session.apply({ kind: "add", annotation: arrow("a") });
+    session.undo();
+    expect(session.canRedo).toBe(true);
+
+    session.apply({ kind: "add", annotation: arrow("b") });
+
+    expect(session.canRedo).toBe(false);
+    expect(session.redo()).toBe(false);
+  });
+
+  it("an edit that changes nothing is not a step", () => {
+    const session = make();
+    session.apply({ kind: "delete", id: "nope" });
+    expect(session.canUndo).toBe(false);
+  });
+
+  it("a restored history carries on: its steps undo as if made in this run", () => {
+    const first = make();
+    first.apply({ kind: "add", annotation: arrow("a") });
+    first.apply({ kind: "add", annotation: arrow("b") });
+    const saved = JSON.parse(JSON.stringify(first.history));
+
+    const second = createEditSession(first.image, { history: saved });
+    second.undo();
+
+    expect(ids(second)).toEqual(["a"]);
+    expect(second.canRedo).toBe(true);
+  });
+
+  it("skips a stale step instead of getting stuck on it", () => {
+    const session = createEditSession(createFromCapture(capture()), {
+      history: {
+        undo: [{ undo: { kind: "delete", id: "ghost" }, redo: { kind: "update", id: "ghost", patch: {} }, at: 0 }],
+        redo: [],
+      },
+    });
+    expect(session.undo()).toBe(false);
+    expect(session.canUndo).toBe(false);
+    expect(session.canRedo).toBe(false);
+  });
+
+  it("keeps at most 200 steps through the session", () => {
+    const session = make();
+    for (let n = 0; n < 230; n++) session.apply({ kind: "add", annotation: arrow(`a${n}`) });
+    let undone = 0;
+    while (session.undo()) undone++;
+    expect(undone).toBe(200);
+    expect(session.image.model.annotations).toHaveLength(30);
+  });
+});

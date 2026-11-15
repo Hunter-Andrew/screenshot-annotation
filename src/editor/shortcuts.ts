@@ -14,6 +14,8 @@ export interface ShortcutAction {
   label: string;
   /** "V", "Escape", "Ctrl+C", "Ctrl+Delete": modifiers joined with "+", then the key. */
   defaultKey: string;
+  /** True for a key Settings must not let the user remap (ticket 28): Delete and Backspace. */
+  fixed?: boolean;
 }
 
 export const SHORTCUT_ACTIONS: readonly ShortcutAction[] = [
@@ -31,7 +33,14 @@ export const SHORTCUT_ACTIONS: readonly ShortcutAction[] = [
   { id: "editor.deselect", label: "Deselect and return to Select", defaultKey: "Escape" },
   { id: "editor.copy", label: "Copy (when nothing is selected)", defaultKey: "Ctrl+C" },
   { id: "editor.discard", label: "Discard", defaultKey: "Ctrl+Delete" },
-  // { id: "editor.delete", ... "Delete" } (ticket 13)
+  { id: "editor.delete", label: "Delete the selected Annotation", defaultKey: "Delete", fixed: true },
+  { id: "editor.deleteBackspace", label: "Delete the selected Annotation (Backspace)", defaultKey: "Backspace", fixed: true },
+  // Ctrl+Shift+Z must come BEFORE Ctrl+Z: a binding that does not spell out Shift matches with Shift held too.
+  { id: "editor.redoAlt", label: "Redo (alternative)", defaultKey: "Ctrl+Shift+Z" },
+  { id: "editor.undo", label: "Undo", defaultKey: "Ctrl+Z" },
+  { id: "editor.redo", label: "Redo", defaultKey: "Ctrl+Y" },
+  { id: "editor.bringForward", label: "Bring forward", defaultKey: "Ctrl+]" },
+  { id: "editor.sendBack", label: "Send back", defaultKey: "Ctrl+[" },
   { id: "view.fit", label: "Fit to window", defaultKey: "Ctrl+0" },
   { id: "view.actualSize", label: "Actual size (100%)", defaultKey: "Ctrl+1" },
   { id: "view.zoomIn", label: "Zoom in", defaultKey: "Ctrl+=" },

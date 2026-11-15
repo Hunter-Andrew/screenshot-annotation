@@ -10,6 +10,7 @@
 // Pure TypeScript apart from the timers, so it is tested with fake timers and the fake bridge.
 import { encodeLibraryPng, type FinishedRenderer } from "../core/annotatedImage";
 import type { EditSession } from "../core/editSession";
+import type { HistoryState } from "../core/history";
 import type { PlatformBridge } from "../platform/bridge";
 
 export const AUTOSAVE_DELAY_MS = 1000;
@@ -28,6 +29,12 @@ export interface PersisterOptions {
   /** Saved by a newer version of the app: show it, never write it. */
   readOnly?: boolean;
   delayMs?: number;
+  /**
+   * Called after each successful write with the PNG bytes written and the undo history as it was
+   * when they were encoded (so the two always belong together). Not awaited; a
+   * failure is ignored: it never fails the save.
+   */
+  onSaved?: (saved: { path: string; png: Uint8Array; history: HistoryState }) => void | Promise<void>;
   onEvent?: (event: PersisterEvent) => void;
 }
 
@@ -73,11 +80,19 @@ export function createPersister(options: PersisterOptions): Persister {
     // Cleared before encoding, so an edit made while this writes marks the image dirty again.
     dirty = false;
     try {
+      const { history } = session; // as of the image encoded next, whatever is edited while it renders
       const png = await encodeLibraryPng(session.image, render);
       if (discarding) return;
       if (path === null) path = await bridge.saveToLibrary(png, capturedAt);
       else await bridge.updateLibraryFile(path, png);
       emit({ kind: "saved", path, first });
+      // Not awaited: the next save must not wait for the history file (the history store keeps its own
+      // order). Undo history is best-effort; a failure never touches the saved image.
+      try {
+        void Promise.resolve(options.onSaved?.({ path, png, history })).catch(() => {});
+      } catch {
+        // A synchronous throw, likewise ignored.
+      }
     } catch (e) {
       dirty = true;
       throw Object.assign(new Error(e instanceof Error ? e.message : String(e)), { first });
