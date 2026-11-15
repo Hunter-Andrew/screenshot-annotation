@@ -24,3 +24,7 @@ While the configured hotkey is exactly bare `PrintScreen`, the app runs a passiv
 - The listener runs a message loop on one extra thread while bare Print Screen is the hotkey, and nothing otherwise. Changing the hotkey starts or stops it, with the same register-first, roll-back-on-failed-save ordering as any other change (`hotkey.rs`).
 - The Windows-specific code (`raw_input.rs`) cannot be run on the Linux build machine; it is type-checked there and verified by hand on the laptop (release checklist, M1).
 - No network use (ADR 0006).
+
+## Correction (2026-11-15)
+
+Where the Windows setting lives was stated wrongly in the app: on current Windows 11, "Use the Print screen button to open screen capturing" is under Settings > Bluetooth & devices > Keyboard, not Accessibility > Keyboard (on some Windows builds it is still under Accessibility). The Settings warning and notice mentioned above, and the deep link behind "Open Windows setting", now point there. Microsoft documents no `ms-settings:` URI for that exact page, so the link opens Bluetooth & devices (`ms-settings:bluetooth`) and the text says to click Keyboard. The decision above is unchanged. See ticket 29.

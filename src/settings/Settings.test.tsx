@@ -88,7 +88,7 @@ describe("Settings > Print Screen notice", () => {
     expect(screen.queryByText(/Print Screen opens Snipping Tool/)).toBeNull();
   });
 
-  it("[Open Windows setting] opens Accessibility > Keyboard and retires the notice", async () => {
+  it("[Open Windows setting] opens Windows Settings (Bluetooth & devices) and retires the notice", async () => {
     const bridge = createFakeBridge();
     render(<Settings bridge={bridge} />);
     await userEvent.click(await screen.findByRole("button", { name: "Open Windows setting" }));
@@ -239,6 +239,10 @@ describe("Settings > one-time notice wording", () => {
     const notice = (await screen.findByText(/Print Screen opens Snipping Tool/)).closest("section")!;
     expect(notice).toHaveTextContent(/only appears once/i);
     expect(notice).toHaveTextContent(/Open Windows setting.*opens/i);
+    expect(notice).toHaveTextContent(
+      "Bluetooth & devices > Keyboard > Use the Print screen button to open screen capturing",
+    );
+    expect(notice).toHaveTextContent(/some Windows builds.*Accessibility > Keyboard/);
     expect(notice).toHaveTextContent(/never changes that setting/i);
   });
 });

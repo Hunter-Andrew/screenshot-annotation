@@ -20,7 +20,7 @@ export function PrintScreenNotice({ bridge }: { bridge: PlatformBridge }) {
 
   if (!visible) return null;
   const answer = (open: boolean) => async () => {
-    if (open) await bridge.openKeyboardAccessibilitySettings();
+    if (open) await bridge.openKeyboardSettings();
     await bridge.dismissPrintScreenNotice();
     setVisible(false);
   };
@@ -31,12 +31,14 @@ export function PrintScreenNotice({ bridge }: { bridge: PlatformBridge }) {
       </h2>
       <p>
         Print Screen opens Snipping Tool. Use it for Screenshot Annotation instead? Open the Windows setting,
-        turn off &ldquo;Use the Print screen button to open screen capturing&rdquo;, then record Print Screen as
-        the capture hotkey above.
+        turn off &ldquo;Use the Print screen button to open screen capturing&rdquo; (Settings &gt; Bluetooth &amp;
+        devices &gt; Keyboard), then record Print Screen as the capture hotkey above.
       </p>
       <p>
-        &ldquo;Open Windows setting&rdquo; opens Windows Settings at Accessibility &gt; Keyboard; the app never
-        changes that setting itself. Either button closes this notice for good: it only appears once. If Print
+        &ldquo;Open Windows setting&rdquo; opens Windows Settings at Bluetooth &amp; devices: click Keyboard, then
+        &ldquo;Use the Print screen button to open screen capturing&rdquo; (Bluetooth &amp; devices &gt; Keyboard &gt;
+        Use the Print screen button to open screen capturing). On some Windows builds it is under Accessibility &gt;
+        Keyboard instead. The app never changes that setting itself. Either button closes this notice for good: it only appears once. If Print
         Screen is your hotkey while Windows still owns the key, a warning stays under the hotkey field until the
         setting is off.
       </p>

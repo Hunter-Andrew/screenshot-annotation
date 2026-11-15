@@ -261,10 +261,10 @@ fn set_magnifier(app: AppHandle, state: tauri::State<'_, AppSettings>, enabled: 
     let _ = app.emit(overlay::MAGNIFIER_EVENT, enabled);
 }
 
-/// Opens Windows Settings > Accessibility > Keyboard. A fixed target, deliberately not routed
+/// Opens Windows Settings > Bluetooth & devices (the user then clicks Keyboard). A fixed target, deliberately not routed
 /// through `open_url`, whose allowlist stays limited to the Releases page (ADR 0006).
 #[tauri::command]
-fn open_keyboard_accessibility_settings() -> Result<(), String> {
+fn open_keyboard_settings() -> Result<(), String> {
     tauri_plugin_opener::open_url(print_screen::SETTINGS_URI, None::<&str>).map_err(|e| e.to_string())
 }
 
@@ -506,7 +506,7 @@ pub fn run() {
             get_print_screen_notice,
             settings_log,
             dismiss_print_screen_notice,
-            open_keyboard_accessibility_settings,
+            open_keyboard_settings,
             overlay::overlay_frame,
             overlay::overlay_windows,
             overlay::overlay_ready,

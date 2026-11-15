@@ -52,3 +52,7 @@ Pushing a `vX.Y.Z` tag runs the same tests and build as every push, then publish
 ## License
 
 See [LICENSE](LICENSE).
+
+## App icon
+
+The master artwork is `assets/icon-source.png` (1024 px, transparent background). The files in `src-tauri/icons/` are generated from it with `npx tauri icon assets/icon-source.png -o <temp folder>`; copy `32x32.png`, `128x128.png`, `128x128@2x.png`, `icon.png` and `icon.ico` from the output into `src-tauri/icons/`.

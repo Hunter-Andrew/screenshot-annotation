@@ -131,9 +131,10 @@ export function HotkeyRecorder({ bridge }: { bridge: PlatformBridge }) {
           <p style={{ margin: "0 0 8px" }}>
             Windows will keep sending Print Screen to Snipping Tool, so Snipping Tool opens as well as the capture
             overlay, until you turn off &ldquo;Use the Print screen button to open screen capturing&rdquo; in
-            Windows Settings. This warning goes away by itself once that is off.
+            Windows Settings (Bluetooth &amp; devices &gt; Keyboard; on some Windows builds, Accessibility &gt;
+            Keyboard). &ldquo;Open Windows setting&rdquo; opens Bluetooth &amp; devices: click Keyboard. This warning goes away by itself once that is off.
           </p>
-          <button type="button" onClick={() => void bridge.openKeyboardAccessibilitySettings()}>
+          <button type="button" onClick={() => void bridge.openKeyboardSettings()}>
             Open Windows setting
           </button>
         </div>
@@ -153,7 +154,7 @@ function describe(problem: NonNullable<Problem>): string {
     return (
       "This window lost focus while waiting for a key. If you pressed Print Screen, Windows probably sent it to " +
       "Snipping Tool: turn off \u201cUse the Print screen button to open screen capturing\u201d in Windows Settings > " +
-      "Accessibility > Keyboard first, then try again."
+      "Bluetooth & devices > Keyboard (on some Windows builds, Accessibility > Keyboard) first, then try again."
     );
   const name = formatCombo(problem.accelerator);
   if (problem.reason === "raw-input")
