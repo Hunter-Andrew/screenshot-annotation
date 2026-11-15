@@ -1,8 +1,25 @@
 # Release checklist
 
-Run this by hand on the work laptop before each release (about 10 minutes). Install the setup `.exe` from the candidate build (a CI artifact, or the draft Release), not a local build. Tag `vX.Y.Z` only once everything that applies passes. See [ADR 0006](adr/0006-manual-updates-unsigned-no-network.md).
+Before each release run the **Quick check** below by hand on the work laptop (about 10 minutes); the full list further down is reference for the parts you changed. Install the setup `.exe` from the candidate build (a CI artifact, or the draft Release), not a local build. Tag `vX.Y.Z` only once everything that applies passes. See [ADR 0006](adr/0006-manual-updates-unsigned-no-network.md).
 
-Each item shows the milestone it applies from: **M0** (v0.1.0), **M1** (v0.2.0), **M2** (v0.3.0), **M3** (v0.4.0), **M4** (v1.0.0). Run every item whose milestone is at or before the release you are checking.
+Each item shows the milestone it applies from: **M0** (v0.1.0), **M1** (v0.2.0), **M2** (v0.3.0), **M3** (v0.4.0), **M4** (v1.0.0). In the full list, an item applies to every release at or after its milestone; the Quick check already picks the ones that matter most.
+
+## Quick check (about 10 minutes): what goes unnoticed or does harm if broken
+
+Run just these before tagging. They cover silent data loss and things that stop the app doing its job; the automated tests cannot see the real Windows behavior behind them. The long list below is reference: run the part that matches what you changed.
+
+For v0.3.0 (M2):
+
+- [ ] **Upgrade keeps your data.** Install the previous release, edit an image (draw, type text), change a setting (for example a tool color), then run the new setup over it. Afterwards the settings, `Pictures\Screenshot Annotation` images, tool styles and the image's undo history are all still there.
+- [ ] **Edits survive a restart.** Draw something, wait for "All changes saved", quit from the tray, start the app and open the editor: the annotations are still editable and Ctrl+Z still undoes them.
+- [ ] **What leaves the app is the finished picture.** With annotations on an image, Copy and paste into Teams or Outlook, and Save as PNG…: both show the annotations burned in, as a plain image.
+- [ ] **Settings does not freeze the editor.** Open Settings from the editor gear and from the tray, close it and reopen it a few times; the editor stays responsive.
+- [ ] **Typing never edits the picture.** In a Text box type a word, then use Backspace and Delete: only the words change, no annotation is deleted and no tool switches.
+- [ ] **The app still comes back after sign-in.** Sign out and back in: the tray icon returns and the capture hotkey works.
+
+Already checked on earlier releases and only worth repeating if the installer or capture code changed: no-admin install, uninstall leaves `Pictures\Screenshot Annotation` alone, capture on all monitors, Teams and Outlook paste, Discard to the Recycle Bin.
+
+## Full checklist (reference)
 
 ## Install and upgrade
 
