@@ -428,3 +428,207 @@ test("Ctrl view keys still work inside the text box, and Ctrl+C does not copy th
   await page.keyboard.press("Control+c");
   expect(await page.evaluate(() => (window as unknown as InPage).__fakeBridge.copiedImages.length)).toBe(0);
 });
+
+// --- ticket 35: drag to define the area of the text box -------------------------------------------------
+
+/** The saved box, to within the half pixel a pointer position can land on. */
+function expectArea(text: Text | undefined, want: { x: number; y: number; width: number; minHeight?: number }) {
+  expect(text).toBeDefined();
+  expect(close(text!.x, want.x, 1) && close(text!.y, want.y, 1), `at ${text!.x},${text!.y}`).toBe(true);
+  expect(close(text!.width, want.width, 1)).toBe(true);
+  const minHeight = (text as { minHeight?: number }).minHeight;
+  expect(want.minHeight === undefined ? minHeight === undefined : close(minHeight ?? -99, want.minHeight, 1)).toBe(true);
+}
+
+const LONG = "The quick brown fox jumps over the lazy dog again and again until the box grows";
+
+/** Press, move in a few steps, but leave the button down (the caller releases or cancels). */
+async function pressAndMove(page: Page, from: { x: number; y: number }, to: { x: number; y: number }) {
+  await page.mouse.move(from.x, from.y);
+  await page.mouse.down();
+  await page.mouse.move((from.x + to.x) / 2, (from.y + to.y) / 2, { steps: 3 });
+  await page.mouse.move(to.x, to.y, { steps: 3 });
+}
+
+/** Bounds of the red letters in the Export (the Copy button's PNG), or null if there are none. */
+async function exportedRedBounds(page: Page) {
+  await page.getByRole("button", { name: "Copy" }).click();
+  await expect.poll(() => page.evaluate(() => (window as unknown as InPage).__fakeBridge.copiedImages.length)).toBeGreaterThan(0);
+  const png = Uint8Array.from(
+    await page.evaluate(() => Array.from((window as unknown as InPage).__fakeBridge.copiedImages.at(-1)!)),
+  );
+  const { width, height, rgba } = decodePixels(png);
+  let box: { left: number; top: number; right: number; bottom: number } | null = null;
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const i = (y * width + x) * 4;
+      if (rgba[i] === 224 && rgba[i + 1] === 36 && rgba[i + 2] === 36) {
+        box = box
+          ? { left: Math.min(box.left, x), top: Math.min(box.top, y), right: Math.max(box.right, x), bottom: Math.max(box.bottom, y) }
+          : { left: x, top: y, right: x, bottom: y };
+      }
+    }
+  }
+  return box;
+}
+
+/** True if any pixel in the rectangle of the editor canvas (Capture pixels) is not transparent. */
+async function canvasHasInk(page: Page, x: number, y: number, w: number, h: number) {
+  await page.evaluate(() => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)))); // let it repaint
+  return page.evaluate(
+    ({ x, y, w, h }) => {
+      const canvas = document.querySelector("canvas.lower-canvas") as HTMLCanvasElement;
+      const { data } = canvas.getContext("2d")!.getImageData(x, y, w, h);
+      for (let i = 3; i < data.length; i += 4) if (data[i]! > 0) return true;
+      return false;
+    },
+    { x, y, w, h },
+  );
+}
+
+test("Text: dragging draws a dashed area, then types in it, wrapping at the dragged width and growing past its height", async ({ page }) => {
+  await page.goto("/");
+  await capture(page, 600, 300);
+  const view = await atActualSize(page, 600);
+  await page.keyboard.press("t");
+
+  await pressAndMove(page, view.at(60, 40), view.at(260, 100));
+  // While the button is down: a live dashed outline along the top edge (nothing else is on the canvas).
+  expect(await canvasHasInk(page, 100, 38, 120, 4)).toBe(true);
+  await expect(page.locator("textarea")).toHaveCount(0);
+  await page.mouse.up();
+
+  // Released: typing starts at once (the dashed preview is replaced by the box itself).
+  await expect(page.locator("textarea")).toBeFocused();
+  await page.keyboard.type(LONG);
+  await page.keyboard.press("Escape");
+
+  await expectSaved(page, ([t]) => t?.text === LONG, "typed text saved");
+  const [text] = await saved(page);
+  expectArea(text, { x: 60, y: 40, width: 200, minHeight: 60 });
+  expect(text!.text).not.toContain("\n"); // wrapped softly, not with line breaks
+
+  await page.mouse.click(view.at(580, 280).x, view.at(580, 280).y); // deselect: no handles in the Export
+  const letters = await exportedRedBounds(page);
+  expect(letters).not.toBeNull();
+  // Wrapped at the dragged width: no letter beyond the right edge of the area (60 + 200 = 260)...
+  expect(letters!.left).toBeGreaterThanOrEqual(58);
+  expect(letters!.right).toBeLessThanOrEqual(262);
+  // ...and grown downward well past the dragged height (40 + 60 = 100).
+  expect(letters!.top).toBeGreaterThanOrEqual(38);
+  expect(letters!.bottom).toBeGreaterThan(160);
+});
+
+test("Text: the dragged height is a minimum; a short text still fills the area, also after a reload, and the width stays", async ({ page }) => {
+  await page.goto("/");
+  await capture(page, 600, 300);
+  const view = await atActualSize(page, 600);
+  await page.keyboard.press("t");
+  await drag(page, view.at(60, 40), view.at(260, 160));
+  await page.keyboard.type("Hi");
+  await page.keyboard.press("Escape");
+  await expectSaved(page, ([t]) => t?.text === "Hi", "created");
+  expectArea((await saved(page))[0], { x: 60, y: 40, width: 200, minHeight: 120 });
+
+  await page.reload();
+  await expect(page.getByRole("img", { name: "Capture" })).toBeVisible();
+  await expect(page.locator(".canvas-container")).toHaveCount(1);
+  const again = await mapper(page, 600);
+  // Clicking low inside the area, far below the one line of text, still hits the box (it is 120 tall).
+  await expect(page.getByRole("region", { name: "Font" })).toHaveCount(0);
+  await page.mouse.click(again.at(150, 150).x, again.at(150, 150).y);
+  await expect(page.getByRole("region", { name: "Font" })).toBeVisible();
+
+  // Still editable, and the width and minimum height are what they were.
+  await page.mouse.dblclick(again.at(150, 150).x, again.at(150, 150).y);
+  await expect(page.locator("textarea")).toBeFocused();
+  await page.keyboard.press("Control+End");
+  await page.keyboard.type(" there, this goes on for a long while so it must wrap");
+  await page.keyboard.press("Escape");
+  await expectSaved(page, ([t]) => t?.text.startsWith("Hi there") === true, "edited after the reload");
+  expectArea((await saved(page))[0], { x: 60, y: 40, width: 200, minHeight: 120 });
+});
+
+test("Text: dragging up and left works like the Rectangle, and the area stays inside the Capture", async ({ page }) => {
+  await page.goto("/");
+  await capture(page, 600, 300);
+  const view = await atActualSize(page, 600);
+  await page.keyboard.press("t");
+  await drag(page, view.at(260, 140), view.at(60, 40));
+  await page.keyboard.type("Up");
+  await page.keyboard.press("Escape");
+  await expectSaved(page, ([t]) => t?.text === "Up", "created");
+  expectArea((await saved(page))[0], { x: 60, y: 40, width: 200, minHeight: 100 });
+
+  await page.keyboard.press("t");
+  await drag(page, view.at(500, 200), view.at(900, 280)); // the pointer leaves the Capture to the right
+  await page.keyboard.type("Edge");
+  await page.keyboard.press("Escape");
+  await expectSaved(page, (texts) => texts.length === 2, "second text created");
+  const [, edge] = await saved(page);
+  expectArea(edge, { x: 500, y: 200, width: 100, minHeight: 80 });
+});
+
+test("Text: a click without a drag still makes a default-width box, and so does a tiny drag", async ({ page }) => {
+  await page.goto("/");
+  await capture(page, 600, 300);
+  const view = await atActualSize(page, 600);
+  await page.keyboard.press("t");
+  await page.mouse.move(view.at(40, 40).x, view.at(40, 40).y);
+  await page.mouse.down();
+  await page.mouse.move(view.at(42, 41).x, view.at(42, 41).y); // a shaky click: under 4 px
+  await page.mouse.up();
+  await page.keyboard.type("Click");
+  await page.keyboard.press("Escape");
+  await expectSaved(page, ([t]) => t?.text === "Click", "click created");
+  const [clicked] = await saved(page);
+  expectArea(clicked, { x: 40, y: 40, width: 240 });
+  expect(clicked).not.toHaveProperty("minHeight");
+
+  await page.keyboard.press("t");
+  await drag(page, view.at(40, 150), view.at(48, 230)); // 8 px wide: a sliver, not an area
+  await page.keyboard.type("Sliver");
+  await page.keyboard.press("Escape");
+  await expectSaved(page, (texts) => texts.length === 2, "tiny drag created");
+  const [, sliver] = await saved(page);
+  expectArea(sliver, { x: 40, y: 150, width: 240 });
+  expect(sliver).not.toHaveProperty("minHeight");
+});
+
+test("Text: Esc during the drag cancels it, nothing is created", async ({ page }) => {
+  await page.goto("/");
+  await capture(page, 600, 300);
+  const view = await atActualSize(page, 600);
+  await page.keyboard.press("t");
+
+  await pressAndMove(page, view.at(60, 40), view.at(260, 140));
+  expect(await canvasHasInk(page, 100, 38, 120, 4)).toBe(true);
+  await page.keyboard.press("Escape");
+  await page.mouse.up();
+
+  await expect(page.locator("textarea")).toHaveCount(0);
+  expect(await canvasHasInk(page, 100, 38, 120, 4)).toBe(false); // the dashed area is gone
+  await expect(page.getByRole("button", { name: /^Select/ })).toHaveAttribute("aria-pressed", "true");
+  await page.waitForTimeout(1300);
+  expect(await saved(page)).toEqual([]);
+});
+
+test("Text set to keep drawing: drag out one box, click away, drag out another", async ({ page }) => {
+  await page.goto("/");
+  await capture(page, 600, 300);
+  const view = await atActualSize(page, 600);
+  await page.keyboard.press("t");
+  await page.getByRole("checkbox", { name: "Return to Select after drawing" }).uncheck();
+
+  await drag(page, view.at(40, 40), view.at(200, 90));
+  await page.keyboard.type("One");
+  await page.mouse.click(view.at(500, 250).x, view.at(500, 250).y); // clicking away ends the typing
+  await expectSaved(page, (texts) => texts.length === 1, "first text created");
+  await expect(page.getByRole("button", { name: /^Text/ })).toHaveAttribute("aria-pressed", "true");
+
+  await drag(page, view.at(300, 150), view.at(500, 200));
+  await page.keyboard.type("Two");
+  await page.keyboard.press("Escape"); // Esc ends it and returns to Select, as always
+  await expectSaved(page, (texts) => texts.length === 2, "second text created");
+  expectArea((await saved(page))[1], { x: 300, y: 150, width: 200, minHeight: 50 });
+});

@@ -7,6 +7,11 @@ export interface Point {
   y: number;
 }
 
+export interface Size {
+  width: number;
+  height: number;
+}
+
 export interface AnnotationKind<A extends Annotation = Annotation> {
   readonly type: A["type"];
   /** The tool's name in the tool column. */
