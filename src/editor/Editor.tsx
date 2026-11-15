@@ -23,6 +23,7 @@ import { actionForKeyEvent, allowedWhileTyping, defaultBindings, isTypingTarget,
 import { Stage } from "./Stage";
 import { StylePanel } from "./StylePanel";
 import { SELECT_TOOL, TOOLS } from "./tools";
+import { returnsToSelect } from "./toolBehavior";
 import { ToolColumn } from "./ToolColumn";
 import { useStickyStyles } from "./stickyStyles";
 import { useWellView } from "./useWellView";
@@ -67,7 +68,9 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
   // Last-used style per tool: loaded from the settings at start, stored again (after a short pause) when changed.
   const [toolStyles, setToolStyles] = useState<Record<string, Style>>({});
   const [canvas, setCanvas] = useState<AnnotationCanvas | null>(null);
-  const stickyStyles = useStickyStyles(bridge, setToolStyles);
+  // The user's own "return to Select after drawing" choice per tool (sticky too); a tool not in here uses its default.
+  const [behavior, setBehavior] = useState<Record<string, boolean>>({});
+  const stickyStyles = useStickyStyles(bridge, setToolStyles, setBehavior);
   // Undo history of each Library image, kept in local app data between runs (ticket 13).
   const historyStore = useMemo(() => createHistoryStore({ bridge }), [bridge]);
 
@@ -222,7 +225,9 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
     onCreate: (annotation) => {
       if (!current) return;
       current.session.apply({ kind: "add", annotation });
-      // Like the layout prototype Andrew chose: after drawing, the new Annotation is selected and the tool is Select again.
+      // Like the layout prototype Andrew chose: after drawing, the new Annotation is selected and the tool is Select
+      // again, unless this tool is set to keep drawing (the Pen by default): then it stays active, nothing selected.
+      if (!returnsToSelect(tool, behavior)) return;
       setTool(SELECT_TOOL.id);
       setSelectedId(annotation.id);
     },
@@ -246,6 +251,12 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
     if (selected && !readOnly) {
       current?.session.apply({ kind: "update", id: selected.id, patch: { [group]: value } as Partial<Annotation> });
     }
+  };
+
+  const setReturnToSelect = (value: boolean) => {
+    if (tool === SELECT_TOOL.id) return;
+    setBehavior((all) => ({ ...all, [tool]: value }));
+    stickyStyles.rememberBehavior(tool, value);
   };
 
   const chooseTool = (next: string) => {
@@ -433,6 +444,17 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
         kind={readOnly ? null : (styledKind ?? null)}
         style={panelStyle}
         onChange={restyle}
+        toolOption={
+          // About the ACTIVE TOOL (never the selected Annotation): only while a drawing tool is picked.
+          readOnly || !styledKind
+            ? null
+            : {
+                label: "Return to Select after drawing",
+                checked: returnsToSelect(tool, behavior),
+                onChange: setReturnToSelect,
+                hidden: tool === SELECT_TOOL.id,
+              }
+        }
         arrange={
           readOnly || selectedIndex < 0
             ? null
