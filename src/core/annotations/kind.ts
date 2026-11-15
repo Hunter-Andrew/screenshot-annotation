@@ -19,4 +19,6 @@ export interface AnnotationKind<A extends Annotation = Annotation> {
   readonly defaultStyle: Style;
   /** The Annotation a drag from `from` to `to` draws (Capture pixels), or null if it is too small to keep. */
   fromDrag(id: string, from: Point, to: Point, style: Style): A | null;
+  /** Freehand tools only (Pen): the Annotation for all the points a drag passed through; the canvas prefers it to `fromDrag`. */
+  fromPath?(id: string, points: readonly Point[], style: Style): A | null;
 }

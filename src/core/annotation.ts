@@ -8,6 +8,7 @@
 import type { ArrowAnnotation } from "./annotations/arrow";
 import type { EllipseAnnotation } from "./annotations/ellipse";
 import type { LineAnnotation } from "./annotations/line";
+import type { PenAnnotation } from "./annotations/pen";
 import type { RectAnnotation } from "./annotations/rect";
 
 /** Bump when the embedded format changes incompatibly. A file with a higher number opens read-only.
@@ -15,13 +16,15 @@ import type { RectAnnotation } from "./annotations/rect";
 export const FORMAT_VERSION = 1;
 
 export type { ArrowAnnotation, EllipseAnnotation, LineAnnotation, RectAnnotation };
+export type { PenAnnotation };
 
 export type Annotation =
   | ArrowAnnotation
   | LineAnnotation
   | RectAnnotation
-  | EllipseAnnotation;
-  // | TextAnnotation (ticket 11) | PenAnnotation (ticket 12) | CalloutAnnotation (18)
+  | EllipseAnnotation
+  | PenAnnotation;
+  // | TextAnnotation (ticket 11) | CalloutAnnotation (18)
   // | HighlightAnnotation (19) | BlurAnnotation (20)
 
 export type AnnotationType = Annotation["type"];

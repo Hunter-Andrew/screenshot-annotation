@@ -1,0 +1,70 @@
+// The Fabric object that draws and edits a Pen stroke. Its box is the stroke's bounds; it draws with
+// `smoothPath` (the same smoothing the Export renderer gets, because the renderer uses this shape too).
+// A stroke can be selected and moved, not resized: it has no handles.
+import { FabricObject } from "fabric";
+import { penBounds, smoothPath, type PenAnnotation } from "../../core/annotations/pen";
+
+export class PenShape extends FabricObject {
+  static override type = "PenShape";
+
+  /** The Annotation as last applied: where it was when the box was at (boundsLeft, boundsTop). */
+  private annotation!: PenAnnotation;
+  private boundsLeft = 0;
+  private boundsTop = 0;
+
+  constructor(annotation: PenAnnotation) {
+    super({
+      originX: "left",
+      originY: "top",
+      fill: null,
+      stroke: null,
+      strokeWidth: 0,
+      objectCaching: false,
+      hasBorders: false,
+      hasControls: false,
+      lockRotation: true,
+      lockScalingX: true,
+      lockScalingY: true,
+      // Hit-test on the drawn pixels (see targetFindTolerance on the canvas): a stroke's box is mostly empty.
+      perPixelTargetFind: true,
+    });
+    this.setModel(annotation);
+  }
+
+  setModel(annotation: PenAnnotation): void {
+    const bounds = penBounds(annotation);
+    this.annotation = annotation;
+    this.boundsLeft = bounds.left;
+    this.boundsTop = bounds.top;
+    this.set({ left: bounds.left, top: bounds.top, width: bounds.width, height: bounds.height });
+    this.setCoords();
+    this.dirty = true;
+  }
+
+  /** The Annotation as it is on screen now, after the user moved it. */
+  toModel(): PenAnnotation {
+    const dx = this.left - this.boundsLeft;
+    const dy = this.top - this.boundsTop;
+    const a = this.annotation;
+    return { ...a, points: a.points.map((p) => ({ x: p.x + dx, y: p.y + dy })) };
+  }
+
+  override _render(ctx: CanvasRenderingContext2D): void {
+    // The context origin is the middle of the box; points are in Capture pixels.
+    const ox = -this.boundsLeft - this.width / 2;
+    const oy = -this.boundsTop - this.height / 2;
+    const { color, width } = this.annotation.stroke;
+
+    ctx.strokeStyle = color;
+    ctx.lineWidth = width;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.beginPath();
+    for (const s of smoothPath(this.annotation.points)) {
+      if (s.op === "M") ctx.moveTo(s.x + ox, s.y + oy);
+      else if (s.op === "L") ctx.lineTo(s.x + ox, s.y + oy);
+      else ctx.quadraticCurveTo(s.cx + ox, s.cy + oy, s.x + ox, s.y + oy);
+    }
+    ctx.stroke();
+  }
+}

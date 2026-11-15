@@ -3,6 +3,7 @@ import type { Annotation, AnnotationType } from "../annotation";
 import { arrowKind } from "./arrow";
 import { ellipseKind } from "./ellipse";
 import { lineKind } from "./line";
+import { penKind } from "./pen";
 import { rectKind } from "./rect";
 import type { AnnotationKind } from "./kind";
 
@@ -12,7 +13,7 @@ export const ANNOTATION_KINDS: readonly AnnotationKind<any>[] = [
   rectKind,
   ellipseKind,
   // textKind, (ticket 11)
-  // penKind, (ticket 12)
+  penKind,
 ];
 
 export function kindOf(type: AnnotationType | string): AnnotationKind<Annotation> | undefined {

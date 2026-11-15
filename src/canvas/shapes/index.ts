@@ -3,6 +3,7 @@ import type { Annotation } from "../../core/annotation";
 import { arrowAdapter } from "./arrow";
 import { ellipseAdapter } from "./ellipse";
 import { lineAdapter } from "./line";
+import { penAdapter } from "./pen";
 import { rectAdapter } from "./rect";
 import type { ShapeAdapter } from "./shape";
 
@@ -12,7 +13,7 @@ const ADAPTERS: readonly ShapeAdapter<any>[] = [
   rectAdapter,
   ellipseAdapter,
   // textAdapter, (ticket 11)
-  // penAdapter, (ticket 12)
+  penAdapter,
 ];
 
 export function adapterFor(type: Annotation["type"] | string): ShapeAdapter | undefined {
