@@ -189,6 +189,47 @@ fn library_save(app: AppHandle, request: Request<'_>) -> Result<String, String> 
     Ok(path.to_string_lossy().into_owned())
 }
 
+fn library_root(app: &AppHandle) -> Result<std::path::PathBuf, String> {
+    Ok(app.path().picture_dir().map_err(|e| e.to_string())?.join(library::LIBRARY_FOLDER))
+}
+
+/// Discard: moves a Library PNG to the Windows Recycle Bin (spec: deletes are recoverable).
+/// Refuses any path that is not a `.png` inside the Library folder.
+#[tauri::command]
+fn library_discard(app: AppHandle, path: String) -> Result<(), String> {
+    let root = library_root(&app)?;
+    let file = library::library_file_in(&root, std::path::Path::new(&path))
+        .ok_or("not a file in the Library")?;
+    library::move_to_recycle_bin(&file)
+}
+
+/// Save as PNG…: shows the Windows save dialog (suggesting the `x-suggested-name` header) and
+/// writes the raw PNG body, a plain Export, where the user chooses. Returns the path, or null if
+/// they cancelled. Async so the blocking dialog does not stall the main thread.
+#[tauri::command]
+async fn save_png_as(app: AppHandle, request: Request<'_>) -> Result<Option<String>, String> {
+    use tauri_plugin_dialog::DialogExt;
+    let InvokeBody::Raw(bytes) = request.body() else {
+        return Err("expected raw PNG bytes".into());
+    };
+    let name = library::dialog_file_name(
+        request.headers().get("x-suggested-name").and_then(|v| v.to_str().ok()).unwrap_or(""),
+    );
+    let mut dialog = app.dialog().file().add_filter("PNG image", &["png"]).set_file_name(name);
+    if let Ok(pictures) = app.path().picture_dir() {
+        dialog = dialog.set_directory(pictures);
+    }
+    let Some(chosen) = dialog.blocking_save_file() else {
+        return Ok(None);
+    };
+    let mut path = chosen.into_path().map_err(|e| e.to_string())?;
+    if path.extension().is_none() {
+        path.set_extension("png");
+    }
+    library::write_atomic(&path, bytes).map_err(|e| e.to_string())?;
+    Ok(Some(path.to_string_lossy().into_owned()))
+}
+
 fn focus(win: &tauri::WebviewWindow) {
     let _ = win.unminimize();
     let _ = win.show();
@@ -257,6 +298,7 @@ pub fn run() {
         // A second launch focuses the running instance.
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| show_editor(app)))
         .plugin(tauri_plugin_clipboard_manager::init())
+        .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             app_version,
             open_url,
@@ -264,6 +306,8 @@ pub fn run() {
             take_capture,
             copy_image,
             library_save,
+            library_discard,
+            save_png_as,
             get_hotkey,
             set_hotkey,
             get_print_screen_notice,

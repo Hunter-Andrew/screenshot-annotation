@@ -57,3 +57,27 @@ test("the Capture button asks the platform to capture", async ({ page }) => {
   await page.getByRole("button", { name: "Capture" }).click();
   await expect(page.getByRole("img", { name: "Capture" })).toBeVisible();
 });
+
+test("Save as PNG… writes a plain PNG and Discard removes the Library file", async ({ page }) => {
+  await page.goto("/");
+  await page.evaluate((rgba) => {
+    window.__fakeBridge.simulateCapture({ width: 2, height: 2, rgba });
+  }, PIXELS);
+  await expect(page.getByText(/Saved to/)).toBeVisible();
+
+  await page.getByRole("button", { name: "Save as PNG…" }).click();
+  await expect(page.getByText(/Saved a copy to/)).toBeVisible();
+  const exported = await page.evaluate(() =>
+    (window.__fakeBridge as unknown as { savedAs: { bytes: Uint8Array }[] }).savedAs.map((f) =>
+      Array.from(f.bytes),
+    ),
+  );
+  expect(exported).toHaveLength(1);
+  const plain = Uint8Array.from(exported[0]!);
+  expect(hasChunk(plain, "snAP")).toBe(false);
+  expect(decodePixels(plain)).toEqual({ width: 2, height: 2, rgba: PIXELS });
+
+  await page.keyboard.press("Control+Delete");
+  await expect(page.getByText("Press Ctrl+Shift+S to capture")).toBeVisible();
+  expect(await page.evaluate(() => window.__fakeBridge.libraryFiles.length)).toBe(0);
+});

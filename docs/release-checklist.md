@@ -32,7 +32,8 @@ Each item shows the milestone it applies from: **M0** (v0.1.0), **M1** (v0.2.0),
 
 - [ ] **M1** Copy, then paste into Teams: a plain image arrives.
 - [ ] **M1** Copy, then paste into Outlook: a plain image arrives.
-- [ ] **M1** Save as PNG… produces a plain image that opens in another viewer.
+- [ ] **M1** Save as PNG… opens the Windows save dialog (suggesting the capture time as the name), writes a plain image that opens in another viewer, and Cancel in the dialog writes nothing.
+- [ ] **M1** Discard (button and Ctrl+Delete) moves the current image's file out of `Pictures\Screenshot Annotation` into the Recycle Bin (restorable from there), and the editor shows the previous image or the empty state.
 - [ ] **M4** Blur is pixelated in the pasted image, not smooth.
 
 ## Library

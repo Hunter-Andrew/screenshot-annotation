@@ -51,5 +51,8 @@ export function createTauriBridge(): PlatformBridge {
     copyImage: (png) => invoke<void>("copy_image", png),
     saveToLibrary: (png, capturedAt) =>
       invoke<string>("library_save", png, { headers: { "x-captured-at": formatStamp(capturedAt) } }),
+    savePngAs: (png, suggestedName) =>
+      invoke<string | null>("save_png_as", png, { headers: { "x-suggested-name": suggestedName } }),
+    discardLibraryFile: (path) => invoke<void>("library_discard", { path }),
   };
 }

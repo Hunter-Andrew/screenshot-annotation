@@ -55,6 +55,17 @@ export interface PlatformBridge {
   dismissPrintScreenNotice(): Promise<void>;
   /** Open Windows Settings at Accessibility > Keyboard. */
   openKeyboardAccessibilitySettings(): Promise<void>;
+
+  /**
+   * Save as PNG…: open the Windows save dialog, suggesting `suggestedName`, and write `png` (a
+   * plain Export) where the user chooses. Returns the chosen path, or null if they cancelled.
+   */
+  savePngAs(png: Uint8Array, suggestedName: string): Promise<string | null>;
+  /**
+   * Discard: move a Library file (a path `saveToLibrary` returned) to the Windows Recycle Bin.
+   * Rejects, leaving the file alone, if it is not inside the Library or could not be moved.
+   */
+  discardLibraryFile(path: string): Promise<void>;
 }
 
 export interface HotkeyState {
