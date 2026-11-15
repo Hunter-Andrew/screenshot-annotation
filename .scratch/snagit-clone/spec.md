@@ -112,7 +112,7 @@ The app makes no network calls. Updates are manual installs from public GitHub R
 77. As Andrew, I want bring forward and send back, so that I can control which Annotation sits on top.
 78. As Andrew, I want undo and redo for every change, so that I can experiment safely.
 79. As Andrew, I want undo history to survive switching images and restarting the app, up to 200 steps per image, so that I can undo work from earlier.
-80. As Andrew, I want undo history for images I haven't touched in 2 months to be deleted automatically, so that history doesn't pile up.
+80. As Andrew, I want undo history for images I haven't touched in 60 days to be deleted automatically, so that history doesn't pile up.
 81. As Andrew, I want changes saved automatically about a second after I stop, so that I never lose work.
 
 ### Copy and save

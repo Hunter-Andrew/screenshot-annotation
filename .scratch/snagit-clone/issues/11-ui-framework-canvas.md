@@ -19,3 +19,7 @@ Decided with Andrew on 2026-11-14.
   - **Lifetime:** it survives switching images and app restarts.
   - **Storage:** per-image history in `%LOCALAPPDATA%`, never inside the PNG, so it is never part of the Library file or an Export.
   - **Limits:** up to 200 steps per image. History is discarded if the PNG changed outside the app, deleted when its image is deleted, and auto-deleted for images not opened or edited in 2 months.
+
+## Comments
+
+- 2026-11-15: The auto-delete limit above says "2 months", but the spec (line ~223), ticket 13 and the code (`EXPIRY_DAYS = 60`) all use 60 days. The decision is 60 days; "2 months" was loose wording. The answer above is left as originally written.
