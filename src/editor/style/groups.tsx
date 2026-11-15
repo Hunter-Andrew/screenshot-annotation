@@ -2,7 +2,7 @@
 // for the selected Annotation or the active tool, the groups its kind opts into, each through its
 // editor here. A new group (Fill: ticket 10; Font and Text outline: ticket 11) adds one entry.
 import { type ComponentType, useEffect, useState } from "react";
-import type { GroupId, PropertyGroups } from "../../core/propertyGroups";
+import { MAX_STROKE_WIDTH, MIN_STROKE_WIDTH, type GroupId, type PropertyGroups } from "../../core/propertyGroups";
 import { FontEditor, TextOutlineEditor } from "./textGroups";
 
 export interface GroupEditorProps<K extends GroupId> {
@@ -26,8 +26,6 @@ export const PALETTE: readonly string[] = [
   "#ffffff", // white
 ];
 export const THICKNESS_PRESETS = [2, 4, 8] as const;
-export const MIN_THICKNESS = 1;
-export const MAX_THICKNESS = 30;
 
 /** The 8-color palette plus a custom picker; `label` names it ("Color", "Fill color") for assistive tech and tests. */
 function ColorChoice({ label, color, onPick }: { label: string; color: string; onPick(color: string): void }) {
@@ -66,14 +64,14 @@ function StrokeEditor({ value, onChange }: GroupEditorProps<"stroke">) {
         Thickness
         <input
           type="number"
-          min={MIN_THICKNESS}
-          max={MAX_THICKNESS}
+          min={MIN_STROKE_WIDTH}
+          max={MAX_STROKE_WIDTH}
           aria-label="Thickness"
           value={text}
           onChange={(e) => {
             setText(e.target.value);
             const width = Math.round(Number(e.target.value));
-            if (e.target.value !== "" && width >= MIN_THICKNESS && width <= MAX_THICKNESS) onChange({ ...value, width });
+            if (e.target.value !== "" && width >= MIN_STROKE_WIDTH && width <= MAX_STROKE_WIDTH) onChange({ ...value, width });
           }}
           onBlur={() => setText(String(value.width))}
         />

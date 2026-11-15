@@ -1,5 +1,6 @@
 // The Line Annotation: a straight segment with a Stroke, no heads (an Arrow without them).
 import type { PropertyGroups, Style } from "../propertyGroups";
+import { type Bounds, strokeBounds } from "./bounds";
 import type { AnnotationKind } from "./kind";
 
 export interface LineAnnotation extends Pick<PropertyGroups, "stroke"> {
@@ -35,14 +36,12 @@ export const lineKind: AnnotationKind<LineAnnotation> = {
 };
 
 /** The box around a Line with its thickness (a square pad: generous at a slant, never short). */
-export function lineBounds(line: LineAnnotation): { left: number; top: number; width: number; height: number } {
-  const pad = line.stroke.width / 2 + 1;
-  const left = Math.min(line.x1, line.x2) - pad;
-  const top = Math.min(line.y1, line.y2) - pad;
-  return {
-    left,
-    top,
-    width: Math.max(line.x1, line.x2) + pad - left,
-    height: Math.max(line.y1, line.y2) + pad - top,
-  };
+export function lineBounds(line: LineAnnotation): Bounds {
+  return strokeBounds(
+    [
+      { x: line.x1, y: line.y1 },
+      { x: line.x2, y: line.y2 },
+    ],
+    line.stroke.width,
+  );
 }

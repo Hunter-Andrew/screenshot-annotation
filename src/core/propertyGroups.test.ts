@@ -1,6 +1,17 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
-import { fillPaint, sanitizeStyle } from "./propertyGroups";
+import { MAX_STROKE_WIDTH, MIN_STROKE_WIDTH, fillPaint, sanitizeStyle } from "./propertyGroups";
+
+describe("Stroke thickness limits", () => {
+  it("are 1 to 30 and are the exact edges sanitizeStyle accepts", () => {
+    expect([MIN_STROKE_WIDTH, MAX_STROKE_WIDTH]).toEqual([1, 30]);
+    const read = (width: number) => sanitizeStyle({ stroke: { color: "#000000", width } });
+    expect(read(MIN_STROKE_WIDTH)).toEqual({ stroke: { color: "#000000", width: MIN_STROKE_WIDTH } });
+    expect(read(MAX_STROKE_WIDTH)).toEqual({ stroke: { color: "#000000", width: MAX_STROKE_WIDTH } });
+    expect(read(MIN_STROKE_WIDTH - 1)).toEqual({});
+    expect(read(MAX_STROKE_WIDTH + 1)).toEqual({});
+  });
+});
 
 describe("fillPaint", () => {
   it("is nothing for 'none', whatever the color and opacity say", () => {

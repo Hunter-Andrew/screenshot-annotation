@@ -4,10 +4,14 @@
 // To add a group (tickets 10 and 11): declare its value type here, add it to `PropertyGroups`, and
 // register its Style panel editor in `src/editor/style/groups.tsx`.
 
+/** Stroke thickness limits in Capture pixels: the Style panel and the stored-style reader share them. */
+export const MIN_STROKE_WIDTH = 1;
+export const MAX_STROKE_WIDTH = 30;
+
 export interface Stroke {
   /** CSS hex color, e.g. "#e02424". Strokes are always solid. */
   color: string;
-  /** 1-30 px, in Capture pixels. */
+  /** MIN_STROKE_WIDTH-MAX_STROKE_WIDTH (1-30) px, in Capture pixels. */
   width: number;
 }
 
@@ -70,33 +74,41 @@ import { MAX_FONT_SIZE, MAX_OUTLINE_WIDTH, MIN_FONT_SIZE, MIN_OUTLINE_WIDTH } fr
 const HEX = /^#[0-9a-fA-F]{6}$/;
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
 
+/** The stored object with a valid hex `color`, or undefined: the start of every reader of a group that has a color. */
+const readColor = (raw: unknown): (Record<string, unknown> & { color: string }) | undefined =>
+  isRecord(raw) && typeof raw.color === "string" && HEX.test(raw.color) ? (raw as Record<string, unknown> & { color: string }) : undefined;
+
 /** One reader per group: the valid value, or undefined to drop it. A new group adds one entry. */
 const GROUP_READERS: { [K in GroupId]: (raw: unknown) => PropertyGroups[K] | undefined } = {
   stroke: (raw) => {
-    if (!isRecord(raw) || typeof raw.color !== "string" || !HEX.test(raw.color) || typeof raw.width !== "number") return;
-    const width = Math.round(raw.width);
-    return width >= 1 && width <= 30 ? { color: raw.color, width } : undefined;
+    const stored = readColor(raw);
+    if (!stored || typeof stored.width !== "number") return;
+    const width = Math.round(stored.width);
+    return width >= MIN_STROKE_WIDTH && width <= MAX_STROKE_WIDTH ? { color: stored.color, width } : undefined;
   },
   arrowheads: (raw) => (isRecord(raw) && (raw.ends === "end" || raw.ends === "both") ? { ends: raw.ends } : undefined),
   fill: (raw) => {
-    if (!isRecord(raw) || typeof raw.color !== "string" || !HEX.test(raw.color)) return;
-    const { mode, opacity } = raw;
+    const stored = readColor(raw);
+    if (!stored) return;
+    const { mode, opacity } = stored;
     if (mode !== "none" && mode !== "solid" && mode !== "semi") return;
-    return typeof opacity === "number" && opacity >= 0 && opacity <= 1 ? { mode, color: raw.color, opacity } : undefined;
+    return typeof opacity === "number" && opacity >= 0 && opacity <= 1 ? { mode, color: stored.color, opacity } : undefined;
   },
   font: (raw) => {
-    if (!isRecord(raw) || typeof raw.color !== "string" || !HEX.test(raw.color)) return;
-    const { size, bold, italic } = raw;
+    const stored = readColor(raw);
+    if (!stored) return;
+    const { size, bold, italic } = stored;
     if (typeof bold !== "boolean" || typeof italic !== "boolean" || typeof size !== "number") return;
     const whole = Math.round(size);
-    return whole >= MIN_FONT_SIZE && whole <= MAX_FONT_SIZE ? { size: whole, bold, italic, color: raw.color } : undefined;
+    return whole >= MIN_FONT_SIZE && whole <= MAX_FONT_SIZE ? { size: whole, bold, italic, color: stored.color } : undefined;
   },
   textOutline: (raw) => {
-    if (!isRecord(raw) || typeof raw.color !== "string" || !HEX.test(raw.color)) return;
-    const { enabled, width } = raw;
+    const stored = readColor(raw);
+    if (!stored) return;
+    const { enabled, width } = stored;
     if (typeof enabled !== "boolean" || typeof width !== "number") return;
     const whole = Math.round(width);
-    return whole >= MIN_OUTLINE_WIDTH && whole <= MAX_OUTLINE_WIDTH ? { enabled, color: raw.color, width: whole } : undefined;
+    return whole >= MIN_OUTLINE_WIDTH && whole <= MAX_OUTLINE_WIDTH ? { enabled, color: stored.color, width: whole } : undefined;
   },
 };
 

@@ -2,6 +2,7 @@
 // Fabric path (ADR 0005). Smoothing happens when drawing, by `smoothPath`, which the canvas view and
 // the Export renderer both use, so what you see is what you copy.
 import type { PropertyGroups, Style } from "../propertyGroups";
+import { type Bounds, strokeBounds } from "./bounds";
 import type { AnnotationKind, Point } from "./kind";
 
 export interface PenAnnotation extends Pick<PropertyGroups, "stroke"> {
@@ -77,11 +78,6 @@ export const penKind: AnnotationKind<PenAnnotation> = {
 };
 
 /** The box around the stroke, thickness included. */
-export function penBounds(pen: PenAnnotation): { left: number; top: number; width: number; height: number } {
-  const pad = pen.stroke.width / 2 + 1;
-  const xs = pen.points.map((p) => p.x);
-  const ys = pen.points.map((p) => p.y);
-  const left = Math.min(...xs) - pad;
-  const top = Math.min(...ys) - pad;
-  return { left, top, width: Math.max(...xs) + pad - left, height: Math.max(...ys) + pad - top };
+export function penBounds(pen: PenAnnotation): Bounds {
+  return strokeBounds(pen.points, pen.stroke.width);
 }

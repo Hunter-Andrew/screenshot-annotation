@@ -1,5 +1,6 @@
 // The Arrow Annotation: always straight (permanent decision), one head by default or both ends.
 import type { PropertyGroups, Style } from "../propertyGroups";
+import { type Bounds, strokeBounds } from "./bounds";
 import type { AnnotationKind, Point } from "./kind";
 
 export interface ArrowAnnotation extends Pick<PropertyGroups, "stroke" | "arrowheads"> {
@@ -83,17 +84,14 @@ export function arrowGeometry(arrow: ArrowAnnotation): ArrowGeometry {
 }
 
 /** The box around everything an Arrow draws (shaft with its thickness, and the heads). */
-export function arrowBounds(arrow: ArrowAnnotation): { left: number; top: number; width: number; height: number } {
+export function arrowBounds(arrow: ArrowAnnotation): Bounds {
   const { heads } = arrowGeometry(arrow);
-  const pad = arrow.stroke.width / 2 + 1;
-  const points = [
-    { x: arrow.x1, y: arrow.y1 },
-    { x: arrow.x2, y: arrow.y2 },
-    ...heads.flat(),
-  ];
-  const xs = points.map((p) => p.x);
-  const ys = points.map((p) => p.y);
-  const left = Math.min(...xs) - pad;
-  const top = Math.min(...ys) - pad;
-  return { left, top, width: Math.max(...xs) + pad - left, height: Math.max(...ys) + pad - top };
+  return strokeBounds(
+    [
+      { x: arrow.x1, y: arrow.y1 },
+      { x: arrow.x2, y: arrow.y2 },
+      ...heads.flat(),
+    ],
+    arrow.stroke.width,
+  );
 }
