@@ -34,6 +34,10 @@ export interface FakeBridge extends PlatformBridge {
   readonly readyOverlays: number[];
   /** What the overlay finished with, in order. */
   readonly overlayOutcomes: OverlayOutcome[];
+  /** Lines the overlay page wrote to the diagnostics log. */
+  readonly overlayLogs: { message: string; fatal: boolean }[];
+  /** Make the next `overlayFrame` call reject with this message. */
+  failNextOverlayFrame(message: string): void;
   /** The registered capture hotkey (accelerator). */
   readonly hotkey: string;
   /** Combinations "another app" owns; `setHotkey` reports a conflict for these. Mutable by tests. */
@@ -81,6 +85,8 @@ export function createFakeBridge(
   const overlayWindowRequests: number[] = [];
   const readyOverlays: number[] = [];
   const overlayOutcomes: OverlayOutcome[] = [];
+  const overlayLogs: { message: string; fatal: boolean }[] = [];
+  let overlayFrameFailure: string | null = null;
   const magnifierHandlers = new Set<() => void>();
   const openedUrls: string[] = [];
   const copiedImages: Uint8Array[] = [];
@@ -122,6 +128,10 @@ export function createFakeBridge(
     overlayWindowRequests,
     readyOverlays,
     overlayOutcomes,
+    overlayLogs,
+    failNextOverlayFrame: (message) => {
+      overlayFrameFailure = message;
+    },
     get hotkey() {
       return hotkey;
     },
@@ -171,6 +181,11 @@ export function createFakeBridge(
     },
     overlayFrame: async (monitor) => {
       overlayFrameRequests.push(monitor);
+      if (overlayFrameFailure !== null) {
+        const message = overlayFrameFailure;
+        overlayFrameFailure = null;
+        throw new Error(message);
+      }
       // A small gradient; the overlay stretches it over its window, so only the native size matters.
       const { width, height } = options.overlayFrames?.[monitor] ?? { width: 640, height: 360 };
       const shot = defaultShot();
@@ -185,6 +200,9 @@ export function createFakeBridge(
     },
     finishOverlay: async (outcome) => {
       overlayOutcomes.push(outcome);
+    },
+    logOverlay: async (message, fatal = false) => {
+      overlayLogs.push({ message, fatal });
     },
     toggleOverlayMagnifier: async () => magnifierHandlers.forEach((handler) => handler()),
     onOverlayMagnifier: async (handler) => {

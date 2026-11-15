@@ -181,3 +181,34 @@ describe("Overlay window mode", () => {
     );
   });
 });
+
+describe("Overlay failures", () => {
+  it("reports a failed frozen-frame request to the log and cancels so the platform tears down", async () => {
+    Object.assign(window, { innerWidth: 1000, innerHeight: 500 });
+    bridge = createFakeBridge({ overlayFrames: { 0: FRAME } });
+    bridge.failNextOverlayFrame("decode exploded");
+    render(<Overlay bridge={bridge} monitor={0} />);
+    await waitFor(() => expect(bridge.overlayOutcomes).toEqual([{ kind: "cancel" }]));
+    expect(bridge.overlayLogs).toHaveLength(1);
+    expect(bridge.overlayLogs[0]).toMatchObject({ fatal: true });
+    expect(bridge.overlayLogs[0].message).toMatch(/overlayFrame.*decode exploded/);
+  });
+
+  it("logs uncaught page errors and unhandled rejections, and cancels on them", async () => {
+    await showOverlay(0);
+    act(() => {
+      window.dispatchEvent(new ErrorEvent("error", { message: "boom", filename: "x.js", lineno: 3 }));
+    });
+    await waitFor(() => expect(bridge.overlayOutcomes).toEqual([{ kind: "cancel" }]));
+    expect(bridge.overlayLogs.some((l) => l.fatal && /boom/.test(l.message))).toBe(true);
+  });
+
+  it("logs unhandled rejections", async () => {
+    await showOverlay(0);
+    const event = Object.assign(new Event("unhandledrejection"), { reason: new Error("nope") });
+    act(() => {
+      window.dispatchEvent(event);
+    });
+    await waitFor(() => expect(bridge.overlayLogs.some((l) => /nope/.test(l.message))).toBe(true));
+  });
+});

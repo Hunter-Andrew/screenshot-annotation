@@ -30,4 +30,17 @@ describe("TS/Rust shared constants", () => {
     const capability = readFileSync(resolve(__dirname, "../../src-tauri/capabilities/default.json"), "utf8");
     expect(JSON.parse(capability).windows).toContain(`${label}*`);
   });
+
+  it("the CSP lets the page reach Tauri's IPC protocol (else every call degrades to postMessage and binary replies stop being ArrayBuffers)", () => {
+    const conf = JSON.parse(readFileSync(resolve(__dirname, "../../src-tauri/tauri.conf.json"), "utf8"));
+    const csp: string = conf.app.security.csp;
+    const connect = csp.split(";").map((d) => d.trim()).find((d) => d.startsWith("connect-src")) ?? "";
+    expect(connect.split(/\s+/)).toEqual(expect.arrayContaining(["ipc:", "http://ipc.localhost"]));
+  });
+
+  it("lib.rs registers overlay_log and lists show_settings above show_editor", () => {
+    const lib = rust("lib.rs");
+    expect(lib).toContain("overlay::overlay_log");
+    expect(lib.indexOf("fn show_settings")).toBeLessThan(lib.indexOf("fn show_editor"));
+  });
 });

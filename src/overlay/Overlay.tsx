@@ -37,9 +37,36 @@ export function Overlay({ bridge, monitor }: { bridge: PlatformBridge; monitor: 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const finished = useRef(false);
 
+  // Anything that goes wrong here is reported to the app's log and ends the capture: the platform
+  // tears every overlay down and tells the user, instead of leaving a window that never appears.
+  const fail = (what: string, error: unknown) => {
+    const detail = error instanceof Error ? error.message : String(error);
+    void bridge.logOverlay(`overlay ${monitor}: ${what}: ${detail}`, true);
+    if (finished.current) return;
+    finished.current = true;
+    void bridge.finishOverlay({ kind: "cancel" }).catch(() => {});
+  };
+  const failRef = useRef(fail);
+  failRef.current = fail;
+
+  useEffect(() => {
+    const onError = (event: ErrorEvent) =>
+      failRef.current("page error", `${event.message} (${event.filename}:${event.lineno})`);
+    const onRejection = (event: PromiseRejectionEvent) => failRef.current("unhandled rejection", event.reason);
+    window.addEventListener("error", onError);
+    window.addEventListener("unhandledrejection", onRejection);
+    return () => {
+      window.removeEventListener("error", onError);
+      window.removeEventListener("unhandledrejection", onRejection);
+    };
+  }, []);
+
   useEffect(() => {
     let alive = true;
-    void bridge.overlayFrame(monitor).then((f) => alive && setFrame(f));
+    bridge.overlayFrame(monitor).then(
+      (f) => alive && setFrame(f),
+      (e) => alive && failRef.current("overlayFrame failed", e),
+    );
     return () => {
       alive = false;
     };
@@ -47,7 +74,10 @@ export function Overlay({ bridge, monitor }: { bridge: PlatformBridge; monitor: 
 
   useEffect(() => {
     let alive = true;
-    void bridge.overlayWindows(monitor).then((list) => alive && setWindows(list));
+    bridge.overlayWindows(monitor).then(
+      (list) => alive && setWindows(list),
+      (e) => alive && failRef.current("overlayWindows failed", e),
+    );
     return () => {
       alive = false;
     };
@@ -62,7 +92,7 @@ export function Overlay({ bridge, monitor }: { bridge: PlatformBridge; monitor: 
   const finish = (outcome: OverlayOutcome) => {
     if (finished.current) return; // e.g. Esc during a drag, then the release
     finished.current = true;
-    void bridge.finishOverlay(outcome);
+    bridge.finishOverlay(outcome).catch((e) => void bridge.logOverlay(`overlay ${monitor}: finishOverlay failed: ${e}`, true));
   };
 
   useEffect(() => {
@@ -191,7 +221,8 @@ export function Overlay({ bridge, monitor }: { bridge: PlatformBridge; monitor: 
           alt="Frozen screen"
           draggable={false}
           style={{ ...fill, width: "100%", height: "100%" }}
-          onLoad={() => void bridge.overlayReady(monitor)}
+          onLoad={() => bridge.overlayReady(monitor).catch((e) => failRef.current("overlayReady failed", e))}
+          onError={() => failRef.current("the frozen frame could not be decoded", "image load error")}
         />
       )}
       {/* Dim everything, or everything but the selection (the box-shadow spills outward). */}

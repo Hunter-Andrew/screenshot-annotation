@@ -7,7 +7,8 @@ import type { CaptureResult, HotkeyState, OverlayFrame, OverlayRect, PlatformBri
  * Decode the `take_capture` body (see `pack_capture` in src-tauri/src/lib.rs): u32 LE width,
  * u32 LE height, f64 LE capture time in ms since the epoch, then the PNG. Empty means none.
  */
-export function unpackCapture(body: ArrayBuffer): CaptureResult | null {
+export function unpackCapture(reply: ArrayBuffer): CaptureResult | null {
+  const body = asBuffer(reply);
   if (body.byteLength < 16) return null;
   const view = new DataView(body);
   return {
@@ -19,7 +20,20 @@ export function unpackCapture(body: ArrayBuffer): CaptureResult | null {
 }
 
 /** Decode `overlay_frame` (see `pack_frame` in src-tauri/src/overlay.rs): u32 LE width, u32 LE height, then the PNG. */
-export function unpackFrame(body: ArrayBuffer): OverlayFrame {
+/**
+ * A binary reply is an ArrayBuffer when Tauri's fetch-based IPC works. If the webview refuses that
+ * (a CSP without `connect-src ipc: http://ipc.localhost`), Tauri silently falls back to postMessage
+ * and the same reply arrives as a plain array of byte values; accept both rather than fail.
+ */
+function asBuffer(reply: unknown): ArrayBuffer {
+  if (reply instanceof ArrayBuffer) return reply;
+  if (ArrayBuffer.isView(reply)) return new Uint8Array(reply.buffer, reply.byteOffset, reply.byteLength).slice().buffer;
+  if (Array.isArray(reply)) return Uint8Array.from(reply).buffer;
+  throw new Error(`unexpected reply from the app (${typeof reply})`);
+}
+
+export function unpackFrame(reply: ArrayBuffer): OverlayFrame {
+  const body = asBuffer(reply);
   if (body.byteLength < 8) throw new Error("no frozen frame for this monitor");
   const view = new DataView(body);
   return { width: view.getUint32(0, true), height: view.getUint32(4, true), png: new Uint8Array(body, 8) };
@@ -62,6 +76,14 @@ export function createTauriBridge(): PlatformBridge {
     overlayWindows: (monitor) => invoke<OverlayRect[]>("overlay_windows", { monitor }),
     overlayReady: (monitor) => invoke<void>("overlay_ready", { monitor }),
     finishOverlay: (outcome) => invoke<void>("overlay_finish", { outcome }),
+    logOverlay: async (message, fatal = false) => {
+      try {
+        await invoke<void>("overlay_log", { message, fatal });
+      } catch {
+        // Reporting must never throw; the console is all that is left.
+        console.error(message);
+      }
+    },
     toggleOverlayMagnifier: () => invoke<void>("overlay_toggle_magnifier"),
     onOverlayMagnifier: (handler) => listen("overlay-magnifier", () => handler()),
     savePngAs: (png, suggestedName) =>

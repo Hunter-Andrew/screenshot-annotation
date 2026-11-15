@@ -84,6 +84,11 @@ export interface PlatformBridge {
   overlayReady(monitor: number): Promise<void>;
   /** Finish the capture. The platform closes every overlay and delivers the Capture via `onCapture`. */
   finishOverlay(outcome: OverlayOutcome): Promise<void>;
+  /**
+   * Write a line to the app's diagnostics log (`capture.log` in the app data folder). With `fatal`
+   * the platform also tears every overlay down and tells the user what went wrong. Never throws.
+   */
+  logOverlay(message: string, fatal?: boolean): Promise<void>;
   /** Toggle the magnifier on every overlay (keys reach only the focused overlay window). */
   toggleOverlayMagnifier(): Promise<void>;
   onOverlayMagnifier(handler: () => void): Promise<() => void>;

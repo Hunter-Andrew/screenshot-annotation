@@ -1,5 +1,6 @@
 mod capture;
 mod capture_image;
+mod diag;
 mod geometry;
 mod hotkey;
 mod library;
@@ -8,6 +9,7 @@ mod png_guard;
 mod print_screen;
 mod settings;
 mod url_guard;
+mod watchdog;
 
 use std::sync::Mutex;
 use std::time::Duration;
@@ -151,7 +153,7 @@ fn open_keyboard_accessibility_settings() -> Result<(), String> {
 /// Capture the monitor under the cursor (what the hotkey does) and hand it to the editor.
 #[tauri::command]
 fn start_capture(app: AppHandle) {
-    capture_async(app);
+    capture_async(app, "editor button");
 }
 
 /// Returns the pending Capture (see `pack_capture`) and clears it; an empty body when none.
@@ -269,8 +271,18 @@ fn show_editor(app: &AppHandle) {
 }
 
 /// Start a capture (hotkey, tray): freeze the screen and open the overlay; see overlay.rs.
-fn capture_async(app: AppHandle) {
-    overlay::begin(app);
+fn capture_async(app: AppHandle, source: &str) {
+    overlay::begin(app, source);
+}
+
+/// Opens the folder that holds `capture.log` (the diagnostics log; see diag.rs).
+fn open_log_folder() {
+    let Some(file) = diag::path() else { return };
+    if let Some(dir) = file.parent() {
+        if let Err(e) = tauri_plugin_opener::open_path(dir.to_string_lossy().into_owned(), None::<&str>) {
+            diag::log(&format!("could not open the log folder: {e}"));
+        }
+    }
 }
 
 /// Hand a finished Capture (a plain PNG) to the editor and show it.
@@ -305,6 +317,7 @@ pub fn run() {
             overlay::overlay_frame,
             overlay::overlay_windows,
             overlay::overlay_ready,
+            overlay::overlay_log,
             overlay::overlay_finish,
             overlay::overlay_toggle_magnifier
         ])
@@ -313,16 +326,19 @@ pub fn run() {
                 tauri_plugin_global_shortcut::Builder::new()
                     .with_handler(|app, _shortcut, event| {
                         if event.state() == ShortcutState::Pressed {
-                            capture_async(app.clone());
+                            capture_async(app.clone(), "hotkey");
                         }
                     })
                     .build(),
             )?;
             let dir = app.path().app_data_dir()?;
+            diag::init(&dir);
+            diag::log(&format!("started, version {}", app.package_info().version));
             let loaded = settings::load(&dir);
             // A taken hotkey must not stop the app from starting; Settings shows the conflict warning.
-            if let Err(e) = app.global_shortcut().register(loaded.hotkey.as_str()) {
-                eprintln!("could not register {}: {e}", loaded.hotkey);
+            match app.global_shortcut().register(loaded.hotkey.as_str()) {
+                Ok(()) => diag::log(&format!("hotkey {} registered", loaded.hotkey)),
+                Err(e) => diag::log(&format!("could not register {}: {e}", loaded.hotkey)),
             }
             let notice_pending = !loaded.print_screen_notice_dismissed && print_screen::snipping_enabled();
             app.manage(AppSettings { dir, data: Mutex::new(loaded) });
@@ -334,11 +350,12 @@ pub fn run() {
             let capture = MenuItem::with_id(app, "capture", "Capture", true, None::<&str>)?;
             let editor = MenuItem::with_id(app, "editor", "Open editor", true, None::<&str>)?;
             let settings = MenuItem::with_id(app, "settings", "Settings", true, None::<&str>)?;
+            let log_folder = MenuItem::with_id(app, "log", "Open log folder", true, None::<&str>)?;
             let exit = MenuItem::with_id(app, "exit", "Exit", true, None::<&str>)?;
             TrayIconBuilder::new()
                 .icon(app.default_window_icon().unwrap().clone())
                 .tooltip("Screenshot Annotation")
-                .menu(&Menu::with_items(app, &[&capture, &editor, &settings, &exit])?)
+                .menu(&Menu::with_items(app, &[&capture, &editor, &settings, &log_folder, &exit])?)
                 .show_menu_on_left_click(false)
                 .on_tray_icon_event(|tray, event| {
                     if let TrayIconEvent::Click {
@@ -351,7 +368,8 @@ pub fn run() {
                     }
                 })
                 .on_menu_event(|app, event| match event.id.as_ref() {
-                    "capture" => capture_async(app.clone()),
+                    "capture" => capture_async(app.clone(), "tray"),
+                    "log" => open_log_folder(),
                     "editor" => show_editor(app),
                     "settings" => show_settings(app),
                     "exit" => app.exit(0),
