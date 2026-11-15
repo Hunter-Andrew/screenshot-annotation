@@ -14,4 +14,6 @@ export interface ShapeAdapter<A extends Annotation = Annotation> {
    * back after a move or resize. Style never comes back from the canvas: the Style panel owns it.
    */
   read(object: FabricObject): Partial<A>;
+  /** Only for a tool the user types into (`AnnotationKind.typedInPlace`): put `object` into in-place editing. */
+  beginEdit?(object: FabricObject): void;
 }

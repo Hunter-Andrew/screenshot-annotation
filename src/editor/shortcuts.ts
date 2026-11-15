@@ -87,6 +87,16 @@ export function keyLabel(action: string, bindings: Bindings = defaultBindings())
     .join("+");
 }
 
+/**
+ * Whether `action` may run while the key press goes into a text field or the Text tool's box: bare
+ * keys never do (typing "t" must not switch tools), and of the Ctrl combos only the view keys (zoom,
+ * fit) stay active. Ctrl+C and Ctrl+Delete keep their text meaning there (copy the selected words,
+ * delete the next word), so they never copy or discard the image from inside a text box.
+ */
+export function allowedWhileTyping(action: string | null, event: Pick<KeyboardEvent, "ctrlKey">): boolean {
+  return action !== null && event.ctrlKey && action.startsWith("view.");
+}
+
 const TEXT_INPUT_TYPES = new Set(["", "text", "number", "search", "email", "url", "tel", "password"]);
 
 /** True when a key press is going into a text field (or the text tool's editor), not at the editor's shortcuts. */

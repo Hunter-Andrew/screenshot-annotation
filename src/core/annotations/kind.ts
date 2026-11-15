@@ -18,5 +18,10 @@ export interface AnnotationKind<A extends Annotation = Annotation> {
   /** The style a fresh Annotation of this kind starts with, until the user has restyled the tool. */
   readonly defaultStyle: Style;
   /** The Annotation a drag from `from` to `to` draws (Capture pixels), or null if it is too small to keep. */
-  fromDrag(id: string, from: Point, to: Point, style: Style): A | null;
+  fromDrag(id: string, from: Point, to: Point, style: Style, area?: { width: number; height: number }): A | null;
+  /**
+   * True for a tool the user types into (Text): a click makes the box and starts editing it in place;
+   * it becomes an Annotation only once something has been typed.
+   */
+  readonly typedInPlace?: boolean;
 }

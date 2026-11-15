@@ -3,6 +3,7 @@
 // editor here. A new group (Fill: ticket 10; Font and Text outline: ticket 11) adds one entry.
 import { type ComponentType, useEffect, useState } from "react";
 import type { GroupId, PropertyGroups } from "../../core/propertyGroups";
+import { FontEditor, TextOutlineEditor } from "./textGroups";
 
 export interface GroupEditorProps<K extends GroupId> {
   value: PropertyGroups[K];
@@ -105,5 +106,6 @@ export const GROUP_EDITORS: { [K in GroupId]: GroupEditor<K> } = {
   stroke: { title: "Stroke", Editor: StrokeEditor },
   arrowheads: { title: "Arrowheads", Editor: ArrowheadsEditor },
   // fill: { title: "Fill", Editor: FillEditor }, (ticket 10)
-  // font, textOutline (ticket 11)
+  font: { title: "Font", Editor: FontEditor },
+  textOutline: { title: "Text outline", Editor: TextOutlineEditor },
 };

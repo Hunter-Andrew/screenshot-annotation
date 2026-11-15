@@ -2,11 +2,12 @@
 import type { Annotation } from "../../core/annotation";
 import { arrowAdapter } from "./arrow";
 import type { ShapeAdapter } from "./shape";
+import { textAdapter } from "./text";
 
 const ADAPTERS: readonly ShapeAdapter<any>[] = [
   arrowAdapter,
   // lineAdapter, rectAdapter, ellipseAdapter, (ticket 10)
-  // textAdapter, (ticket 11)
+  textAdapter,
   // penAdapter, (ticket 12)
 ];
 

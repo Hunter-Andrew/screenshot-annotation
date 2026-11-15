@@ -44,9 +44,13 @@ export function createFabricCanvas(host: HTMLElement, { size, events }: MountOpt
     y: Math.min(Math.max(p.y, 0), size.height),
   });
 
+  /** A new text box being typed into: not an Annotation until it has words (see `startTyping`). */
+  let pending: FabricObject | null = null;
+
   const refreshMode = () => {
     const drawing = interactive && tool !== SELECT;
-    canvas.skipTargetFind = !interactive || drawing;
+    // While typing into a new box the pointer must reach it (to place the caret, to click away).
+    canvas.skipTargetFind = !interactive || (drawing && pending === null);
     canvas.defaultCursor = drawing ? "crosshair" : "default";
     canvas.hoverCursor = drawing ? "crosshair" : "move";
   };
@@ -79,14 +83,37 @@ export function createFabricCanvas(host: HTMLElement, { size, events }: MountOpt
     if (drag?.ghost) canvas.remove(drag.ghost);
     if (drag) drag.ghost = null;
   };
+  /** A click with a typed-in tool (Text): the box appears, the user types, and it counts once it has words. */
+  const startTyping = (annotation: Annotation) => {
+    const adapter = adapterFor(annotation.type);
+    if (!adapter?.beginEdit) return;
+    const object = adapter.create(annotation);
+    pending = object;
+    canvas.add(object);
+    (object as unknown as { once(event: string, handler: () => void): void }).once("editing:exited", () => {
+      const typed = { ...annotation, ...adapter.read(object) } as Annotation;
+      pending = null;
+      silently(() => canvas.remove(object));
+      // Like a drawn shape: done, so back to Select (unless the user already picked another tool).
+      if (tool === annotation.type) tool = SELECT;
+      refreshMode();
+      canvas.requestRenderAll();
+      if ("text" in typed && typed.text.trim() !== "") events.onCreate(typed);
+    });
+    refreshMode();
+    silently(() => canvas.setActiveObject(object));
+    adapter.beginEdit(object);
+    canvas.requestRenderAll();
+  };
+
   canvas.on("mouse:down", (event) => {
-    if (!interactive || tool === SELECT || (event.e as MouseEvent).button > 0) return;
+    if (!interactive || tool === SELECT || pending || (event.e as MouseEvent).button > 0) return;
     drag = { from: clampToImage(canvas.getScenePoint(event.e)), ghost: null };
   });
   canvas.on("mouse:move", (event) => {
     const kind = kindOf(tool);
     const adapter = adapterFor(tool);
-    if (!drag || !kind || !adapter) return;
+    if (!drag || !kind || !adapter || kind.typedInPlace) return;
     const preview = kind.fromDrag("preview", drag.from, clampToImage(canvas.getScenePoint(event.e)), drawStyle);
     if (!preview) return dropGhost();
     if (drag.ghost) adapter.update(drag.ghost, preview);
@@ -108,9 +135,12 @@ export function createFabricCanvas(host: HTMLElement, { size, events }: MountOpt
       gesture.from,
       clampToImage(canvas.getScenePoint(event.e)),
       drawStyle,
+      size,
     );
     canvas.requestRenderAll();
-    if (annotation) events.onCreate(annotation);
+    if (!annotation) return;
+    if (kind.typedInPlace) startTyping(annotation);
+    else events.onCreate(annotation);
   });
 
   return {

@@ -17,7 +17,7 @@ import { capturedAtFromPath, formatStamp } from "../shared/stamp";
 import { formatCombo } from "../settings/hotkey";
 import "./editor.css";
 import { createPersister, type Persister } from "./persister";
-import { actionForKeyEvent, defaultBindings, isTypingTarget } from "./shortcuts";
+import { actionForKeyEvent, allowedWhileTyping, defaultBindings, isTypingTarget } from "./shortcuts";
 import { Stage } from "./Stage";
 import { StylePanel } from "./StylePanel";
 import { SELECT_TOOL, TOOLS } from "./tools";
@@ -277,9 +277,10 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
   latest.current = { chooseTool, copy, discard, view, selectedId, hasImage: image !== null };
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      if (isTypingTarget(event.target as HTMLElement | null)) return;
       const action = actionForKeyEvent(event, BINDINGS);
       if (!action) return;
+      // Typing in a text field or in the Text tool's box: bare keys are the text's, not shortcuts.
+      if (isTypingTarget(event.target as HTMLElement | null) && !allowedWhileTyping(action, event)) return;
       const now = latest.current;
       if (action.startsWith("tool.")) {
         // A tool whose ticket has not landed has a row in the table but no button: its key does nothing.

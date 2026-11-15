@@ -2,6 +2,7 @@
 import { describe, expect, it } from "vitest";
 import {
   actionForKeyEvent,
+  allowedWhileTyping,
   defaultBindings,
   isTypingTarget,
   keyLabel,
@@ -104,5 +105,32 @@ describe("isTypingTarget", () => {
     expect(isTypingTarget(el("INPUT", { type: "range" }) as never)).toBe(false);
     expect(isTypingTarget(el("INPUT", { type: "color" }) as never)).toBe(false);
     expect(isTypingTarget(null)).toBe(false);
+  });
+});
+
+describe("keys while typing in a text field or the text box", () => {
+  it("bare keys never act, so typing T, A or V does not switch tools", () => {
+    for (const k of ["t", "a", "v", "Escape", "Delete"]) {
+      expect(allowedWhileTyping(actionForKeyEvent(key(k)), key(k))).toBe(false);
+    }
+  });
+
+  it("Ctrl view keys (zoom, fit) stay active", () => {
+    for (const k of ["0", "1", "=", "-"]) {
+      const action = actionForKeyEvent(key(k, { ctrl: true }));
+      expect(action).toMatch(/^view\./);
+      expect(allowedWhileTyping(action, key(k, { ctrl: true }))).toBe(true);
+    }
+  });
+
+  it("Ctrl+C and Ctrl+Delete keep their text meaning (copy the selected words, delete a word)", () => {
+    expect(allowedWhileTyping(actionForKeyEvent(key("c", { ctrl: true })), key("c", { ctrl: true }))).toBe(false);
+    expect(allowedWhileTyping(actionForKeyEvent(key("Delete", { ctrl: true })), key("Delete", { ctrl: true }))).toBe(
+      false,
+    );
+  });
+
+  it("nothing acts when no action matched", () => {
+    expect(allowedWhileTyping(null, key("x"))).toBe(false);
   });
 });

@@ -1,0 +1,154 @@
+// The Style panel editors of the Font and Text outline groups (registered in ./groups.tsx).
+import { useEffect, useState } from "react";
+import {
+  clampFontSize,
+  FONT_SIZE_PRESETS,
+  MAX_FONT_SIZE,
+  MAX_OUTLINE_WIDTH,
+  MIN_FONT_SIZE,
+  MIN_OUTLINE_WIDTH,
+} from "../../core/annotations/text";
+import { PALETTE, type GroupEditorProps } from "./groups";
+
+/** A color choice: the shared palette plus a custom picker. */
+function ColorRow({ value, label, onPick }: { value: string; label: string; onPick(color: string): void }) {
+  return (
+    <div className="swatches" role="group" aria-label={label}>
+      {PALETTE.map((color) => (
+        <button
+          key={color}
+          type="button"
+          className="swatch"
+          style={{ background: color }}
+          aria-label={`Color ${color}`}
+          aria-pressed={value.toLowerCase() === color}
+          onClick={() => onPick(color)}
+        />
+      ))}
+      <input
+        type="color"
+        className="custom-color"
+        aria-label={`Custom ${label.toLowerCase()}`}
+        value={value}
+        onChange={(e) => onPick(e.target.value)}
+      />
+    </div>
+  );
+}
+
+/** A whole-number box that keeps what is typed until it is valid, and only then reports it. */
+function NumberBox({
+  value,
+  min,
+  max,
+  label,
+  onValid,
+}: {
+  value: number;
+  min: number;
+  max: number;
+  label: string;
+  onValid(next: number): void;
+}) {
+  const [text, setText] = useState(String(value));
+  useEffect(() => setText(String(value)), [value]);
+  return (
+    <input
+      type="number"
+      min={min}
+      max={max}
+      aria-label={label}
+      value={text}
+      onChange={(e) => {
+        setText(e.target.value);
+        const next = Math.round(Number(e.target.value));
+        if (e.target.value !== "" && next >= min && next <= max) onValid(next);
+      }}
+      onBlur={() => setText(String(value))}
+    />
+  );
+}
+
+export function FontEditor({ value, onChange }: GroupEditorProps<"font">) {
+  const preset = (FONT_SIZE_PRESETS as readonly number[]).includes(value.size) ? String(value.size) : "";
+  return (
+    <>
+      <label className="row">
+        Size
+        <NumberBox
+          label="Font size"
+          min={MIN_FONT_SIZE}
+          max={MAX_FONT_SIZE}
+          value={value.size}
+          onValid={(size) => onChange({ ...value, size: clampFontSize(size) })}
+        />
+        px
+        <select
+          aria-label="Font size presets"
+          value={preset}
+          onChange={(e) => e.target.value && onChange({ ...value, size: Number(e.target.value) })}
+        >
+          <option value="">Presets</option>
+          {FONT_SIZE_PRESETS.map((size) => (
+            <option key={size} value={size}>
+              {size}
+            </option>
+          ))}
+        </select>
+      </label>
+      <div className="presets" role="group" aria-label="Style">
+        <button
+          type="button"
+          aria-pressed={value.bold}
+          aria-label="Bold"
+          style={{ fontWeight: 700 }}
+          onClick={() => onChange({ ...value, bold: !value.bold })}
+        >
+          B
+        </button>
+        <button
+          type="button"
+          aria-pressed={value.italic}
+          aria-label="Italic"
+          style={{ fontStyle: "italic" }}
+          onClick={() => onChange({ ...value, italic: !value.italic })}
+        >
+          I
+        </button>
+      </div>
+      <ColorRow value={value.color} label="Text color" onPick={(color) => onChange({ ...value, color })} />
+    </>
+  );
+}
+
+export function TextOutlineEditor({ value, onChange }: GroupEditorProps<"textOutline">) {
+  return (
+    <>
+      <label className="row">
+        <input
+          type="checkbox"
+          aria-label="Outline"
+          checked={value.enabled}
+          onChange={(e) => onChange({ ...value, enabled: e.target.checked })}
+        />
+        Outline
+      </label>
+      {value.enabled && (
+        <>
+          <ColorRow value={value.color} label="Outline color" onPick={(color) => onChange({ ...value, color })} />
+          <label className="row">
+            Width
+            <NumberBox
+              label="Outline width"
+              min={MIN_OUTLINE_WIDTH}
+              max={MAX_OUTLINE_WIDTH}
+              value={value.width}
+              onValid={(width) => onChange({ ...value, width })}
+            />
+            px
+          </label>
+        </>
+      )}
+    </>
+  );
+}
