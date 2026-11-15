@@ -84,15 +84,18 @@ test.describe("a Pen stroke's life", () => {
     );
     const [saved] = await savedAnnotations(page);
     expect(saved!.stroke).toEqual({ color: "#e02424", width: 4 });
-    // Selected, the tool went back to Select, and the panel offers Stroke but no Arrowheads.
+    // The Pen keeps drawing by default (see behavior.spec.ts): still the Pen, nothing selected. V for Select.
+    await expect(page.getByRole("button", { name: /^Pen/ })).toHaveAttribute("aria-pressed", "true");
+    await page.keyboard.press("v");
     await expect(page.getByRole("button", { name: /^Select/ })).toHaveAttribute("aria-pressed", "true");
-    await expect(page.getByRole("region", { name: "Stroke" })).toBeVisible();
-    await expect(page.getByRole("region", { name: "Arrowheads" })).toHaveCount(0);
 
     // Move: grab the stroke where it is (its first point) and drag it 100 px down.
     const first = saved!.points[0]!;
     const grab = view.at(first.x, first.y);
     await stroke(page, [grab, { x: grab.x, y: grab.y + 50 * view.scale }, { x: grab.x, y: grab.y + 100 * view.scale }]);
+    // Selected: the panel offers Stroke but no Arrowheads.
+    await expect(page.getByRole("region", { name: "Stroke" })).toBeVisible();
+    await expect(page.getByRole("region", { name: "Arrowheads" })).toHaveCount(0);
     await expectSaved(
       page,
       ([p]) => !!p && close(p.points[0]!.y, first.y + 100) && close(p.points[0]!.x, first.x) && p.points.length === saved!.points.length,

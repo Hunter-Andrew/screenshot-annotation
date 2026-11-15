@@ -6,13 +6,15 @@ import { type Dispatch, type SetStateAction, useEffect, useMemo, useRef } from "
 import { kindOf } from "../core/annotations";
 import { sanitizeStyle, type Style } from "../core/propertyGroups";
 import type { PlatformBridge } from "../platform/bridge";
+import { BEHAVIOR_KEY, sanitizeBehavior } from "./toolBehavior";
 
 const SAVE_DELAY_MS = 300;
 
 export function useStickyStyles(
   bridge: PlatformBridge,
   setToolStyles: Dispatch<SetStateAction<Record<string, Style>>>,
-): { remember(type: string, style: Style): void } {
+  setBehavior: Dispatch<SetStateAction<Record<string, boolean>>>,
+): { remember(type: string, style: Style): void; rememberBehavior(tool: string, returnsToSelect: boolean): void } {
   // Everything the settings held, so tools this build does not know (a newer version's) are written back untouched.
   const stored = useRef<Record<string, unknown>>({});
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -39,13 +41,16 @@ export function useStickyStyles(
         for (const [type, value] of Object.entries(raw)) if (kindOf(type)) known[type] = sanitizeStyle(value);
         // Whatever the user already changed while this was loading wins.
         setToolStyles((now) => ({ ...known, ...now }));
+        // The per-tool "return to Select" choices live beside the styles under their own key; a file
+        // from before them simply has none (every tool then uses its default).
+        setBehavior((now) => ({ ...sanitizeBehavior((raw as Record<string, unknown>)[BEHAVIOR_KEY]), ...now }));
       },
       () => {},
     );
     return () => {
       cancelled = true;
     };
-  }, [bridge, setToolStyles]);
+  }, [bridge, setToolStyles, setBehavior]);
 
   // A change not yet stored is not lost when the window is hidden or closed.
   useEffect(() => {
@@ -63,6 +68,14 @@ export function useStickyStyles(
     () => ({
       remember(type, style) {
         stored.current = { ...stored.current, [type]: style };
+        dirty.current = true;
+        if (timer.current !== null) clearTimeout(timer.current);
+        timer.current = setTimeout(flush, SAVE_DELAY_MS);
+      },
+      rememberBehavior(tool, returnsToSelect) {
+        const old = stored.current[BEHAVIOR_KEY];
+        const base = typeof old === "object" && old !== null && !Array.isArray(old) ? old : {};
+        stored.current = { ...stored.current, [BEHAVIOR_KEY]: { ...base, [tool]: returnsToSelect } };
         dirty.current = true;
         if (timer.current !== null) clearTimeout(timer.current);
         timer.current = setTimeout(flush, SAVE_DELAY_MS);
