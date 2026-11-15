@@ -1,0 +1,9 @@
+# Keep source files LF on every platform (including the Windows CI runner): several tests read
+# Rust, JSON and config files and match them with patterns that expect \n.
+* text=auto eol=lf
+*.png binary
+*.ico binary
+*.icns binary
+*.webp binary
+*.jpg binary
+*.exe binary

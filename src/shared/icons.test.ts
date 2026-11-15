@@ -114,7 +114,7 @@ describe("every window gets the logo", () => {
     const sources = readdirSync(resolve(root, "src-tauri/src")).filter((f) => f.endsWith(".rs"));
     const uses = sources.flatMap((f) => (read(`src-tauri/src/${f}`).toString().match(/WebviewWindowBuilder::new\(/g) ?? []).map(() => f));
     expect(uses).toEqual(["lib.rs"]);
-    const helper = read("src-tauri/src/lib.rs").toString().match(/pub\(crate\) fn new_window[\s\S]*?\n}\n/)?.[0] ?? "";
+    const helper = read("src-tauri/src/lib.rs").toString().replace(/\r\n/g, "\n").match(/pub\(crate\) fn new_window[\s\S]*?\n}\n/)?.[0] ?? ""; // CRLF-safe (Windows checkouts)
     expect(helper).toContain("WebviewWindowBuilder::new(");
     expect(helper).toContain("default_window_icon()");
     expect(helper).toContain(".icon(");
