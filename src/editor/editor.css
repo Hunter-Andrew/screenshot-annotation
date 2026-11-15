@@ -81,15 +81,29 @@
   flex-direction: column;
   gap: 4px;
   padding: 8px;
-  width: 132px;
+  width: 164px;
   border-right: 1px solid var(--line);
   overflow-y: auto;
 }
 .tools .tool {
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  gap: 8px;
   text-align: left;
+}
+.tools .tool-icon {
+  flex: none;
+}
+.tools .tool-label {
+  flex: 1;
+}
+/* Selected tool: the accent border and tint from the shared pressed style, plus an accent icon, a bold name and a bar on the left. */
+.tools .tool[aria-pressed="true"] {
+  border-width: 1px 1px 1px 4px;
+  font-weight: 600;
+}
+.tools .tool[aria-pressed="true"] .tool-icon {
+  color: var(--accent);
 }
 .tools kbd {
   font: 12px ui-monospace, monospace;
@@ -143,6 +157,19 @@
 .style-panel h2 {
   margin: 0 0 8px;
   font-size: 14px;
+}
+.style-panel .tool-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 12px;
+  padding: 8px;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  cursor: pointer;
+}
+.style-panel .tool-option.placeholder {
+  visibility: hidden;
 }
 .style-panel h3 {
   margin: 0 0 6px;

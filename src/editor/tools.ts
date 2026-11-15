@@ -16,3 +16,19 @@ export const TOOLS: readonly Tool[] = [
   SELECT_TOOL,
   ...ANNOTATION_KINDS.map((k) => ({ id: k.type as string, label: k.label, shortcutAction: k.shortcutAction })),
 ];
+
+/**
+ * Per-tool default for "return to Select after one use". The one table of tool-behavior defaults, next
+ * to the registry (ticket 28's remapping must not scatter it): a new tool adds one line here. The user's
+ * own choice per tool (the Style panel checkbox) overrides it; see toolBehavior.ts.
+ * Pen stays on the tool (strokes come in runs); the rest switch back, as drawing always did.
+ */
+export const DEFAULT_RETURN_TO_SELECT: Readonly<Record<string, boolean>> = {
+  arrow: true,
+  line: true,
+  rect: true,
+  ellipse: true,
+  text: true,
+  pen: false,
+  // Tickets 18-21 add: callout, highlight, blur, crop.
+};
