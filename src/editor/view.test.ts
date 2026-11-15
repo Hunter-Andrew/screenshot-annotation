@@ -18,6 +18,13 @@ describe("fitScale: whole image visible, never enlarged", () => {
     expect(fitScale({ width: 64, height: 48 }, { width: 800, height: 600 })).toBe(1);
   });
 
+  it("in a large (maximized-window) well a Capture that fits is shown at 100%, a bigger one is fitted", () => {
+    const well = { width: 2200, height: 1300 };
+    expect(fitScale({ width: 1920, height: 1080 }, well)).toBe(1);
+    // 3840 x 2160 in 2200 x 1300: (2200 - 32) / 3840
+    expect(fitScale({ width: 3840, height: 2160 }, well)).toBeCloseTo(0.5646);
+  });
+
   it("refits when the window is resized", () => {
     const image = { width: 100, height: 1000 };
     expect(fitScale(image, { width: 800, height: 900 })).toBeCloseTo(0.868);
