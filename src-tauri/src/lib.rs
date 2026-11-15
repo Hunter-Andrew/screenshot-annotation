@@ -4,6 +4,7 @@ mod geometry;
 mod hotkey;
 mod library;
 mod overlay;
+mod png_guard;
 mod print_screen;
 mod settings;
 mod url_guard;
@@ -165,6 +166,7 @@ fn copy_image(app: AppHandle, request: Request<'_>) -> Result<(), String> {
     let InvokeBody::Raw(png) = request.body() else {
         return Err("expected raw PNG bytes".into());
     };
+    png_guard::require_plain_png(png)?;
     let image = tauri::image::Image::from_bytes(png).map_err(|e| e.to_string())?;
     app.clipboard().write_image(&image).map_err(|e| e.to_string())
 }
@@ -176,6 +178,7 @@ fn library_save(app: AppHandle, request: Request<'_>) -> Result<String, String> 
     let InvokeBody::Raw(bytes) = request.body() else {
         return Err("expected raw PNG bytes".into());
     };
+    png_guard::require_png(bytes)?;
     let stamp = request
         .headers()
         .get("x-captured-at")
@@ -214,6 +217,8 @@ async fn save_png_as(app: AppHandle, request: Request<'_>) -> Result<Option<Stri
     let InvokeBody::Raw(bytes) = request.body() else {
         return Err("expected raw PNG bytes".into());
     };
+    // Checked before the dialog so a refused Export never asks the user for a location.
+    png_guard::require_plain_png(bytes)?;
     let name = library::dialog_file_name(
         request.headers().get("x-suggested-name").and_then(|v| v.to_str().ok()).unwrap_or(""),
     );
