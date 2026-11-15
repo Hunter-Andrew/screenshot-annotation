@@ -383,6 +383,36 @@ test("clicking a Style panel control while typing keeps the typed words and appl
   await expect(page.locator("textarea")).toHaveCount(0);
 });
 
+test("undo and redo a created text and an edited text; Delete, Backspace and Ctrl+Z inside the box are the text's", async ({ page }) => {
+  await page.goto("/");
+  await capture(page, 600, 300);
+  const view = await atActualSize(page, 600);
+  await page.keyboard.press("t");
+  await page.mouse.click(view.at(60, 80).x, view.at(60, 80).y);
+  await page.keyboard.type("Hello");
+  await page.keyboard.press("Backspace"); // inside the box: erases a letter, never deletes the Annotation
+  await page.keyboard.press("Control+z"); // inside the box: the textarea's own undo, not the picture's
+  await page.keyboard.press("Escape");
+  await expectSaved(page, ([t]) => t?.text.startsWith("Hell") === true, "created, with the Backspace applied to the words");
+  const created = (await saved(page))[0]!.text;
+
+  await page.mouse.dblclick(view.at(75, 95).x, view.at(75, 95).y);
+  await page.keyboard.press("Control+a");
+  await page.keyboard.type("Edited");
+  await page.keyboard.press("Escape");
+  await expectSaved(page, ([t]) => t?.text === "Edited", "edited");
+
+  await page.keyboard.press("Control+z"); // outside the box: the edit steps back
+  await expectSaved(page, ([t]) => t?.text === created, "undo restores the earlier words");
+  await page.keyboard.press("Control+y");
+  await expectSaved(page, ([t]) => t?.text === "Edited", "redo");
+  await page.keyboard.press("Control+z");
+  await page.keyboard.press("Control+z"); // and back past the creation: no text left
+  await expectSaved(page, (texts) => texts.length === 0, "undo removes the created text");
+  await page.keyboard.press("Control+y");
+  await expectSaved(page, ([t]) => t?.text === created, "redo brings it back");
+});
+
 test("Ctrl view keys still work inside the text box, and Ctrl+C does not copy the image", async ({ page }) => {
   await page.goto("/");
   await capture(page, 400, 200);
