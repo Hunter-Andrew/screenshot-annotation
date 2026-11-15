@@ -50,6 +50,7 @@ Decided with Andrew on 2026-11-14. Each milestone is a release Andrew installs o
 - Discard.
 - The folder is the source of truth.
 - The thumbnail cache.
+- Settings shows all keyboard shortcuts and lets each one be remapped, including the capture-overlay keys (Space, Esc, M) and the editor keys (added 2026-11-15; ticket 28).
 
 **M4 · Complete v1 (v1.0.0)**
 - Callout, Highlighter, pixelate Blur and Crop.

@@ -11,7 +11,7 @@ A Windows desktop app for capturing and annotating screenshots, in the style of 
 | M0 · Skeleton | v0.1 | Per-user installer, tray icon, Settings/About, CI and Releases |
 | M1 · Capture → Copy | v0.2 | Hotkey, capture overlay, editor view, Copy, Save as PNG; captures saved to the Library |
 | M2 · Annotate | v0.3 | Arrow, Line, Pen, Rectangle, Ellipse, Text; select/edit; undo; sticky styles |
-| M3 · Library | v0.4 | Library Strip, full-window grid, reopen and edit, delete with Undo |
+| M3 · Library | v0.4 | Library Strip, full-window grid, reopen and edit, delete with Undo; Settings lists and remaps all shortcuts |
 | M4 · Complete | v1.0 | Callout, Highlighter, Blur, Crop, delay timer, startup and polish |
 
 ## Workflow
