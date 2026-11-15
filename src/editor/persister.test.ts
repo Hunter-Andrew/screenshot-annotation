@@ -292,6 +292,23 @@ describe("races", () => {
     expect(decodeLibraryPng(fake.libraryFiles[0]!.bytes).model.annotations.map((a) => a.id)).toEqual(["a1", "a2"]);
   });
 
+  it("abandon (the file was deleted in Explorer) cancels the pending save and never touches the Recycle Bin", async () => {
+    const { fake, persister, edit } = setup();
+    await persister.start();
+    const writes = fake.libraryFiles.length;
+    edit();
+
+    persister.abandon();
+    await vi.advanceTimersByTimeAsync(5000);
+    edit(arrow("late"));
+    await persister.flush();
+    await vi.advanceTimersByTimeAsync(5000);
+
+    expect(fake.libraryUpdates).toEqual([]);
+    expect(fake.libraryFiles).toHaveLength(writes);
+    expect(fake.discardedPaths).toEqual([]);
+  });
+
   it("Discard cancels a pending auto-save, and nothing writes (or recreates the file) afterwards", async () => {
     const { fake, persister, edit } = setup();
     const path = await persister.start();

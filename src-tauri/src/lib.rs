@@ -7,6 +7,7 @@ mod geometry;
 mod history_store;
 mod hotkey;
 mod library;
+mod library_index;
 mod overlay;
 mod png_guard;
 mod print_screen;
@@ -15,6 +16,7 @@ mod raw_input;
 mod settings;
 mod url_guard;
 mod watchdog;
+mod thumbnail;
 mod window_open;
 
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -343,14 +345,69 @@ fn library_root(app: &AppHandle) -> Result<std::path::PathBuf, String> {
     Ok(app.path().picture_dir().map_err(|e| e.to_string())?.join(library::LIBRARY_FOLDER))
 }
 
+/// What the Library commands share: the pixel sizes already read, and the copies of just-deleted files
+/// that Undo writes back (see `library_index::TrashStash`).
+#[derive(Default)]
+struct LibraryState {
+    sizes: Mutex<library_index::SizeCache>,
+    trash: Mutex<library_index::TrashStash>,
+}
+
+/// Moves one Library PNG to the Windows Recycle Bin, first keeping a copy in memory for Undo.
+/// Refuses any path that is not a `.png` inside the Library folder. `key` is the path as the webview
+/// named it, which is what Undo is later asked for.
+fn trash_library_file(app: &AppHandle, key: &str) -> Result<(), String> {
+    let root = library_root(app)?;
+    let file = library::library_file_in(&root, std::path::Path::new(key)).ok_or("not a file in the Library")?;
+    let bytes = std::fs::read(&file).map_err(|e| e.to_string())?;
+    library::move_to_recycle_bin(&file)?;
+    app.state::<LibraryState>().trash.lock().unwrap().add(key.to_string(), file, bytes);
+    Ok(())
+}
+
 /// Discard: moves a Library PNG to the Windows Recycle Bin (spec: deletes are recoverable).
-/// Refuses any path that is not a `.png` inside the Library folder.
 #[tauri::command]
-fn library_discard(app: AppHandle, path: String) -> Result<(), String> {
-    let root = library_root(&app)?;
-    let file = library::library_file_in(&root, std::path::Path::new(&path))
-        .ok_or("not a file in the Library")?;
-    library::move_to_recycle_bin(&file)
+async fn library_discard(app: AppHandle, path: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || trash_library_file(&app, &path))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+/// Delete from the Library Strip or grid: moves each path to the Recycle Bin. Returns the paths that
+/// were moved; one that is already gone (deleted in Explorer) or refused is skipped, not an error.
+#[tauri::command]
+async fn library_trash(app: AppHandle, paths: Vec<String>) -> Result<Vec<String>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        paths.into_iter().filter(|p| trash_library_file(&app, p).is_ok()).collect()
+    })
+    .await
+    .map_err(|e| e.to_string())
+}
+
+#[derive(serde::Serialize)]
+struct Restored {
+    from: String,
+    to: String,
+}
+
+/// Undo of a delete: writes the files for `paths` back into the Library from the copies kept in memory.
+/// Returns where each one landed (its old path, or a `-2` name if that was taken since).
+#[tauri::command]
+fn library_restore(state: tauri::State<'_, LibraryState>, paths: Vec<String>) -> Vec<Restored> {
+    state
+        .trash
+        .lock()
+        .unwrap()
+        .restore(&paths)
+        .into_iter()
+        .map(|(from, to)| Restored { from, to: to.to_string_lossy().into_owned() })
+        .collect()
+}
+
+/// The Undo notice is over: the in-memory copies for `paths` are no longer needed.
+#[tauri::command]
+fn library_forget(state: tauri::State<'_, LibraryState>, paths: Vec<String>) {
+    state.trash.lock().unwrap().forget(&paths);
 }
 
 /// Auto-save: replaces the contents of an existing Library PNG with the raw body (the Library PNG,
@@ -374,17 +431,111 @@ fn library_update(app: AppHandle, request: Request<'_>) -> Result<(), String> {
     Ok(())
 }
 
-/// The most recently written Library PNG, for the editor to reopen on start (see
-/// `pack_library_file`); an empty body when the Library has none. The Library Strip (ticket 14)
-/// supersedes this with a real list.
+/// One Library file as the webview sees it: the path, file times (ms since the epoch), size in bytes
+/// and the pixel size of its visible pixels. The webview sorts and groups them.
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct LibraryItem {
+    path: String,
+    modified_ms: u64,
+    created_ms: Option<u64>,
+    bytes: u64,
+    width: u32,
+    height: u32,
+}
+
+fn thumbnail_dir(app: &AppHandle) -> Result<std::path::PathBuf, String> {
+    Ok(app.path().app_local_data_dir().map_err(|e| e.to_string())?.join("thumbnails"))
+}
+
+/// Every PNG in the Library folder (the folder is the source of truth: files added or deleted in
+/// Explorer show up here). Also tidies the thumbnail cache of thumbnails no file needs any more.
 #[tauri::command]
-fn library_open_latest(app: AppHandle) -> Result<Response, String> {
-    let root = library_root(&app)?;
-    let Some(path) = library::latest_png(&root).and_then(|p| library::library_file_in(&root, &p)) else {
-        return Ok(Response::new(Vec::new()));
-    };
-    let png = std::fs::read(&path).map_err(|e| e.to_string())?;
-    Ok(Response::new(library::pack_library_file(&path, &png)))
+async fn library_list(app: AppHandle) -> Result<Vec<LibraryItem>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let root = library_root(&app)?;
+        let listed = {
+            let state = app.state::<LibraryState>();
+            let mut sizes = state.sizes.lock().unwrap();
+            library_index::list_library(&root, &mut sizes)
+        };
+        // Only tidy when there is something to keep: an empty answer might just be a folder that is
+        // briefly unreachable (a sync client mid-update), and the cache is cheap to keep but slow to rebuild.
+        if !listed.is_empty() {
+            if let Ok(dir) = thumbnail_dir(&app) {
+                let keep = listed.iter().map(|l| library_index::thumbnail_name(&l.file, thumbnail::THUMB_EDGE)).collect();
+                library_index::prune_thumbnails(&dir, &keep);
+            }
+        }
+        Ok(listed
+            .into_iter()
+            .map(|l| LibraryItem {
+                path: l.file.path.to_string_lossy().into_owned(),
+                modified_ms: l.file.modified_ms,
+                created_ms: l.file.created_ms,
+                bytes: l.file.bytes,
+                width: l.width,
+                height: l.height,
+            })
+            .collect())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// A short value that changes when a file is added, removed or changed in the Library: what the
+/// webview polls to follow the folder (metadata only, so it is cheap).
+#[tauri::command]
+async fn library_signature(app: AppHandle) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        Ok(library_index::signature(&library_index::scan_pngs(&library_root(&app)?)))
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// A Library PNG read for opening in the editor (see `pack_library_file`). Refuses anything that is
+/// not a `.png` inside the Library.
+#[tauri::command]
+async fn library_read(app: AppHandle, path: String) -> Result<Response, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let root = library_root(&app)?;
+        let file = library::library_file_in(&root, std::path::Path::new(&path)).ok_or("not a file in the Library")?;
+        let png = std::fs::read(&file).map_err(|e| e.to_string())?;
+        Ok(Response::new(library::pack_library_file(&file, &png)))
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// A thumbnail PNG of a Library file, from the cache in local app data or made now and cached. Never
+/// writes under Pictures.
+#[tauri::command]
+async fn library_thumbnail(app: AppHandle, path: String) -> Result<Response, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let root = library_root(&app)?;
+        let file = library::library_file_in(&root, std::path::Path::new(&path)).ok_or("not a file in the Library")?;
+        let meta = std::fs::metadata(&file).map_err(|e| e.to_string())?;
+        let to_ms = |t: std::time::SystemTime| {
+            t.duration_since(std::time::UNIX_EPOCH).map(|d| d.as_millis() as u64).unwrap_or(0)
+        };
+        let scanned = library_index::Scanned {
+            modified_ms: meta.modified().map(to_ms).unwrap_or(0),
+            created_ms: meta.created().ok().map(to_ms),
+            bytes: meta.len(),
+            path: file.clone(),
+        };
+        let cached = thumbnail_dir(&app)?.join(library_index::thumbnail_name(&scanned, thumbnail::THUMB_EDGE));
+        if let Ok(png) = std::fs::read(&cached) {
+            return Ok(Response::new(png));
+        }
+        let thumb = thumbnail::make_thumbnail(&std::fs::read(&file).map_err(|e| e.to_string())?, thumbnail::THUMB_EDGE)?;
+        // The cache is a convenience: a failed write only means this thumbnail is made again next time.
+        let _ = library::write_atomic(&cached, &thumb);
+        Ok(Response::new(thumb))
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 /// The folder of the undo history files: `<app local data>/history` (never inside a PNG).
@@ -652,6 +803,7 @@ fn deliver_capture(app: &AppHandle, width: u32, height: u32, captured_at_ms: f64
 pub fn run() {
     tauri::Builder::default()
         .manage(PendingCapture::default())
+        .manage(LibraryState::default())
         .manage(EditorMaximized::default())
         .on_window_event(|window, event| {
             // Closing destroys the editor; remember its state so the next one opens the same way.
@@ -684,7 +836,13 @@ pub fn run() {
             library_save,
             library_discard,
             library_update,
-            library_open_latest,
+            library_list,
+            library_signature,
+            library_read,
+            library_thumbnail,
+            library_trash,
+            library_restore,
+            library_forget,
             history_read,
             history_write,
             history_delete,

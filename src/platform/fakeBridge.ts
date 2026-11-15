@@ -1,6 +1,6 @@
-import { encodeRgbaPng } from "../core/png";
+import { encodeRgbaPng, readSize } from "../core/png";
 import { formatStamp } from "../shared/stamp";
-import type { CaptureResult, LibraryFile, OverlayOutcome, OverlayRect, PlatformBridge } from "./bridge";
+import type { CaptureResult, LibraryFile, LibraryItem, OverlayOutcome, OverlayRect, PlatformBridge } from "./bridge";
 
 export interface SimulatedShot {
   width: number;
@@ -24,6 +24,22 @@ export interface FakeBridge extends PlatformBridge {
   readonly discardedPaths: string[];
   /** Every auto-save `updateLibraryFile` call that succeeded, in order. */
   readonly libraryUpdates: { path: string; bytes: Uint8Array }[];
+  /** Library paths moved to the Recycle Bin by a delete from the strip or grid, in order (not Discard). */
+  readonly trashedPaths: string[];
+  /** Library paths put back by Undo, in order (where they landed). */
+  readonly restoredPaths: string[];
+  /** Paths `getThumbnail` was asked for, in order. */
+  readonly thumbnailRequests: string[];
+  /** How many times the Library was listed. */
+  readonly libraryListings: number;
+  /** Like Explorer: drop a PNG into the Library folder. `path` defaults to a name made from `capturedAt`. */
+  addLibraryFile(png: Uint8Array, options?: { path?: string; capturedAt?: Date }): string;
+  /** Like Explorer: delete a file from the Library folder (no Recycle Bin bookkeeping here). */
+  removeLibraryFile(path: string): void;
+  /** The next `trashLibraryFiles` rejects with this message. */
+  failNextTrash(message: string): void;
+  /** The next `restoreLibraryFiles` restores nothing. */
+  failNextRestore(): void;
   /** The next `updateLibraryFile` rejects with this message. */
   failNextLibraryUpdate(message: string): void;
   /** Undo history files by key (`modifiedAt`: ms since the epoch; tests may set it to age a file). Survive a reload in the browser build. */
@@ -126,9 +142,22 @@ export function createFakeBridge(
   const copiedImages: Uint8Array[] = [];
   const libraryFiles: { path: string; bytes: Uint8Array }[] = [];
   const libraryUpdates: { path: string; bytes: Uint8Array }[] = [];
-  // Order in which Library files were last written; the newest is what `openLatestLibraryImage` returns.
+  // When each Library file was last written (ms since the epoch, strictly increasing so a rewrite
+  // always changes it); the thumbnail of a file is made again when this changes.
   const writtenAt = new Map<string, number>();
   let writeCounter = 0;
+  const nextWriteTime = () => (writeCounter = Math.max(writeCounter + 1, Date.now()));
+  const libraryChangeHandlers = new Set<() => void>();
+  // Like the real watcher, tell listeners after any change to the folder (ours or "Explorer's").
+  const libraryChanged = () => queueMicrotask(() => libraryChangeHandlers.forEach((handler) => handler()));
+  const trashedPaths: string[] = [];
+  const restoredPaths: string[] = [];
+  const thumbnailRequests: string[] = [];
+  let libraryListings = 0;
+  let trashFailure: string | null = null;
+  let restoreFails = false;
+  // Copies kept for Undo of a delete, like the real platform's.
+  const stash = new Map<string, Uint8Array>();
   let libraryUpdateFailure: string | null = null;
   let settingsOpened = 0;
   const savedAs: FakeBridge["savedAs"] = [];
@@ -136,6 +165,7 @@ export function createFakeBridge(
   // With a persistent store (the browser build), Library files survive a page reload, like the real
   // Library survives a restart.
   const persistLibrary = () => {
+    libraryChanged();
     try {
       store.setItem(
         "fake.library",
@@ -278,7 +308,7 @@ export function createFakeBridge(
         path = `${stamp.slice(0, 7)}\\${stamp}-${n}.png`;
       }
       libraryFiles.push({ path, bytes: png });
-      writtenAt.set(path, ++writeCounter);
+      writtenAt.set(path, nextWriteTime());
       persistLibrary();
       return path;
     },
@@ -292,13 +322,110 @@ export function createFakeBridge(
       const file = libraryFiles.find((f) => f.path === path);
       if (!file) throw new Error("not a file in the Library");
       file.bytes = png;
-      writtenAt.set(path, ++writeCounter);
+      writtenAt.set(path, nextWriteTime());
       libraryUpdates.push({ path, bytes: png });
       persistLibrary();
     },
-    openLatestLibraryImage: async (): Promise<LibraryFile | null> => {
-      const newest = [...libraryFiles].sort((a, b) => (writtenAt.get(b.path) ?? 0) - (writtenAt.get(a.path) ?? 0))[0];
-      return newest ? { path: newest.path, png: newest.bytes } : null;
+    listLibrary: async (): Promise<LibraryItem[]> => {
+      libraryListings++;
+      return libraryFiles.map((f) => {
+        const size = readSize(f.bytes);
+        return {
+          path: f.path,
+          modifiedMs: writtenAt.get(f.path) ?? 0,
+          createdMs: null,
+          bytes: f.bytes.length,
+          width: size.width,
+          height: size.height,
+        };
+      });
+    },
+    readLibraryFile: async (path): Promise<LibraryFile> => {
+      const file = libraryFiles.find((f) => f.path === path);
+      if (!file) throw new Error("not a file in the Library");
+      return { path: file.path, png: file.bytes };
+    },
+    getThumbnail: async (path) => {
+      thumbnailRequests.push(path);
+      const file = libraryFiles.find((f) => f.path === path);
+      if (!file) throw new Error("not a file in the Library");
+      return file.bytes; // the real one is smaller; the picture is the same
+    },
+    trashLibraryFiles: async (paths) => {
+      if (trashFailure !== null) {
+        const message = trashFailure;
+        trashFailure = null;
+        throw new Error(message);
+      }
+      const moved: string[] = [];
+      for (const path of paths) {
+        const index = libraryFiles.findIndex((f) => f.path === path);
+        if (index < 0) continue;
+        stash.set(path, libraryFiles[index]!.bytes);
+        libraryFiles.splice(index, 1);
+        writtenAt.delete(path);
+        trashedPaths.push(path);
+        moved.push(path);
+      }
+      if (moved.length > 0) persistLibrary();
+      return moved;
+    },
+    restoreLibraryFiles: async (paths) => {
+      if (restoreFails) {
+        restoreFails = false;
+        return [];
+      }
+      const restored: { from: string; to: string }[] = [];
+      for (const from of paths) {
+        const bytes = stash.get(from);
+        if (!bytes) continue;
+        let to = from;
+        for (let n = 2; libraryFiles.some((f) => f.path === to); n++) to = from.replace(/\.png$/i, `-${n}.png`);
+        libraryFiles.push({ path: to, bytes });
+        writtenAt.set(to, nextWriteTime());
+        stash.delete(from);
+        restoredPaths.push(to);
+        restored.push({ from, to });
+      }
+      if (restored.length > 0) persistLibrary();
+      return restored;
+    },
+    forgetTrashedFiles: async (paths) => {
+      paths.forEach((p) => stash.delete(p));
+    },
+    onLibraryChanged: async (handler) => {
+      libraryChangeHandlers.add(handler);
+      return () => {
+        libraryChangeHandlers.delete(handler);
+      };
+    },
+    trashedPaths,
+    restoredPaths,
+    thumbnailRequests,
+    get libraryListings() {
+      return libraryListings;
+    },
+    addLibraryFile: (png, opts = {}) => {
+      const stamp = formatStamp(opts.capturedAt ?? new Date());
+      let path = opts.path ?? `${stamp.slice(0, 7)}\\${stamp}.png`;
+      for (let n = 2; libraryFiles.some((f) => f.path === path); n++) path = path.replace(/(-\d+)?\.png$/i, `-${n}.png`);
+      libraryFiles.push({ path, bytes: png });
+      writtenAt.set(path, nextWriteTime());
+      persistLibrary();
+      return path;
+    },
+    removeLibraryFile: (path) => {
+      const index = libraryFiles.findIndex((f) => f.path === path);
+      if (index < 0) return;
+      libraryFiles.splice(index, 1);
+      writtenAt.delete(path);
+      persistLibrary();
+    },
+    failNextTrash: (message) => {
+      trashFailure = message;
+    },
+    failNextRestore: () => {
+      restoreFails = true;
     },
     openSettings: async () => {
       settingsOpened++;
@@ -386,6 +513,7 @@ export function createFakeBridge(
       }
       const index = libraryFiles.findIndex((f) => f.path === path);
       if (index < 0) throw new Error("not in the Library");
+      stash.set(path, libraryFiles[index]!.bytes);
       libraryFiles.splice(index, 1);
       writtenAt.delete(path);
       discardedPaths.push(path);

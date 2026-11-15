@@ -258,7 +258,7 @@ test.describe("Rectangle, Ellipse and Line", () => {
     const [r] = await savedShapes(page);
     const [x, y, w, h] = [Math.round(r!.x!), Math.round(r!.y!), Math.round(r!.width!), Math.round(r!.height!)];
 
-    await page.getByRole("button", { name: "Copy" }).click();
+    await page.getByRole("button", { name: "Copy", exact: true }).click();
 
     const out = await copiedPixels(page, 0);
     expect([out.width, out.height]).toEqual([400, 300]);
@@ -287,7 +287,7 @@ test.describe("Rectangle, Ellipse and Line", () => {
     const [e] = await savedShapes(page);
     const [x, y, w, h] = [Math.round(e!.x!), Math.round(e!.y!), Math.round(e!.width!), Math.round(e!.height!)];
 
-    await page.getByRole("button", { name: "Copy" }).click();
+    await page.getByRole("button", { name: "Copy", exact: true }).click();
 
     const out = await copiedPixels(page, 0);
     expect(at(out, x + w / 2, y + h / 2)).toEqual([250, 204, 21, 255]); // solid, no blending

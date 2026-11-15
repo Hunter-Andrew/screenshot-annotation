@@ -17,6 +17,13 @@ For v0.3.0 (M2):
 - [ ] **Typing never edits the picture.** In a Text box type a word, then use Backspace and Delete: only the words change, no annotation is deleted and no tool switches.
 - [ ] **The app still comes back after sign-in.** Sign out and back in: the tray icon returns and the capture hotkey works.
 
+For v0.4.0 (M3), on top of the v0.3.0 list above:
+
+- [ ] **Delete is recoverable.** Hover a thumbnail in the Library Strip and click ✕: the image leaves the strip with no confirmation, an "Undo" notice appears, and the file is in the Recycle Bin (Explorer > Recycle Bin). Click Undo before the notice ends: the image is back in the strip and in `Pictures\Screenshot Annotation\<month>` under the same name, still editable. (The Recycle Bin keeps its own copy as well; see ADR 0008.) Then delete two thumbnails with Ctrl+click and the Delete key, and do the same from "All captures".
+- [ ] **Reopening keeps annotations editable.** Draw an arrow and a text, open another thumbnail, then click the first one again: the arrow and text are there, selectable and movable, and Ctrl+Z still undoes them. Quit from the tray, start the app: the newest capture is on show.
+- [ ] **The folder is the truth.** With the editor open, delete a PNG in Explorer: its thumbnail disappears within a few seconds (or at once when you click back into the app). Copy a screenshot PNG from elsewhere into a month folder: it appears in the strip and opens with no annotations, and the file is unchanged until you edit it.
+- [ ] **Hover Copy pastes the finished picture.** Hover a thumbnail that has annotations, click Copy, and paste into Teams or Outlook: the annotations are burned in, as a plain image.
+
 Already checked on earlier releases and only worth repeating if the installer or capture code changed: no-admin install, uninstall leaves `Pictures\Screenshot Annotation` alone, capture on all monitors, Teams and Outlook paste, Discard to the Recycle Bin.
 
 ## Full checklist (reference)
@@ -94,7 +101,12 @@ M2 has the Arrow, Text and Pen tools, undo/redo, Delete and stacking order; the 
 ## Library
 
 - [ ] **M3** Reopening a past capture from the Library keeps its annotations editable.
-- [ ] **M3** Deleting an image goes to the Recycle Bin and Undo restores it.
+- [ ] **M3** Deleting an image goes to the Recycle Bin and Undo restores it (from the app's kept copy; the Recycle Bin also keeps its own, ADR 0008). The notice goes away by itself after about 8 seconds, and after that the only way back is the Recycle Bin.
+- [ ] **M3** The Library Strip shows the newest capture on the left and about 5 thumbnails at once, scrolls sideways, and ends with "All captures (N)". Taking a capture adds it at the left; editing an old image does not move it.
+- [ ] **M3** Thumbnails are sharp on every monitor and scaling, and appear quickly with a long Library (try 100+ images): scrolling the strip or the grid never freezes the editor. The thumbnail cache is under `%LOCALAPPDATA%\io.github.hunter-andrew.screenshot-annotation\thumbnails`, never in `Pictures`.
+- [ ] **M3** "All captures" covers the whole window with date headings (Today, Yesterday, weekday and date, then months), each card showing its time and pixel size. Esc and "Back to editor" return; the header counts captures and selected ones, with "Delete N" and "Clear selection". An empty Library says to press the hotkey.
+- [ ] **M3** Files changed outside the app are followed: delete one in Explorer and its thumbnail goes; drop a PNG in and it appears; delete the image that is open and the editor moves to the next one with a note instead of writing it back.
+- [ ] **M3** Library work does not slow capture: the hotkey-to-overlay and release-to-editor speed (below) still feel instant with a long Library, and the window being hidden in the tray does not keep the disk busy.
 
 ## Speed
 

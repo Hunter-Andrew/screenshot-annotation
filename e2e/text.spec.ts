@@ -300,7 +300,7 @@ test("the Export has the text burned in, pixel for pixel as on the canvas", asyn
     const { data } = canvas.getContext("2d")!.getImageData(0, 0, canvas.width, canvas.height);
     return { width: canvas.width, height: canvas.height, data: Array.from(data) };
   });
-  await page.getByRole("button", { name: "Copy" }).click();
+  await page.getByRole("button", { name: "Copy", exact: true }).click();
   await expect.poll(() => page.evaluate(() => (window as unknown as InPage).__fakeBridge.copiedImages.length)).toBe(1);
   const png = Uint8Array.from(await page.evaluate(() => Array.from((window as unknown as InPage).__fakeBridge.copiedImages[0]!)));
   expect(hasChunk(png, "snAP")).toBe(false); // a plain PNG (ADR 0004)
@@ -344,7 +344,7 @@ test("the outline is painted first with a doubled width (letters stay solid, out
   await page.getByRole("spinbutton", { name: "Outline width" }).fill("10");
   await expectSaved(page, ([t]) => t?.font.size === 100 && t.textOutline.width === 10, "styled");
   await page.mouse.click(view.at(280, 180).x, view.at(280, 180).y);
-  await page.getByRole("button", { name: "Copy" }).click();
+  await page.getByRole("button", { name: "Copy", exact: true }).click();
   await expect.poll(() => page.evaluate(() => (window as unknown as InPage).__fakeBridge.copiedImages.length)).toBe(1);
   const png = Uint8Array.from(await page.evaluate(() => Array.from((window as unknown as InPage).__fakeBridge.copiedImages[0]!)));
   const { width, rgba } = decodePixels(png);
@@ -452,7 +452,7 @@ async function pressAndMove(page: Page, from: { x: number; y: number }, to: { x:
 
 /** Bounds of the red letters in the Export (the Copy button's PNG), or null if there are none. */
 async function exportedRedBounds(page: Page) {
-  await page.getByRole("button", { name: "Copy" }).click();
+  await page.getByRole("button", { name: "Copy", exact: true }).click();
   await expect.poll(() => page.evaluate(() => (window as unknown as InPage).__fakeBridge.copiedImages.length)).toBeGreaterThan(0);
   const png = Uint8Array.from(
     await page.evaluate(() => Array.from((window as unknown as InPage).__fakeBridge.copiedImages.at(-1)!)),

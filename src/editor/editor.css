@@ -1,5 +1,5 @@
-/* Layout A (ticket 04): top bar, tool column left, the canvas in a neutral well, Style panel right.
-   The Library Strip joins along the bottom with ticket 14. */
+/* Layout A (ticket 04): top bar, tool column left, the canvas in a neutral well, Style panel right,
+   the Library Strip along the bottom (ticket 14) above the status bar. */
 .editor {
   --bg: #eef0f4;
   --chrome: #ffffff;
@@ -12,7 +12,7 @@
   --pressed: #dfe6fd;
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) 232px;
-  grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-rows: auto minmax(0, 1fr) auto auto;
   /* Pinned to the window, not `height: 100vh`: the body's default margin would push a 100vh box past
      the bottom and make the whole page scroll a little (the M1 editor did exactly that). Only the
      well scrolls. */
@@ -243,6 +243,7 @@
 
 .statusbar {
   grid-column: 1 / -1;
+  grid-row: 4;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -262,4 +263,185 @@
 }
 .statusbar .zoom button {
   padding: 1px 8px;
+}
+
+/* --- Library Strip, grid and Undo notice (M3) ------------------------------------------------------ */
+
+/* The editor's own parts sit in the editor's grid; this wrapper only lets them be made inert together. */
+.editor-body {
+  display: contents;
+}
+
+.library-strip {
+  grid-column: 1 / -1;
+  grid-row: 3;
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  padding: 8px 16px;
+  border-top: 1px solid var(--line);
+  background: var(--bg);
+}
+.strip-scroll {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+.strip-empty {
+  align-self: center;
+  color: var(--muted);
+  font-size: 13px;
+}
+.library-strip .all-captures {
+  flex: none;
+  align-self: center;
+}
+
+.lib-card {
+  position: relative;
+  flex: none;
+}
+.editor .lib-open {
+  display: block;
+  padding: 0;
+  border: 2px solid transparent;
+  border-radius: 6px;
+  background: var(--chrome);
+  overflow: hidden;
+  text-align: left;
+}
+.editor .lib-card[data-current="true"] .lib-open {
+  border-color: var(--accent);
+}
+.editor .lib-card[data-selected="true"] .lib-open {
+  background: var(--pressed);
+  outline: 3px solid var(--accent);
+  outline-offset: -1px;
+}
+.lib-thumb {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 168px;
+  height: 94px;
+  background: var(--well);
+}
+.lib-thumb img {
+  display: block;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+.lib-failed {
+  color: var(--muted);
+  font-size: 12px;
+}
+.lib-details {
+  display: block;
+  padding: 4px 6px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.lib-hover {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: flex;
+  gap: 4px;
+  opacity: 0;
+}
+.lib-card:hover .lib-hover,
+.lib-card:focus-within .lib-hover {
+  opacity: 1;
+}
+.editor .lib-hover button {
+  padding: 1px 6px;
+  font-size: 12px;
+  background: var(--chrome);
+}
+
+/* The grid replaces the whole window, so it covers everything the editor draws. */
+.library-grid {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  background: var(--chrome);
+  color: var(--fg);
+}
+.grid-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--line);
+}
+.grid-header .spacer {
+  flex: 1;
+}
+.grid-header .grid-selected {
+  color: var(--muted);
+}
+.grid-header .grid-status {
+  color: var(--muted);
+  font-size: 12px;
+}
+.editor .grid-header button.danger {
+  border-color: #e02424;
+  color: #e02424;
+}
+.grid-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 8px 16px 24px;
+}
+.grid-body .empty {
+  margin: 64px auto;
+  text-align: center;
+  color: var(--muted);
+}
+.grid-group h2 {
+  margin: 16px 0 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.grid-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, 234px);
+  gap: 12px;
+}
+.library-grid .lib-thumb {
+  width: 230px;
+  height: 144px;
+}
+.library-grid .lib-open {
+  width: 234px;
+}
+
+.undo-notice {
+  position: fixed;
+  left: 50%;
+  bottom: 56px;
+  transform: translateX(-50%);
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 8px 8px 16px;
+  border-radius: 8px;
+  background: #1b1e27;
+  color: #ffffff;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.35);
+}
+.editor .undo-notice button {
+  color: #ffffff;
+  background: transparent;
+  border-color: #6d8cff;
+  font-weight: 600;
 }

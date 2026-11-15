@@ -26,6 +26,21 @@ export interface LibraryFile {
   png: Uint8Array;
 }
 
+/**
+ * One PNG in the Library folder as the Library Strip and grid need it, without reading the whole file:
+ * where it is, its file times, and the pixel size of its visible pixels (the finished image).
+ */
+export interface LibraryItem {
+  path: string;
+  /** Last write, ms since the epoch. Together with `bytes` it changes whenever the file does. */
+  modifiedMs: number;
+  /** When the file was created, ms since the epoch, if the file system says. */
+  createdMs: number | null;
+  bytes: number;
+  width: number;
+  height: number;
+}
+
 /** One monitor frozen at the moment of the hotkey: a plain PNG at the monitor's native resolution. */
 export interface OverlayFrame {
   width: number;
@@ -92,10 +107,35 @@ export interface PlatformBridge {
    */
   updateLibraryFile(path: string, png: Uint8Array): Promise<void>;
   /**
-   * The most recently written Library PNG, or null if the Library is empty: what the editor reopens
-   * on start so edits survive a restart. (The Library Strip, ticket 14, supersedes this with a list.)
+   * Every PNG in the Library folder, in no particular order (the folder is the source of truth, ADR
+   * 0004: files added or deleted in Explorer show up here). Files that are not PNGs are left out.
    */
-  openLatestLibraryImage(): Promise<LibraryFile | null>;
+  listLibrary(): Promise<LibraryItem[]>;
+  /** Read one Library PNG to open it. Rejects if it is gone or is not a PNG in the Library. */
+  readLibraryFile(path: string): Promise<LibraryFile>;
+  /**
+   * A small PNG (longest edge about 460 px) of the image's visible pixels, from a disposable cache in
+   * local app data (never under Pictures). Rejects if the file is gone or unreadable.
+   */
+  getThumbnail(path: string): Promise<Uint8Array>;
+  /**
+   * Delete from the Library Strip or grid: move each file to the Windows Recycle Bin, with no
+   * confirmation. Resolves to the paths that were moved; a file already gone is skipped, not an error.
+   * A copy of each is kept for `restoreLibraryFiles` until `forgetTrashedFiles`.
+   */
+  trashLibraryFiles(paths: string[]): Promise<string[]>;
+  /**
+   * Undo of a delete (`trashLibraryFiles` or `discardLibraryFile`): put the files back in the Library.
+   * Resolves to where each landed (its old path, or a `-2` name if that was taken since).
+   */
+  restoreLibraryFiles(paths: string[]): Promise<{ from: string; to: string }[]>;
+  /** The Undo notice is over: the platform may drop the copies kept for `paths`. */
+  forgetTrashedFiles(paths: string[]): Promise<void>;
+  /**
+   * The Library folder changed: a file was added, removed or replaced, by this app or by anything else
+   * (Explorer, OneDrive). Delivers no detail; callers list again. Returns an unsubscribe function.
+   */
+  onLibraryChanged(handler: () => void): Promise<() => void>;
   /**
    * Undo history files (ticket 13), one per image, in the app's local data folder (never in the PNG).
    * `key` is 64 lowercase hex characters (`contentHash` of the image's path); the text is opaque here.
@@ -185,7 +225,8 @@ export interface PlatformBridge {
    */
   savePngAs(png: Uint8Array, suggestedName: string): Promise<string | null>;
   /**
-   * Discard: move a Library file (a path `saveToLibrary` returned) to the Windows Recycle Bin.
+   * Discard: move a Library file (a path `saveToLibrary` returned) to the Windows Recycle Bin (and, like
+   * `trashLibraryFiles`, keep a copy for `restoreLibraryFiles`).
    * Rejects, leaving the file alone, if it is not inside the Library or could not be moved.
    */
   discardLibraryFile(path: string): Promise<void>;
