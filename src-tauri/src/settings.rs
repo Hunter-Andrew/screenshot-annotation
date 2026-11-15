@@ -1,6 +1,13 @@
 //! App settings, stored as `settings.json` under Tauri's `app_data_dir` (the `<identifier>` folder
 //! under %APPDATA%) so the installer's upgrade and "delete app data" behavior covers them (ticket 03).
 //! Later tickets add their own fields; `#[serde(default)]` keeps older files loading.
+//!
+//! What the fields in `settings.json` mean (plain language; the user may open this file):
+//! - `hotkey`: the capture hotkey, e.g. "ctrl+shift+s" or "PrintScreen". Change it in Settings, not here.
+//! - `printScreenNoticeDismissed`: true means "you answered the one-time Print Screen notice" (clicked
+//!   either of its two buttons). It only stops that notice from showing again. It does NOT mean Print
+//!   Screen works or that the Windows setting is off; the warning under the hotkey field reads that live
+//!   from Windows. Setting it back to false (with the app closed) shows the notice once more.
 
 use std::fs;
 use std::io;

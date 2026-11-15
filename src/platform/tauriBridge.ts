@@ -68,6 +68,13 @@ export function createTauriBridge(): PlatformBridge {
     getPrintScreenNotice: () =>
       invoke<{ snippingEnabled: boolean; dismissed: boolean }>("get_print_screen_notice"),
     dismissPrintScreenNotice: () => invoke<void>("dismiss_print_screen_notice"),
+    logSettings: async (message) => {
+      try {
+        await invoke<void>("settings_log", { message });
+      } catch {
+        console.error(message);
+      }
+    },
     openKeyboardAccessibilitySettings: () => invoke<void>("open_keyboard_accessibility_settings"),
     copyImage: (png) => invoke<void>("copy_image", png),
     saveToLibrary: (png, capturedAt) =>

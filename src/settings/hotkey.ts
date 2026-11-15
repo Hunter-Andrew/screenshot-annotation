@@ -78,3 +78,8 @@ export function formatCombo(accelerator: string): string {
     })
     .join("+");
 }
+
+/** Whether the key part of an accelerator is Print Screen (alone or with modifiers). */
+export function usesPrintScreen(accelerator: string): boolean {
+  return accelerator.split("+").pop() === "PrintScreen";
+}

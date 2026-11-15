@@ -44,6 +44,12 @@ export interface FakeBridge extends PlatformBridge {
   readonly takenHotkeys: Set<string>;
   /** How many times the Accessibility > Keyboard deep link was opened. */
   readonly keyboardSettingsOpened: number;
+  /** Lines the Settings page wrote to the diagnostics log. */
+  readonly settingsLogs: string[];
+  /** Mimic the user flipping the Windows Print Screen toggle (true = still opens Snipping Tool). */
+  setPrintScreenSnipping(enabled: boolean): void;
+  /** Whether the one-time Print Screen notice was answered. */
+  readonly printScreenNoticeDismissed: boolean;
 }
 
 /** Fake setting storage; the browser build passes localStorage so e2e reloads keep it. */
@@ -81,6 +87,8 @@ export function createFakeBridge(
   let hotkey = store.getItem("fake.hotkey") ?? "ctrl+shift+s";
   const takenHotkeys = new Set<string>();
   let keyboardSettingsOpened = 0;
+  let snippingEnabled = options.printScreenSnippingEnabled ?? true;
+  const settingsLogs: string[] = [];
   const overlayFrameRequests: number[] = [];
   const overlayWindowRequests: number[] = [];
   const readyOverlays: number[] = [];
@@ -136,6 +144,13 @@ export function createFakeBridge(
       return hotkey;
     },
     takenHotkeys,
+    settingsLogs,
+    setPrintScreenSnipping: (enabled) => {
+      snippingEnabled = enabled;
+    },
+    get printScreenNoticeDismissed() {
+      return store.getItem("fake.printScreenNoticeDismissed") === "1";
+    },
     get keyboardSettingsOpened() {
       return keyboardSettingsOpened;
     },
@@ -148,10 +163,13 @@ export function createFakeBridge(
       return { ok: true };
     },
     getPrintScreenNotice: async () => ({
-      snippingEnabled: options.printScreenSnippingEnabled ?? true,
+      snippingEnabled,
       dismissed: store.getItem("fake.printScreenNoticeDismissed") === "1",
     }),
     dismissPrintScreenNotice: async () => store.setItem("fake.printScreenNoticeDismissed", "1"),
+    logSettings: async (message) => {
+      settingsLogs.push(message);
+    },
     openKeyboardAccessibilitySettings: async () => {
       keyboardSettingsOpened++;
     },

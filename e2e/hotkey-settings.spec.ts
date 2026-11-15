@@ -58,3 +58,21 @@ test("no notice when the Windows setting is explicitly off", async ({ page }) =>
   await expect(page.getByRole("button", { name: "Ctrl+Shift+S", exact: true })).toBeVisible();
   await expect(page.getByText(/Print Screen opens Snipping Tool/)).toHaveCount(0);
 });
+
+test("recording Print Screen shows a persistent warning that survives answering the notice and clears after the Windows setting is turned off", async ({ page }) => {
+  await page.goto("/#settings");
+  await page.getByRole("button", { name: "Keep Ctrl+Shift+S" }).click();
+  await page.getByRole("button", { name: "Ctrl+Shift+S", exact: true }).click();
+  await page.evaluate(() => window.dispatchEvent(new KeyboardEvent("keyup", { code: "PrintScreen" })));
+  await expect(page.getByRole("button", { name: "Print Screen", exact: true })).toBeVisible();
+  await expect(page.getByRole("status")).toContainText("Snipping Tool");
+
+  await page.reload();
+  await expect(page.getByRole("status")).toContainText("Snipping Tool");
+
+  await page.evaluate(() =>
+    (window as unknown as { __fakeBridge: { setPrintScreenSnipping(e: boolean): void } }).__fakeBridge.setPrintScreenSnipping(false),
+  );
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await expect(page.getByRole("status")).toHaveCount(0);
+});

@@ -41,12 +41,32 @@ struct PluginRegistry<'a>(&'a AppHandle);
 
 impl hotkey::ShortcutRegistry for PluginRegistry<'_> {
     fn register(&self, accelerator: &str) -> Result<(), hotkey::RegisterError> {
-        let shortcut: Shortcut = accelerator.parse().map_err(|_| hotkey::RegisterError::Invalid)?;
-        self.0.global_shortcut().register(shortcut).map_err(|_| hotkey::RegisterError::Taken)
+        let shortcut: Shortcut = accelerator.parse().map_err(|e| {
+            diag::log(&format!("hotkey register {accelerator}: not a valid accelerator: {e}"));
+            hotkey::RegisterError::Invalid
+        })?;
+        // Any failure is reported to the page as "conflict" (hotkey.rs); the real error goes to the log.
+        match self.0.global_shortcut().register(shortcut) {
+            Ok(()) => {
+                diag::log(&format!(
+                    "hotkey register {accelerator} (parsed as {}, id {:#x}): ok. RegisterHotKey says ok even when Windows gives Print Screen to Snipping Tool",
+                    shortcut.into_string(),
+                    shortcut.id()
+                ));
+                Ok(())
+            }
+            Err(e) => {
+                diag::log(&format!("hotkey register {accelerator} (parsed as {}): failed: {e}", shortcut.into_string()));
+                Err(hotkey::RegisterError::Taken)
+            }
+        }
     }
     fn unregister(&self, accelerator: &str) {
         if let Ok(shortcut) = accelerator.parse::<Shortcut>() {
-            let _ = self.0.global_shortcut().unregister(shortcut);
+            match self.0.global_shortcut().unregister(shortcut) {
+                Ok(()) => diag::log(&format!("hotkey unregister {accelerator}: ok")),
+                Err(e) => diag::log(&format!("hotkey unregister {accelerator}: failed: {e}")),
+            }
         }
     }
     fn is_registered(&self, accelerator: &str) -> bool {
@@ -106,6 +126,7 @@ fn get_hotkey(app: AppHandle, state: tauri::State<'_, AppSettings>) -> HotkeySta
     use hotkey::ShortcutRegistry;
     let accelerator = state.data.lock().unwrap().hotkey.clone();
     let registered = PluginRegistry(&app).is_registered(&accelerator);
+    diag::log(&format!("get_hotkey: {accelerator}, registered by this app: {registered}"));
     HotkeyState { accelerator, registered }
 }
 
@@ -115,22 +136,39 @@ fn get_hotkey(app: AppHandle, state: tauri::State<'_, AppSettings>) -> HotkeySta
 fn set_hotkey(app: AppHandle, state: tauri::State<'_, AppSettings>, accelerator: String) -> Result<(), String> {
     let mut data = state.data.lock().unwrap();
     let old = data.hotkey.clone();
+    diag::log(&format!("set_hotkey: requested {accelerator} (current {old})"));
     let mut next = data.clone();
     next.hotkey = accelerator.clone();
-    hotkey::change_hotkey(&PluginRegistry(&app), &old, &accelerator, || settings::save(&state.dir, &next))
-        .map_err(String::from)?;
-    data.hotkey = accelerator;
-    Ok(())
+    let outcome = hotkey::change_hotkey(&PluginRegistry(&app), &old, &accelerator, || {
+        settings::save(&state.dir, &next).inspect_err(|e| diag::log(&format!("set_hotkey: could not save settings.json: {e}")))
+    });
+    match outcome {
+        Ok(()) => {
+            diag::log(&format!("set_hotkey: {accelerator} is now the capture hotkey (saved)"));
+            data.hotkey = accelerator;
+            Ok(())
+        }
+        Err(code) => {
+            diag::log(&format!("set_hotkey: {accelerator} refused ({code}); {old} stays in force"));
+            Err(code.to_string())
+        }
+    }
 }
 
 /// Whether Windows still gives Print Screen to Snipping Tool (read-only registry check), and
 /// whether the one-time notice was already answered.
 #[tauri::command]
 fn get_print_screen_notice(state: tauri::State<'_, AppSettings>) -> PrintScreenNotice {
-    PrintScreenNotice {
-        snipping_enabled: print_screen::snipping_enabled(),
-        dismissed: state.data.lock().unwrap().print_screen_notice_dismissed,
-    }
+    let reading = print_screen::read();
+    let dismissed = state.data.lock().unwrap().print_screen_notice_dismissed;
+    diag::log(&format!("Settings read: {}; one-time notice answered: {dismissed}", reading.describe()));
+    PrintScreenNotice { snipping_enabled: reading.enabled(), dismissed }
+}
+
+/// The Settings page writes a line to `capture.log` (what the hotkey recorder received).
+#[tauri::command]
+fn settings_log(message: String) {
+    diag::log(&format!("settings page: {message}"));
 }
 
 #[tauri::command]
@@ -140,6 +178,7 @@ fn dismiss_print_screen_notice(state: tauri::State<'_, AppSettings>) -> Result<(
     next.print_screen_notice_dismissed = true;
     settings::save(&state.dir, &next).map_err(|e| e.to_string())?;
     *data = next;
+    diag::log("one-time Print Screen notice answered by a button click: printScreenNoticeDismissed is now true");
     Ok(())
 }
 
@@ -312,6 +351,7 @@ pub fn run() {
             get_hotkey,
             set_hotkey,
             get_print_screen_notice,
+            settings_log,
             dismiss_print_screen_notice,
             open_keyboard_accessibility_settings,
             overlay::overlay_frame,
@@ -324,7 +364,10 @@ pub fn run() {
         .setup(|app| {
             app.handle().plugin(
                 tauri_plugin_global_shortcut::Builder::new()
-                    .with_handler(|app, _shortcut, event| {
+                    .with_handler(|app, shortcut, event| {
+                        // The plugin only calls this for hotkeys this app registered, so there is one
+                        // capture hotkey and nothing to compare; log every event it delivers.
+                        diag::log(&format!("hotkey event: {} {:?}", shortcut.into_string(), event.state()));
                         if event.state() == ShortcutState::Pressed {
                             capture_async(app.clone(), "hotkey");
                         }
@@ -336,11 +379,15 @@ pub fn run() {
             diag::log(&format!("started, version {}", app.package_info().version));
             let loaded = settings::load(&dir);
             // A taken hotkey must not stop the app from starting; Settings shows the conflict warning.
-            match app.global_shortcut().register(loaded.hotkey.as_str()) {
-                Ok(()) => diag::log(&format!("hotkey {} registered", loaded.hotkey)),
-                Err(e) => diag::log(&format!("could not register {}: {e}", loaded.hotkey)),
-            }
-            let notice_pending = !loaded.print_screen_notice_dismissed && print_screen::snipping_enabled();
+            let _ = hotkey::ShortcutRegistry::register(&PluginRegistry(app.handle()), &loaded.hotkey);
+            let reading = print_screen::read();
+            diag::log(&format!(
+                "startup: hotkey {}, one-time notice answered: {}; {}",
+                loaded.hotkey,
+                loaded.print_screen_notice_dismissed,
+                reading.describe()
+            ));
+            let notice_pending = !loaded.print_screen_notice_dismissed && reading.enabled();
             app.manage(AppSettings { dir, data: Mutex::new(loaded) });
             if notice_pending {
                 // First run: open Settings, where the one-time Print Screen notice lives.

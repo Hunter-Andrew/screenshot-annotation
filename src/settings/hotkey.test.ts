@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { comboFromKeyEvent, formatCombo, isModifierCode } from "./hotkey";
+import { comboFromKeyEvent, formatCombo, isModifierCode, usesPrintScreen } from "./hotkey";
 
 const ev = (
   code: string,
@@ -74,5 +74,24 @@ describe("isModifierCode", () => {
   it("recognises modifier keys", () => {
     expect(isModifierCode("MetaLeft")).toBe(true);
     expect(isModifierCode("KeyA")).toBe(false);
+  });
+});
+
+describe("usesPrintScreen", () => {
+  it("is true when the key part is Print Screen, with or without modifiers", () => {
+    expect(usesPrintScreen("PrintScreen")).toBe(true);
+    expect(usesPrintScreen("ctrl+shift+PrintScreen")).toBe(true);
+  });
+
+  it("is false for other keys, including ones whose names merely look similar", () => {
+    expect(usesPrintScreen("ctrl+shift+s")).toBe(false);
+    expect(usesPrintScreen("ctrl+Insert")).toBe(false);
+    expect(usesPrintScreen("")).toBe(false);
+  });
+
+  it("matches what the recorder produces for the Print Screen key", () => {
+    const e = { code: "PrintScreen", ctrlKey: true, shiftKey: false, altKey: false, metaKey: false };
+    const result = comboFromKeyEvent(e);
+    expect(result.kind === "combo" && usesPrintScreen(result.accelerator)).toBe(true);
   });
 });

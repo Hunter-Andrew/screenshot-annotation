@@ -104,11 +104,17 @@ export interface PlatformBridge {
   /**
    * Whether the Windows setting PrintScreenKeyForSnippingEnabled leaves Print Screen with Snipping
    * Tool (anything but an explicit 0; read-only, the app never writes it), and whether the user
-   * already answered the one-time notice.
+   * already answered the one-time notice. `snippingEnabled` is re-read from the registry on every
+   * call, so callers can poll it (e.g. when the Settings window regains focus).
    */
   getPrintScreenNotice(): Promise<{ snippingEnabled: boolean; dismissed: boolean }>;
   /** Record that the notice was answered so it is never shown again. */
   dismissPrintScreenNotice(): Promise<void>;
+  /**
+   * Write a line to the diagnostics log (`capture.log`) from the Settings page, e.g. what the hotkey
+   * recorder received. Never throws.
+   */
+  logSettings(message: string): Promise<void>;
   /** Open Windows Settings at Accessibility > Keyboard. */
   openKeyboardAccessibilitySettings(): Promise<void>;
 

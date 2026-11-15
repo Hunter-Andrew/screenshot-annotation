@@ -34,6 +34,12 @@ export function PrintScreenNotice({ bridge }: { bridge: PlatformBridge }) {
         turn off &ldquo;Use the Print screen button to open screen capturing&rdquo;, then record Print Screen as
         the capture hotkey above.
       </p>
+      <p>
+        &ldquo;Open Windows setting&rdquo; opens Windows Settings at Accessibility &gt; Keyboard; the app never
+        changes that setting itself. Either button closes this notice for good: it only appears once. If Print
+        Screen is your hotkey while Windows still owns the key, a warning stays under the hotkey field until the
+        setting is off.
+      </p>
       <button type="button" onClick={answer(true)}>
         Open Windows setting
       </button>{" "}
