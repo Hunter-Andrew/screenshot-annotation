@@ -78,7 +78,7 @@ export function createFabricCanvas(host: HTMLElement, { size, events }: MountOpt
   });
 
   // Drawing: press, drag (a live preview built from the same adapter), release.
-  let drag: { from: { x: number; y: number }; ghost: FabricObject | null } | null = null;
+  let drag: { from: { x: number; y: number }; path: { x: number; y: number }[]; ghost: FabricObject | null } | null = null;
   const dropGhost = () => {
     if (drag?.ghost) canvas.remove(drag.ghost);
     if (drag) drag.ghost = null;
@@ -108,13 +108,19 @@ export function createFabricCanvas(host: HTMLElement, { size, events }: MountOpt
 
   canvas.on("mouse:down", (event) => {
     if (!interactive || tool === SELECT || pending || (event.e as MouseEvent).button > 0) return;
-    drag = { from: clampToImage(canvas.getScenePoint(event.e)), ghost: null };
+    const from = clampToImage(canvas.getScenePoint(event.e));
+    drag = { from, path: [from], ghost: null };
   });
   canvas.on("mouse:move", (event) => {
     const kind = kindOf(tool);
     const adapter = adapterFor(tool);
     if (!drag || !kind || !adapter || kind.typedInPlace) return;
-    const preview = kind.fromDrag("preview", drag.from, clampToImage(canvas.getScenePoint(event.e)), drawStyle);
+    const to = clampToImage(canvas.getScenePoint(event.e));
+    drag.path.push(to);
+    // A freehand kind (Pen) gets every point the pointer passed; the others only the two ends.
+    const preview = kind.fromPath
+      ? kind.fromPath("preview", drag.path, drawStyle)
+      : kind.fromDrag("preview", drag.from, to, drawStyle);
     if (!preview) return dropGhost();
     if (drag.ghost) adapter.update(drag.ghost, preview);
     else {
@@ -130,13 +136,10 @@ export function createFabricCanvas(host: HTMLElement, { size, events }: MountOpt
     const kind = kindOf(tool);
     if (!gesture || !kind) return;
     if (gesture.ghost) canvas.remove(gesture.ghost);
-    const annotation = kind.fromDrag(
-      newAnnotationId(),
-      gesture.from,
-      clampToImage(canvas.getScenePoint(event.e)),
-      drawStyle,
-      size,
-    );
+    const to = clampToImage(canvas.getScenePoint(event.e));
+    const annotation = kind.fromPath
+      ? kind.fromPath(newAnnotationId(), [...gesture.path, to], drawStyle)
+      : kind.fromDrag(newAnnotationId(), gesture.from, to, drawStyle, size);
     canvas.requestRenderAll();
     if (!annotation) return;
     if (kind.typedInPlace) startTyping(annotation);
