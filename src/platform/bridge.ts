@@ -36,4 +36,15 @@ export interface PlatformBridge {
    * (never overwriting; a -2, -3 suffix on collision, written atomically). Returns the path.
    */
   saveToLibrary(png: Uint8Array, capturedAt: Date): Promise<string>;
+
+  /**
+   * Save as PNG…: open the Windows save dialog, suggesting `suggestedName`, and write `png` (a
+   * plain Export) where the user chooses. Returns the chosen path, or null if they cancelled.
+   */
+  savePngAs(png: Uint8Array, suggestedName: string): Promise<string | null>;
+  /**
+   * Discard: move a Library file (a path `saveToLibrary` returned) to the Windows Recycle Bin.
+   * Rejects, leaving the file alone, if it is not inside the Library or could not be moved.
+   */
+  discardLibraryFile(path: string): Promise<void>;
 }

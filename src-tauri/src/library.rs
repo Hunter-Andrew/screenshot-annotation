@@ -90,6 +90,62 @@ pub fn save_new(root: &Path, stamp: &Stamp, bytes: &[u8]) -> std::io::Result<Pat
     Ok(path)
 }
 
+/// `path` if it is a `.png` file strictly inside the Library `root` (absolute, no `..`), else None.
+/// The webview supplies discard paths, so this keeps the command from touching anything else.
+pub fn library_file_in(root: &Path, path: &Path) -> Option<PathBuf> {
+    use std::path::Component;
+    let clean = path.is_absolute()
+        && path.components().all(|c| !matches!(c, Component::ParentDir | Component::CurDir));
+    let png = path.extension().is_some_and(|e| e.eq_ignore_ascii_case("png"));
+    (clean && png && path != root && path.starts_with(root)).then(|| path.to_path_buf())
+}
+
+/// A file name for the Save as PNG… dialog to suggest: letters, digits, space, `-`, `_` and `.` only.
+pub fn dialog_file_name(requested: &str) -> String {
+    let ok = !requested.is_empty()
+        && requested
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, ' ' | '-' | '_' | '.'))
+        && !requested.starts_with('.');
+    if ok { requested.to_string() } else { "capture.png".to_string() }
+}
+
+/// The path as UTF-16 ended by two NULs: the list format `SHFileOperationW` wants.
+pub fn double_null_terminated(path: &Path) -> Vec<u16> {
+    path.to_string_lossy().encode_utf16().chain([0, 0]).collect()
+}
+
+/// Move a file to the Windows Recycle Bin (recoverable, no dialogs). Windows only.
+#[cfg(windows)]
+pub fn move_to_recycle_bin(path: &Path) -> Result<(), String> {
+    use windows::core::PCWSTR;
+    use windows::Win32::UI::Shell::{
+        SHFileOperationW, FOF_ALLOWUNDO, FOF_NOCONFIRMATION, FOF_NOERRORUI, FOF_SILENT, FO_DELETE,
+        SHFILEOPSTRUCTW,
+    };
+    let from = double_null_terminated(path);
+    let mut op = SHFILEOPSTRUCTW {
+        wFunc: FO_DELETE,
+        pFrom: PCWSTR(from.as_ptr()),
+        fFlags: (FOF_ALLOWUNDO | FOF_NOCONFIRMATION | FOF_NOERRORUI | FOF_SILENT).0 as u16,
+        ..Default::default()
+    };
+    // SAFETY: `op` and the NUL-terminated `from` buffer outlive the call.
+    let code = unsafe { SHFileOperationW(&mut op) };
+    if code != 0 {
+        Err(format!("could not move to the Recycle Bin (error {code:#x})"))
+    } else if op.fAnyOperationsAborted.as_bool() {
+        Err("moving to the Recycle Bin was cancelled".into())
+    } else {
+        Ok(())
+    }
+}
+
+#[cfg(not(windows))]
+pub fn move_to_recycle_bin(_path: &Path) -> Result<(), String> {
+    Err("the Recycle Bin is only available on Windows".into())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -168,5 +224,40 @@ mod tests {
 
         assert_eq!(std::fs::read(&path).unwrap(), b"old");
         let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn only_png_files_inside_the_library_may_be_discarded() {
+        let root = scratch("guard");
+        let file = root.join("2026-11").join("2026-11-15 134501.png");
+        assert_eq!(library_file_in(&root, &file), Some(file.clone()));
+
+        let outside = root.parent().unwrap().join("elsewhere.png");
+        let sneaky = root.join("2026-11").join("..").join("..").join("elsewhere.png");
+        for bad in [
+            outside,
+            sneaky,
+            root.clone(),
+            root.join("2026-11").join("notes.txt"),
+            PathBuf::from("2026-11/relative.png"),
+        ] {
+            assert_eq!(library_file_in(&root, &bad), None, "{bad:?}");
+        }
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn the_recycle_bin_path_list_is_double_null_terminated() {
+        let wide = double_null_terminated(Path::new("C:\\a b\\c.png"));
+        let expected: Vec<u16> = "C:\\a b\\c.png".encode_utf16().chain([0, 0]).collect();
+        assert_eq!(wide, expected);
+    }
+
+    #[test]
+    fn the_save_dialog_suggests_only_a_plain_file_name() {
+        assert_eq!(dialog_file_name("2026-11-15 134501.png"), "2026-11-15 134501.png");
+        for bad in ["", "..\\x.png", "a/b.png", "x.png\0", "con:.png"] {
+            assert_eq!(dialog_file_name(bad), "capture.png", "{bad:?}");
+        }
     }
 }

@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Permissions for the Settings and editor windows. App commands (app_version, open_url, start_capture, take_capture, copy_image, library_save) are always allowed.",
+  "description": "Permissions for the Settings and editor windows. App commands (app_version, open_url, start_capture, take_capture, copy_image, library_save, library_discard, save_png_as) are always allowed.",
   "windows": ["settings", "editor"],
   "permissions": ["core:default"]
 }

@@ -16,6 +16,14 @@ export interface FakeBridge extends PlatformBridge {
   readonly copiedImages: Uint8Array[];
   /** Library files written, in order (`path` is relative to the Library folder). */
   readonly libraryFiles: { path: string; bytes: Uint8Array }[];
+  /** Files written by Save as PNG… in order. */
+  readonly savedAs: { suggestedName: string; path: string; bytes: Uint8Array }[];
+  /** Library paths moved to the Recycle Bin, in order (they leave `libraryFiles`). */
+  readonly discardedPaths: string[];
+  /** The next Save as PNG… behaves as if the user cancelled the dialog. */
+  cancelNextSaveAs(): void;
+  /** The next Discard rejects with this message. */
+  failNextDiscard(message: string): void;
   /** Deliver a Capture as if the hotkey had been pressed. */
   simulateCapture(shot: SimulatedShot): void;
 }
@@ -37,6 +45,10 @@ export function createFakeBridge(options: { version?: string } = {}): FakeBridge
   const openedUrls: string[] = [];
   const copiedImages: Uint8Array[] = [];
   const libraryFiles: { path: string; bytes: Uint8Array }[] = [];
+  const savedAs: FakeBridge["savedAs"] = [];
+  const discardedPaths: string[] = [];
+  let cancelSaveAs = false;
+  let discardFailure: string | null = null;
   const handlers = new Set<(capture: CaptureResult) => void>();
   const undelivered: CaptureResult[] = [];
 
@@ -57,6 +69,14 @@ export function createFakeBridge(options: { version?: string } = {}): FakeBridge
     openedUrls,
     copiedImages,
     libraryFiles,
+    savedAs,
+    discardedPaths,
+    cancelNextSaveAs: () => {
+      cancelSaveAs = true;
+    },
+    failNextDiscard: (message) => {
+      discardFailure = message;
+    },
     simulateCapture,
     getVersion: async () => options.version ?? "0.0.0-fake",
     openUrl: async (url) => {
@@ -81,6 +101,26 @@ export function createFakeBridge(options: { version?: string } = {}): FakeBridge
       }
       libraryFiles.push({ path, bytes: png });
       return path;
+    },
+    savePngAs: async (png, suggestedName) => {
+      if (cancelSaveAs) {
+        cancelSaveAs = false;
+        return null;
+      }
+      const path = `C:\\Users\\fake\\Pictures\\${suggestedName}`;
+      savedAs.push({ suggestedName, path, bytes: png });
+      return path;
+    },
+    discardLibraryFile: async (path) => {
+      if (discardFailure !== null) {
+        const message = discardFailure;
+        discardFailure = null;
+        throw new Error(message);
+      }
+      const index = libraryFiles.findIndex((f) => f.path === path);
+      if (index < 0) throw new Error("not in the Library");
+      libraryFiles.splice(index, 1);
+      discardedPaths.push(path);
     },
   };
 }
