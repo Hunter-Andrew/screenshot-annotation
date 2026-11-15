@@ -1,10 +1,12 @@
 mod capture;
 mod capture_image;
+mod geometry;
 mod library;
+mod overlay;
 mod url_guard;
 
 use std::sync::Mutex;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::Duration;
 
 use tauri::{
     ipc::{InvokeBody, Request, Response},
@@ -129,40 +131,22 @@ fn show_editor(app: &AppHandle) {
         .build();
 }
 
-/// Hide the editor, capture the monitor under the cursor, then show the editor with the result.
-/// Runs on its own thread so the hotkey handler returns at once.
+/// Start a capture (hotkey, tray): freeze the screen and open the overlay; see overlay.rs.
 fn capture_async(app: AppHandle) {
-    std::thread::spawn(move || {
-        if let Some(win) = app.get_webview_window(EDITOR_LABEL) {
-            if win.is_visible().unwrap_or(false) {
-                let _ = win.hide();
-                std::thread::sleep(HIDE_SETTLE);
-            }
-        }
-        match capture::capture_monitor_under_cursor() {
-            Ok(shot) => {
-                let now_ms = SystemTime::now()
-                    .duration_since(UNIX_EPOCH)
-                    .map(|d| d.as_millis() as f64)
-                    .unwrap_or(0.0);
-                let packed = pack_capture(shot.width, shot.height, now_ms, &shot.png);
-                *app.state::<PendingCapture>().0.lock().unwrap() = Some(packed);
-                show_editor(&app);
-                let _ = app.emit(CAPTURE_READY_EVENT, ());
-            }
-            Err(message) => {
-                eprintln!("capture failed: {message}");
-                if let Some(win) = app.get_webview_window(EDITOR_LABEL) {
-                    focus(&win);
-                }
-            }
-        }
-    });
+    overlay::begin(app);
+}
+
+/// Hand a finished Capture (a plain PNG) to the editor and show it.
+fn deliver_capture(app: &AppHandle, width: u32, height: u32, captured_at_ms: f64, png: &[u8]) {
+    *app.state::<PendingCapture>().0.lock().unwrap() = Some(pack_capture(width, height, captured_at_ms, png));
+    show_editor(app);
+    let _ = app.emit(CAPTURE_READY_EVENT, ());
 }
 
 pub fn run() {
     tauri::Builder::default()
         .manage(PendingCapture::default())
+        .manage(overlay::OverlayState::default())
         // A second launch focuses the running instance.
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| show_editor(app)))
         .plugin(tauri_plugin_clipboard_manager::init())
@@ -172,7 +156,11 @@ pub fn run() {
             start_capture,
             take_capture,
             copy_image,
-            library_save
+            library_save,
+            overlay::overlay_frame,
+            overlay::overlay_ready,
+            overlay::overlay_finish,
+            overlay::overlay_toggle_magnifier
         ])
         .setup(|app| {
             app.handle().plugin(

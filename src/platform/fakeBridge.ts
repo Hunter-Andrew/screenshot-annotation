@@ -1,6 +1,6 @@
 import { encodeRgbaPng } from "../core/png";
 import { formatStamp } from "../shared/stamp";
-import type { CaptureResult, PlatformBridge } from "./bridge";
+import type { CaptureResult, OverlayOutcome, PlatformBridge } from "./bridge";
 
 export interface SimulatedShot {
   width: number;
@@ -18,6 +18,12 @@ export interface FakeBridge extends PlatformBridge {
   readonly libraryFiles: { path: string; bytes: Uint8Array }[];
   /** Deliver a Capture as if the hotkey had been pressed. */
   simulateCapture(shot: SimulatedShot): void;
+  /** Monitor indexes whose overlay asked for its frozen frame, in order. */
+  readonly overlayFrameRequests: number[];
+  /** Monitor indexes whose overlay reported ready, in order. */
+  readonly readyOverlays: number[];
+  /** What the overlay finished with, in order. */
+  readonly overlayOutcomes: OverlayOutcome[];
 }
 
 /** What `startCapture` produces unless a test says otherwise: a small gradient. */
@@ -33,7 +39,13 @@ function defaultShot(): SimulatedShot {
   return { width, height, rgba };
 }
 
-export function createFakeBridge(options: { version?: string } = {}): FakeBridge {
+export function createFakeBridge(
+  options: { version?: string; overlayFrames?: Record<number, { width: number; height: number }> } = {},
+): FakeBridge {
+  const overlayFrameRequests: number[] = [];
+  const readyOverlays: number[] = [];
+  const overlayOutcomes: OverlayOutcome[] = [];
+  const magnifierHandlers = new Set<() => void>();
   const openedUrls: string[] = [];
   const copiedImages: Uint8Array[] = [];
   const libraryFiles: { path: string; bytes: Uint8Array }[] = [];
@@ -58,6 +70,9 @@ export function createFakeBridge(options: { version?: string } = {}): FakeBridge
     copiedImages,
     libraryFiles,
     simulateCapture,
+    overlayFrameRequests,
+    readyOverlays,
+    overlayOutcomes,
     getVersion: async () => options.version ?? "0.0.0-fake",
     openUrl: async (url) => {
       openedUrls.push(url);
@@ -81,6 +96,26 @@ export function createFakeBridge(options: { version?: string } = {}): FakeBridge
       }
       libraryFiles.push({ path, bytes: png });
       return path;
+    },
+    overlayFrame: async (monitor) => {
+      overlayFrameRequests.push(monitor);
+      // A small gradient; the overlay stretches it over its window, so only the native size matters.
+      const { width, height } = options.overlayFrames?.[monitor] ?? { width: 640, height: 360 };
+      const shot = defaultShot();
+      return { width, height, png: encodeRgbaPng(shot.width, shot.height, Uint8Array.from(shot.rgba)) };
+    },
+    overlayReady: async (monitor) => {
+      readyOverlays.push(monitor);
+    },
+    finishOverlay: async (outcome) => {
+      overlayOutcomes.push(outcome);
+    },
+    toggleOverlayMagnifier: async () => magnifierHandlers.forEach((handler) => handler()),
+    onOverlayMagnifier: async (handler) => {
+      magnifierHandlers.add(handler);
+      return () => {
+        magnifierHandlers.delete(handler);
+      };
     },
   };
 }

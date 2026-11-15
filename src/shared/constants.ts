@@ -6,5 +6,8 @@ export const RELEASES_URL = "https://github.com/Hunter-Andrew/screenshot-annotat
 /** Route of the Settings window; `src-tauri/src/lib.rs` must open the same hash (see rustParity.test.ts). */
 export const SETTINGS_HASH = "#settings";
 
+/** Route of a capture overlay window: `#overlay/<monitor index>`; `src-tauri/src/overlay.rs` must open the same prefix (see rustParity.test.ts). */
+export const OVERLAY_HASH_PREFIX = "#overlay/";
+
 /** Shared page-container style for every window's `<main>`. */
 export const MAIN_STYLE: CSSProperties = { fontFamily: "system-ui, sans-serif", padding: 16 };

@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { formatStamp } from "../shared/stamp";
-import type { CaptureResult, PlatformBridge } from "./bridge";
+import type { CaptureResult, OverlayFrame, PlatformBridge } from "./bridge";
 
 /**
  * Decode the `take_capture` body (see `pack_capture` in src-tauri/src/lib.rs): u32 LE width,
@@ -16,6 +16,13 @@ export function unpackCapture(body: ArrayBuffer): CaptureResult | null {
     capturedAt: new Date(view.getFloat64(8, true)),
     png: new Uint8Array(body, 16),
   };
+}
+
+/** Decode `overlay_frame` (see `pack_frame` in src-tauri/src/overlay.rs): u32 LE width, u32 LE height, then the PNG. */
+export function unpackFrame(body: ArrayBuffer): OverlayFrame {
+  if (body.byteLength < 8) throw new Error("no frozen frame for this monitor");
+  const view = new DataView(body);
+  return { width: view.getUint32(0, true), height: view.getUint32(4, true), png: new Uint8Array(body, 8) };
 }
 
 /** The real bridge: every call is a Tauri command implemented in src-tauri. */
@@ -38,5 +45,10 @@ export function createTauriBridge(): PlatformBridge {
     copyImage: (png) => invoke<void>("copy_image", png),
     saveToLibrary: (png, capturedAt) =>
       invoke<string>("library_save", png, { headers: { "x-captured-at": formatStamp(capturedAt) } }),
+    overlayFrame: async (monitor) => unpackFrame(await invoke<ArrayBuffer>("overlay_frame", { monitor })),
+    overlayReady: (monitor) => invoke<void>("overlay_ready", { monitor }),
+    finishOverlay: (outcome) => invoke<void>("overlay_finish", { outcome }),
+    toggleOverlayMagnifier: () => invoke<void>("overlay_toggle_magnifier"),
+    onOverlayMagnifier: (handler) => listen("overlay-magnifier", () => handler()),
   };
 }

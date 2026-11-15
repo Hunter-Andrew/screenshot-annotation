@@ -19,9 +19,11 @@ Each item shows the milestone it applies from: **M0** (v0.1.0), **M1** (v0.2.0),
 
 ## Capture
 
-- [ ] **M1** The hotkey opens the overlay on each of the 3 monitors.
+- [ ] **M1** The hotkey opens the overlay on each of the 3 monitors, including monitors left of or above the primary (negative virtual-screen coordinates) and monitors with different scaling. Each overlay covers exactly its monitor and shows that monitor's frozen picture, aligned with the real screen (no shift or stretch).
 - [ ] **M1** Region, window and monitor capture each produce the right image (one monitor per capture).
-- [ ] **M1** Ctrl+Shift+S captures the monitor under the mouse pointer, at native resolution (on a scaled monitor the image has the full physical pixel size, not the scaled size), with no mouse pointer in it, and with the editor itself not in the picture even when it was open on that monitor. Tray menu "Capture" does the same. If Ctrl+Shift+S is taken by another app, the app still starts (the hotkey just does nothing).
+- [ ] **M1** Region mode: dragging draws crosshair guides, dims outside the selection and shows the pixel size; dragging past the edge of the monitor you started on stops the region at that edge (try each edge, towards a neighbouring monitor); releasing captures at once with no adjust step; a click without a drag captures nothing. M toggles a magnifier near the pointer (also when the pressed overlay is on another monitor than the pointer). Esc cancels with nothing saved and the editor comes back if it was open.
+- [ ] **M1** Region and Space captures are at native resolution (on a scaled monitor the image has the full physical pixel size, not the scaled size: a 300 x 200 pixel size label gives a 300 x 200 file), with no mouse pointer in it, and with the editor itself not in the picture even when it was open on that monitor. The result opens in the editor and is saved to the Library.
+- [ ] **M1** Ctrl+Shift+S opens the overlay; Space captures the whole monitor under the mouse pointer (check it on each monitor, and with the pointer on a different monitor than the one the key press reached). Tray menu "Capture" does the same as the hotkey. If Ctrl+Shift+S is taken by another app, the app still starts (the hotkey just does nothing).
 - [ ] **M1** Every capture appears in `Pictures\Screenshot Annotation\YYYY-MM\YYYY-MM-DD HHmmss.png` straight away. The file opens in Explorer and Photos showing the capture. Two captures in the same second get `-2` on the second. No `.tmp` files are left behind.
 - [ ] **M1** Close the editor, then confirm the hotkey still works from the tray.
 - [ ] **M1** Sign out and back in; confirm the tray icon returns.
