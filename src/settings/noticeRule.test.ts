@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { shouldShowPrintScreenNotice } from "./printScreenNotice";
+import { shouldShowPrintScreenNotice } from "./noticeRule";
 
 describe("shouldShowPrintScreenNotice", () => {
   it("shows when Print Screen still opens Snipping Tool and the notice was not answered yet", () => {

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import type { PlatformBridge } from "../platform/bridge";
 import { formatCombo } from "./hotkey";
-import { shouldShowPrintScreenNotice } from "./printScreenNotice";
+import { shouldShowPrintScreenNotice } from "./noticeRule";
 
 /**
  * One-time notice: Print Screen still opens Snipping Tool. The user flips the Windows toggle
