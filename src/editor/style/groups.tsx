@@ -29,32 +29,39 @@ export const THICKNESS_PRESETS = [2, 4, 8] as const;
 export const MIN_THICKNESS = 1;
 export const MAX_THICKNESS = 30;
 
+/** The 8-color palette plus a custom picker; `label` names it ("Color", "Fill color") for assistive tech and tests. */
+function ColorChoice({ label, color, onPick }: { label: string; color: string; onPick(color: string): void }) {
+  return (
+    <div className="swatches" role="group" aria-label={label}>
+      {PALETTE.map((swatch) => (
+        <button
+          key={swatch}
+          type="button"
+          className="swatch"
+          style={{ background: swatch }}
+          aria-label={`${label} ${swatch}`}
+          aria-pressed={color.toLowerCase() === swatch}
+          onClick={() => onPick(swatch)}
+        />
+      ))}
+      <input
+        type="color"
+        className="custom-color"
+        aria-label={`Custom ${label.toLowerCase()}`}
+        value={color}
+        onChange={(e) => onPick(e.target.value)}
+      />
+    </div>
+  );
+}
+
 function StrokeEditor({ value, onChange }: GroupEditorProps<"stroke">) {
   // The number box keeps what is typed until it is a valid thickness.
   const [text, setText] = useState(String(value.width));
   useEffect(() => setText(String(value.width)), [value.width]);
   return (
     <>
-      <div className="swatches" role="group" aria-label="Color">
-        {PALETTE.map((color) => (
-          <button
-            key={color}
-            type="button"
-            className="swatch"
-            style={{ background: color }}
-            aria-label={`Color ${color}`}
-            aria-pressed={value.color.toLowerCase() === color}
-            onClick={() => onChange({ ...value, color })}
-          />
-        ))}
-        <input
-          type="color"
-          className="custom-color"
-          aria-label="Custom color"
-          value={value.color}
-          onChange={(e) => onChange({ ...value, color: e.target.value })}
-        />
-      </div>
+      <ColorChoice label="Color" color={value.color} onPick={(color) => onChange({ ...value, color })} />
       <label className="row">
         Thickness
         <input
@@ -102,10 +109,47 @@ function ArrowheadsEditor({ value, onChange }: GroupEditorProps<"arrowheads">) {
   );
 }
 
+const FILL_MODES = [
+  { mode: "none", label: "None" },
+  { mode: "solid", label: "Solid" },
+  { mode: "semi", label: "Semi-transparent" },
+] as const;
+
+function FillEditor({ value, onChange }: GroupEditorProps<"fill">) {
+  return (
+    <>
+      <div className="presets" role="group" aria-label="Fill mode">
+        {FILL_MODES.map(({ mode, label }) => (
+          <button key={mode} type="button" aria-pressed={value.mode === mode} onClick={() => onChange({ ...value, mode })}>
+            {label}
+          </button>
+        ))}
+      </div>
+      {value.mode !== "none" && (
+        <ColorChoice label="Fill color" color={value.color} onPick={(color) => onChange({ ...value, color })} />
+      )}
+      {value.mode === "semi" && (
+        <label className="row">
+          Opacity
+          <input
+            type="range"
+            min={1}
+            max={100}
+            aria-label="Fill opacity"
+            value={Math.round(value.opacity * 100)}
+            onChange={(e) => onChange({ ...value, opacity: Number(e.target.value) / 100 })}
+          />
+          {Math.round(value.opacity * 100)}%
+        </label>
+      )}
+    </>
+  );
+}
+
 export const GROUP_EDITORS: { [K in GroupId]: GroupEditor<K> } = {
   stroke: { title: "Stroke", Editor: StrokeEditor },
   arrowheads: { title: "Arrowheads", Editor: ArrowheadsEditor },
-  // fill: { title: "Fill", Editor: FillEditor }, (ticket 10)
+  fill: { title: "Fill", Editor: FillEditor },
   font: { title: "Font", Editor: FontEditor },
   textOutline: { title: "Text outline", Editor: TextOutlineEditor },
 };

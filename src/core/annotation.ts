@@ -6,23 +6,28 @@
 // To add a tool (tickets 10-12, 18-20): add its type below, add it to the `Annotation` union,
 // describe it in `src/core/annotations/<type>.ts` and list that in `annotations/index.ts`.
 import type { ArrowAnnotation } from "./annotations/arrow";
+import type { EllipseAnnotation } from "./annotations/ellipse";
+import type { LineAnnotation } from "./annotations/line";
 import type { PenAnnotation } from "./annotations/pen";
+import type { RectAnnotation } from "./annotations/rect";
 import type { TextAnnotation } from "./annotations/text";
 
 /** Bump when the embedded format changes incompatibly. A file with a higher number opens read-only.
  *  Adding a tool or property group is additive and needs no bump: the app only ever moves forward. */
 export const FORMAT_VERSION = 1;
 
-export type { ArrowAnnotation };
+export type { ArrowAnnotation, EllipseAnnotation, LineAnnotation, RectAnnotation };
 export type { PenAnnotation };
 export type { TextAnnotation };
 
 export type Annotation =
   | ArrowAnnotation
+  | LineAnnotation
+  | RectAnnotation
+  | EllipseAnnotation
   | PenAnnotation
   | TextAnnotation;
-  // | LineAnnotation (ticket 10) | RectAnnotation | EllipseAnnotation
-  // | PenAnnotation (ticket 12) | CalloutAnnotation (18)
+  // | CalloutAnnotation (18)
   // | HighlightAnnotation (19) | BlurAnnotation (20)
 
 export type AnnotationType = Annotation["type"];

@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { createFromCapture, decodeLibraryPng, encodeLibraryPng } from "../annotatedImage";
 import { applyEdit } from "../editSession";
 import { encodeRgbaPngCompressed } from "../png";
+import { sanitizeStyle } from "../propertyGroups";
 import { clampFontSize, FONT_SIZE_PRESETS, textKind, type TextAnnotation } from "./text";
 
 describe("Text kind", () => {
@@ -81,6 +82,22 @@ describe("font size", () => {
     expect(clampFontSize(3)).toBe(8);
     expect(clampFontSize(500)).toBe(200);
     expect(clampFontSize(17.6)).toBe(18);
+  });
+});
+
+describe("a stored Text style read back from settings.json", () => {
+  it("keeps valid Font and Text outline groups and drops malformed ones", () => {
+    const good = {
+      font: { size: 40, bold: true, italic: false, color: "#2563eb" },
+      textOutline: { enabled: false, color: "#000000", width: 4 },
+    };
+    expect(sanitizeStyle(good)).toEqual(good);
+    expect(
+      sanitizeStyle({
+        font: { size: 500, bold: true, italic: false, color: "#2563eb" },
+        textOutline: { enabled: "yes", color: "#000000", width: 4 },
+      }),
+    ).toEqual({});
   });
 });
 

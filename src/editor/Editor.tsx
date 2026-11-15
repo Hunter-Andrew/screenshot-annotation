@@ -24,6 +24,7 @@ import { Stage } from "./Stage";
 import { StylePanel } from "./StylePanel";
 import { SELECT_TOOL, TOOLS } from "./tools";
 import { ToolColumn } from "./ToolColumn";
+import { useStickyStyles } from "./stickyStyles";
 import { useWellView } from "./useWellView";
 
 /** An image opened in this session: its edit session (the model), and the persister that keeps its Library file current. */
@@ -63,9 +64,10 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
 
   const [tool, setTool] = useState(SELECT_TOOL.id);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  // Last-used style per tool (in memory for now; ticket 10 persists it across restarts).
+  // Last-used style per tool: loaded from the settings at start, stored again (after a short pause) when changed.
   const [toolStyles, setToolStyles] = useState<Record<string, Style>>({});
   const [canvas, setCanvas] = useState<AnnotationCanvas | null>(null);
+  const stickyStyles = useStickyStyles(bridge, setToolStyles);
   // Undo history of each Library image, kept in local app data between runs (ticket 13).
   const historyStore = useMemo(() => createHistoryStore({ bridge }), [bridge]);
 
@@ -240,6 +242,7 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
     const type = styledKind?.type;
     if (!type) return;
     setToolStyles((all) => ({ ...all, [type]: { ...all[type], [group]: value } }));
+    stickyStyles.remember(type, { ...toolStyles[type], [group]: value });
     if (selected && !readOnly) {
       current?.session.apply({ kind: "update", id: selected.id, patch: { [group]: value } as Partial<Annotation> });
     }
