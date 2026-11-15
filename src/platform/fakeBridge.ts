@@ -7,6 +7,8 @@ export interface SimulatedShot {
   height: number;
   rgba: ArrayLike<number>;
   capturedAt?: Date;
+  /** What the platform's automatic clipboard copy did: "copied" puts the plain PNG on the fake clipboard. */
+  clipboard?: "copied" | "failed";
 }
 
 export interface FakeBridge extends PlatformBridge {
@@ -111,11 +113,14 @@ export function createFakeBridge(
     handlers.forEach((handler) => handler(capture));
   };
   const simulateCapture = (shot: SimulatedShot) => {
+    const png = encodeRgbaPng(shot.width, shot.height, Uint8Array.from(shot.rgba));
+    if (shot.clipboard === "copied") copiedImages.push(png);
     deliver({
       width: shot.width,
       height: shot.height,
       capturedAt: shot.capturedAt ?? new Date(),
-      png: encodeRgbaPng(shot.width, shot.height, Uint8Array.from(shot.rgba)),
+      png,
+      clipboard: shot.clipboard,
     });
   };
 

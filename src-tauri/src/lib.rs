@@ -1,5 +1,6 @@
 mod capture;
 mod capture_image;
+mod capture_wire;
 mod diag;
 mod geometry;
 mod hotkey;
@@ -20,6 +21,7 @@ use tauri::{
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
     AppHandle, Emitter, Manager, RunEvent, WebviewUrl, WebviewWindowBuilder,
 };
+use capture_wire::{pack_capture, ClipboardOutcome};
 use tauri_plugin_clipboard_manager::ClipboardExt;
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 
@@ -93,18 +95,6 @@ struct PrintScreenNotice {
 /// A Capture waiting for the editor to pick it up, in the wire format of `take_capture`.
 #[derive(Default)]
 struct PendingCapture(Mutex<Option<Vec<u8>>>);
-
-/// `take_capture` wire format: u32 LE width, u32 LE height, f64 LE capture time (ms since the
-/// Unix epoch), then the PNG. An empty body means nothing is pending. `src/platform/tauriBridge.ts`
-/// decodes it.
-fn pack_capture(width: u32, height: u32, captured_at_ms: f64, png: &[u8]) -> Vec<u8> {
-    let mut out = Vec::with_capacity(16 + png.len());
-    out.extend_from_slice(&width.to_le_bytes());
-    out.extend_from_slice(&height.to_le_bytes());
-    out.extend_from_slice(&captured_at_ms.to_le_bytes());
-    out.extend_from_slice(png);
-    out
-}
 
 #[tauri::command]
 fn app_version(app: AppHandle) -> String {
@@ -207,6 +197,12 @@ fn copy_image(app: AppHandle, request: Request<'_>) -> Result<(), String> {
     let InvokeBody::Raw(png) = request.body() else {
         return Err("expected raw PNG bytes".into());
     };
+    write_plain_png_to_clipboard(&app, png)
+}
+
+/// The one clipboard-writing path, for the Copy button and the automatic copy of a new Capture:
+/// refuses anything but a plain PNG (ADR 0002, ADR 0004), then writes it.
+fn write_plain_png_to_clipboard(app: &AppHandle, png: &[u8]) -> Result<(), String> {
     png_guard::require_plain_png(png)?;
     let image = tauri::image::Image::from_bytes(png).map_err(|e| e.to_string())?;
     app.clipboard().write_image(&image).map_err(|e| e.to_string())
@@ -324,9 +320,24 @@ fn open_log_folder() {
     }
 }
 
-/// Hand a finished Capture (a plain PNG) to the editor and show it.
+/// Hand a finished Capture (a plain PNG, already cropped to what was selected) to the editor and
+/// show it. The Capture is also copied to the clipboard here, once per new capture, so it works
+/// even if the editor window never loads and re-opening the editor never touches the clipboard
+/// again. A clipboard failure only goes to `capture.log` and the editor's status line; the Library
+/// save and the editor opening still happen.
 fn deliver_capture(app: &AppHandle, width: u32, height: u32, captured_at_ms: f64, png: &[u8]) {
-    *app.state::<PendingCapture>().0.lock().unwrap() = Some(pack_capture(width, height, captured_at_ms, png));
+    let clipboard = match write_plain_png_to_clipboard(app, png) {
+        Ok(()) => {
+            diag::log("capture copied to the clipboard");
+            ClipboardOutcome::Copied
+        }
+        Err(e) => {
+            diag::log(&format!("capture could not be copied to the clipboard: {e}"));
+            ClipboardOutcome::Failed
+        }
+    };
+    *app.state::<PendingCapture>().0.lock().unwrap() =
+        Some(pack_capture(width, height, captured_at_ms, clipboard, png));
     show_editor(app);
     let _ = app.emit(CAPTURE_READY_EVENT, ());
 }
@@ -435,18 +446,4 @@ pub fn run() {
                 }
             }
         });
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn pack_capture_puts_size_time_then_the_png() {
-        let packed = pack_capture(3, 2, 1.5, b"PNG");
-        assert_eq!(&packed[0..4], 3u32.to_le_bytes());
-        assert_eq!(&packed[4..8], 2u32.to_le_bytes());
-        assert_eq!(&packed[8..16], 1.5f64.to_le_bytes());
-        assert_eq!(&packed[16..], b"PNG");
-    }
 }

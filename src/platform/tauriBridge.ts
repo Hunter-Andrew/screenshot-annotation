@@ -5,17 +5,19 @@ import type { CaptureResult, HotkeyState, OverlayFrame, OverlayRect, PlatformBri
 
 /**
  * Decode the `take_capture` body (see `pack_capture` in src-tauri/src/lib.rs): u32 LE width,
- * u32 LE height, f64 LE capture time in ms since the epoch, then the PNG. Empty means none.
+ * u32 LE height, f64 LE capture time in ms since the epoch, one byte for the automatic clipboard
+ * copy (0 not tried, 1 copied, 2 failed), then the PNG. Empty means none.
  */
 export function unpackCapture(reply: ArrayBuffer): CaptureResult | null {
   const body = asBuffer(reply);
-  if (body.byteLength < 16) return null;
+  if (body.byteLength < 17) return null;
   const view = new DataView(body);
   return {
     width: view.getUint32(0, true),
     height: view.getUint32(4, true),
     capturedAt: new Date(view.getFloat64(8, true)),
-    png: new Uint8Array(body, 16),
+    clipboard: ([undefined, "copied", "failed"] as const)[new Uint8Array(body)[16]!],
+    png: new Uint8Array(body, 17),
   };
 }
 

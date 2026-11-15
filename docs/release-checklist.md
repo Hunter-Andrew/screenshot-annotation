@@ -34,6 +34,7 @@ Each item shows the milestone it applies from: **M0** (v0.1.0), **M1** (v0.2.0),
 
 ## Copy and paste
 
+- [ ] **M1** Automatic copy: take a capture, switch straight to Teams, Outlook and Paint (without touching the editor or pressing Copy) and paste into each: the capture arrives as a plain image, cropped to what you selected. The editor shows "Copied to clipboard". Closing and re-opening the editor, or switching images in it, does not change the clipboard (copy something else, re-open the editor, paste: it is still the something else). `capture.log` has a `capture copied to the clipboard` line.
 - [ ] **M1** Copy, then paste into Teams: a plain image arrives.
 - [ ] **M1** Copy, then paste into Outlook: a plain image arrives.
 - [ ] **M1** Save as PNG… opens the Windows save dialog (suggesting the capture time as the name), writes a plain image that opens in another viewer, and Cancel in the dialog writes nothing.

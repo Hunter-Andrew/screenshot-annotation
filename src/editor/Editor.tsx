@@ -49,15 +49,22 @@ export function Editor({ bridge }: { bridge: PlatformBridge }) {
         const created = createFromCapture(capture.png);
         const id = nextId.current++;
         setEntries((all) => [...all, { id, image: created, capturedAt: capture.capturedAt, path: null, saving: true }]);
-        setStatus("Saving…");
+        // The platform already copied this plain Capture once (never redone here); just report it.
+        const copyNote =
+          capture.clipboard === "copied"
+            ? "Copied to clipboard. "
+            : capture.clipboard === "failed"
+              ? "Could not copy to the clipboard (see capture.log). "
+              : "";
+        setStatus(`${copyNote}Saving…`);
         try {
           // Saved the moment it is taken (spec story 86), in the final format (ADR 0004).
           const path = await bridge.saveToLibrary(encodeLibraryPng(created), capture.capturedAt);
           setEntries((all) => all.map((e) => (e.id === id ? { ...e, path, saving: false } : e)));
-          setStatus(`Saved to ${path}`);
+          setStatus(`${copyNote}Saved to ${path}`);
         } catch (e) {
           setEntries((all) => all.map((x) => (x.id === id ? { ...x, saving: false } : x)));
-          setStatus(`Could not save to the Library: ${String(e)}`);
+          setStatus(`${copyNote}Could not save to the Library: ${String(e)}`);
         }
       })
       .then((off) => {

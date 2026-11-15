@@ -144,3 +144,64 @@ describe("Discard", () => {
     expect(screen.getByRole("button", { name: "Discard" })).toBeDisabled();
   });
 });
+
+describe("automatic copy of a new capture", () => {
+  // The platform copies the plain cropped Capture itself when it delivers it (so it works even if
+  // this window never loads); the editor only reports what happened, and never copies on its own.
+  const arrive = async (bridge: FakeBridge, clipboard?: "copied" | "failed") => {
+    await act(async () =>
+      bridge.simulateCapture({ width: 2, height: 2, rgba: PIXELS, capturedAt: FIRST, clipboard }),
+    );
+    await waitFor(() => expect(screen.getByText(/Saved to/)).toBeVisible());
+  };
+
+  it("says the capture is on the clipboard, next to the Library save", async () => {
+    const bridge = createFakeBridge();
+    await openEditor(bridge);
+
+    await arrive(bridge, "copied");
+
+    expect(screen.getByRole("status")).toHaveTextContent(/Copied to clipboard/);
+    expect(screen.getByRole("status")).toHaveTextContent(/Saved to/);
+    expect(bridge.copiedImages).toHaveLength(1);
+    expect(hasChunk(bridge.copiedImages[0]!, "snAP")).toBe(false);
+    expect(decodePixels(bridge.copiedImages[0]!)).toEqual({ width: 2, height: 2, rgba: PIXELS });
+  });
+
+  it("does not copy again itself: no extra clipboard write on arrival, re-render or image switch", async () => {
+    const bridge = createFakeBridge();
+    await openEditor(bridge);
+    await arrive(bridge, "copied");
+    await capture(bridge, OTHER, SECOND); // no clipboard outcome: the platform did not copy this one
+    await userEvent.click(screen.getByRole("button", { name: "Discard" })); // switches back to the first
+    await waitFor(() => expect(screen.getByRole("img", { name: "Capture" })).toBeVisible());
+
+    expect(bridge.copiedImages).toHaveLength(1);
+    expect(screen.getByRole("status")).not.toHaveTextContent(/Copied to clipboard/);
+  });
+
+  it("still saves and shows the image when the clipboard failed, and says so without blocking", async () => {
+    const bridge = createFakeBridge();
+    await openEditor(bridge);
+
+    await arrive(bridge, "failed");
+
+    expect(screen.getByRole("img", { name: "Capture" })).toBeVisible();
+    expect(bridge.libraryFiles).toHaveLength(1);
+    expect(screen.getByRole("status")).toHaveTextContent(/Could not copy to the clipboard/);
+    expect(screen.getByRole("status")).toHaveTextContent(/capture\.log/);
+    expect(screen.getByRole("button", { name: "Copy" })).toBeEnabled();
+  });
+
+  it("the Copy button still copies a plain Export", async () => {
+    const bridge = createFakeBridge();
+    await openEditor(bridge);
+    await arrive(bridge, "failed");
+
+    await userEvent.click(screen.getByRole("button", { name: "Copy" }));
+
+    await waitFor(() => expect(bridge.copiedImages).toHaveLength(1));
+    expect(hasChunk(bridge.copiedImages[0]!, "snAP")).toBe(false);
+    expect(screen.getByRole("status")).toHaveTextContent("Copied");
+  });
+});

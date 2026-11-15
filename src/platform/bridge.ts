@@ -12,6 +12,12 @@ export interface CaptureResult {
   /** When the screen was read; names the Library file. */
   capturedAt: Date;
   png: Uint8Array;
+  /**
+   * What the platform did with the clipboard when it delivered this Capture: it copies the plain
+   * cropped Capture itself, once per new capture ("copied" or "failed"). Absent: it did not try.
+   * The editor only reports this; it never copies a new capture on its own.
+   */
+  clipboard?: "copied" | "failed";
 }
 
 /** One monitor frozen at the moment of the hotkey: a plain PNG at the monitor's native resolution. */
