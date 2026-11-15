@@ -1,6 +1,7 @@
 // The Annotated Image core (ADR 0004, 0005): a Capture plus its Annotation model.
-// Pure TypeScript; no Tauri or DOM. Public operations: create, encode, decode, Export.
-// (Edits, undo/redo and history arrive with M2.)
+// Pure TypeScript; no Tauri or DOM. Public operations: create, edit (editSession.ts), encode,
+// decode, Export. Drawing the Annotations into pixels needs a canvas, so it is injected as a
+// `FinishedRenderer` (the browser build supplies src/canvas/renderFinished.ts). Undo/redo: ticket 13.
 import { type AnnotationModel, emptyModel, FORMAT_VERSION } from "./annotation";
 import { findChunk, insertChunk, isPng, removeChunks } from "./png";
 
@@ -23,17 +24,25 @@ export function createFromCapture(capturePng: Uint8Array): AnnotatedImage {
   return { capture: capturePng, model: emptyModel() };
 }
 
+/**
+ * Draws the finished image: the Capture with the Annotations burned in and the Crop applied, as a
+ * PNG. Async because it needs a canvas.
+ */
+export type FinishedRenderer = (image: AnnotatedImage) => Promise<Uint8Array>;
+
 /** The finished image as a plain PNG: Annotations rendered, Crop applied. */
-function renderFinished(image: AnnotatedImage): Uint8Array {
-  if (image.model.annotations.length > 0 || image.model.crop !== null) {
-    throw new Error("Rendering Annotations and Crop is not implemented before M2");
+async function renderFinished(image: AnnotatedImage, render?: FinishedRenderer): Promise<Uint8Array> {
+  if (image.model.annotations.length === 0 && image.model.crop === null) {
+    return removeChunks(image.capture, EMBED_CHUNK);
   }
-  return removeChunks(image.capture, EMBED_CHUNK);
+  // Never fall back to the bare Capture: that would leak the unannotated (or unblurred) pixels.
+  if (!render) throw new Error("This image has Annotations or a Crop and needs a renderer to be exported");
+  return render(image);
 }
 
 /** The flattened image for use outside the app. Never carries the embedded data or the Capture. */
-export function exportPng(image: AnnotatedImage): Uint8Array {
-  return removeChunks(renderFinished(image), EMBED_CHUNK);
+export async function exportPng(image: AnnotatedImage, render?: FinishedRenderer): Promise<Uint8Array> {
+  return removeChunks(await renderFinished(image, render), EMBED_CHUNK);
 }
 
 // Embedded payload: u32 BE length of the JSON model, the JSON (UTF-8), then the Capture PNG.
@@ -55,8 +64,8 @@ function unpackEmbedded(data: Uint8Array): AnnotatedImage {
 }
 
 /** A Library PNG: visible pixels are the finished image; the editable data rides in a chunk. */
-export function encodeLibraryPng(image: AnnotatedImage): Uint8Array {
-  return insertChunk(renderFinished(image), EMBED_CHUNK, packEmbedded(image));
+export async function encodeLibraryPng(image: AnnotatedImage, render?: FinishedRenderer): Promise<Uint8Array> {
+  return insertChunk(await renderFinished(image, render), EMBED_CHUNK, packEmbedded(image));
 }
 
 /** Read a Library PNG, or any plain PNG (which becomes an Annotated Image with no Annotations). */

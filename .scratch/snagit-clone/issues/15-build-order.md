@@ -19,7 +19,10 @@ Decided with Andrew on 2026-11-14. Each milestone is a release Andrew installs o
 | **M2 · Annotate** | v0.3.0 | See below. |
 | **M3 · Library** | v0.4.0 | See below. |
 | **M4 · Complete v1** | v1.0.0 | See below. |
-| **M5 · Shortcuts** | v1.1.0 | After the v1.0.0 release. See below. |
+| 
+- Canvas expansion, "crop in reverse": edits past the Capture's edge grow the canvas, the canvas can be dragged larger, with a per-image transparent / white / dark background (added 2026-11-15; ticket 37, designed together with Crop).
+
+**M5 · Shortcuts** | v1.1.0 | After the v1.0.0 release. See below. |
 
 **M0 · Skeleton (v0.1.0)**
 - Tauri 2 + React + TypeScript + Fabric.js scaffold.

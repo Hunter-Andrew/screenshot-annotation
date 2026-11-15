@@ -2,7 +2,9 @@ mod capture;
 mod capture_image;
 mod capture_wire;
 mod diag;
+mod editor_window;
 mod geometry;
+mod history_store;
 mod hotkey;
 mod library;
 mod overlay;
@@ -13,6 +15,7 @@ mod raw_input;
 mod settings;
 mod url_guard;
 mod watchdog;
+mod window_open;
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
@@ -261,10 +264,26 @@ fn set_magnifier(app: AppHandle, state: tauri::State<'_, AppSettings>, enabled: 
     let _ = app.emit(overlay::MAGNIFIER_EVENT, enabled);
 }
 
-/// Opens Windows Settings > Accessibility > Keyboard. A fixed target, deliberately not routed
+/// Each drawing tool's last style, as stored in settings.json (the editor reads and checks it).
+#[tauri::command]
+fn get_tool_styles(state: tauri::State<'_, AppSettings>) -> serde_json::Map<String, serde_json::Value> {
+    state.data.lock().unwrap().tool_styles.clone()
+}
+
+/// Stores the tool styles at once. A failed write is logged and the value stays in memory for this
+/// run: restyling is never broken by it.
+#[tauri::command]
+fn set_tool_styles(state: tauri::State<'_, AppSettings>, styles: serde_json::Map<String, serde_json::Value>) {
+    let mut data = state.data.lock().unwrap();
+    if let Err(e) = settings::set_tool_styles(&state.dir, &mut data, styles) {
+        diag::log(&format!("tool styles changed; could not save settings.json (kept in memory): {e}"));
+    }
+}
+
+/// Opens Windows Settings > Bluetooth & devices (the user then clicks Keyboard). A fixed target, deliberately not routed
 /// through `open_url`, whose allowlist stays limited to the Releases page (ADR 0006).
 #[tauri::command]
-fn open_keyboard_accessibility_settings() -> Result<(), String> {
+fn open_keyboard_settings() -> Result<(), String> {
     tauri_plugin_opener::open_url(print_screen::SETTINGS_URI, None::<&str>).map_err(|e| e.to_string())
 }
 
@@ -334,6 +353,82 @@ fn library_discard(app: AppHandle, path: String) -> Result<(), String> {
     library::move_to_recycle_bin(&file)
 }
 
+/// Auto-save: replaces the contents of an existing Library PNG with the raw body (the Library PNG,
+/// which carries the editable data; `require_png` only). The `x-library-path` header holds the path
+/// as `encodeURIComponent` output. Refuses anything that is not an existing `.png` in the Library and
+/// never creates a file, so a discarded image cannot be resurrected by a late save.
+#[tauri::command]
+fn library_update(app: AppHandle, request: Request<'_>) -> Result<(), String> {
+    let InvokeBody::Raw(bytes) = request.body() else {
+        return Err("expected raw PNG bytes".into());
+    };
+    png_guard::require_png(bytes)?;
+    let path = request
+        .headers()
+        .get("x-library-path")
+        .and_then(|v| v.to_str().ok())
+        .and_then(library::percent_decode)
+        .ok_or("missing or malformed x-library-path header")?;
+    let root = library_root(&app)?;
+    library::update_existing(&root, std::path::Path::new(&path), bytes)?;
+    Ok(())
+}
+
+/// The most recently written Library PNG, for the editor to reopen on start (see
+/// `pack_library_file`); an empty body when the Library has none. The Library Strip (ticket 14)
+/// supersedes this with a real list.
+#[tauri::command]
+fn library_open_latest(app: AppHandle) -> Result<Response, String> {
+    let root = library_root(&app)?;
+    let Some(path) = library::latest_png(&root).and_then(|p| library::library_file_in(&root, &p)) else {
+        return Ok(Response::new(Vec::new()));
+    };
+    let png = std::fs::read(&path).map_err(|e| e.to_string())?;
+    Ok(Response::new(library::pack_library_file(&path, &png)))
+}
+
+/// The folder of the undo history files: `<app local data>/history` (never inside a PNG).
+fn history_dir(app: &AppHandle) -> Result<std::path::PathBuf, String> {
+    Ok(app.path().app_local_data_dir().map_err(|e| e.to_string())?.join(history_store::HISTORY_FOLDER))
+}
+
+/// The undo history text stored for `key` (64 hex characters), or null when there is none.
+#[tauri::command]
+fn history_read(app: AppHandle, key: String) -> Result<Option<String>, String> {
+    history_store::read(&history_dir(&app)?, &key)
+}
+
+/// Stores the undo history text for `key`, replacing any earlier one atomically.
+#[tauri::command]
+fn history_write(app: AppHandle, key: String, text: String) -> Result<(), String> {
+    history_store::write(&history_dir(&app)?, &key, &text)
+}
+
+/// Deletes the undo history for `key` (the image was discarded, or its history is stale).
+#[tauri::command]
+fn history_delete(app: AppHandle, key: String) -> Result<(), String> {
+    history_store::delete(&history_dir(&app)?, &key)
+}
+
+/// Deletes every undo history last written before `cutoff_ms` (ms since the epoch; the webview
+/// computes it as now minus 60 days). Returns how many were deleted.
+#[tauri::command]
+fn history_purge_before(app: AppHandle, cutoff_ms: f64) -> Result<usize, String> {
+    Ok(history_store::purge_before(&history_dir(&app)?, cutoff_ms.max(0.0) as u64))
+}
+
+/// Opens the Settings window (the editor's gear button).
+///
+/// Must stay `async` (ticket 36): a plain `fn` command runs on the main thread, inside WebView2's
+/// own message callback, and creating a window there deadlocks on Windows (a blank white window
+/// that cannot be closed, then a frozen app). An async command runs on a worker thread, which
+/// waits while the main thread builds the window. `windowThreading.test.ts` enforces this.
+#[tauri::command]
+async fn open_settings(app: AppHandle) {
+    diag::log("settings requested (editor gear button)");
+    show_settings(&app);
+}
+
 /// Save as PNG…: shows the Windows save dialog (suggesting the `x-suggested-name` header) and
 /// writes the raw PNG body, a plain Export, where the user chooses. Returns the path, or null if
 /// they cancelled. Async so the blocking dialog does not stall the main thread.
@@ -363,35 +458,150 @@ async fn save_png_as(app: AppHandle, request: Request<'_>) -> Result<Option<Stri
     Ok(Some(path.to_string_lossy().into_owned()))
 }
 
+/// The one place a window is created, so every window carries the app logo: Windows takes the
+/// taskbar and Alt+Tab icon from the window, and a window made at runtime has none of its own.
+/// `default_window_icon()` is the `bundle.icon` set (on Windows, the icon resource embedded in the
+/// exe); if it is missing or refused the window is still created, just with the system icon.
+pub(crate) fn new_window<'a>(app: &'a AppHandle, label: &str, url: WebviewUrl) -> WebviewWindowBuilder<'a, tauri::Wry, AppHandle> {
+    let make = || WebviewWindowBuilder::new(app, label, url.clone());
+    let with_icon = app.default_window_icon().cloned().and_then(|icon| make().icon(icon).ok());
+    with_icon.unwrap_or_else(|| {
+        diag::log(&format!("window {label}: no app icon available, using the system default"));
+        make()
+    })
+}
+
 fn focus(win: &tauri::WebviewWindow) {
     let _ = win.unminimize();
     let _ = win.show();
     let _ = win.set_focus();
 }
 
-/// Show the Settings window, creating it on first use and focusing it if it already exists.
-fn show_settings(app: &AppHandle) {
-    if let Some(win) = app.get_webview_window(SETTINGS_LABEL) {
-        focus(&win);
-        return;
-    }
-    let _ = WebviewWindowBuilder::new(app, SETTINGS_LABEL, WebviewUrl::App("index.html#settings".into()))
-        .title("Settings")
-        .inner_size(460.0, 440.0)
-        .resizable(false)
-        .build();
+/// Run window work on a thread of its own and return at once. Everything that reacts to a native
+/// event on the main thread (tray click and menu, a second launch of the app) goes through this:
+/// Tauri documents that creating a window from a synchronous command or an event handler
+/// deadlocks on Windows. A worker thread may block until the main thread has built the window.
+fn on_worker_thread(app: &AppHandle, work: fn(&AppHandle)) {
+    let app = app.clone();
+    std::thread::spawn(move || work(&app));
 }
 
-/// Show the editor window, creating it on first use (pre-warming is ticket 24).
+/// `show_settings` for callers on the main thread (tray menu).
+fn request_settings(app: &AppHandle, source: &str) {
+    diag::log(&format!("settings requested ({source})"));
+    on_worker_thread(app, show_settings);
+}
+
+/// `show_editor` for callers on the main thread (tray click and menu, a second launch).
+fn request_editor(app: &AppHandle, source: &str) {
+    diag::log(&format!("editor requested ({source})"));
+    on_worker_thread(app, show_editor);
+}
+
+/// Creates the window `label` with `create`, unless one already exists (then that one is returned,
+/// `false` for "not created now"). A window the user has just closed keeps its label for a moment;
+/// creating the same label then fails, so that is retried (see `window_open.rs`), looking for the
+/// existing window again each time. Every outcome goes to `capture.log`. Call from a worker thread.
+fn create_or_existing(
+    app: &AppHandle,
+    label: &str,
+    create: impl Fn() -> tauri::Result<tauri::WebviewWindow>,
+) -> Option<(tauri::WebviewWindow, bool)> {
+    use window_open::Attempt;
+    let (result, attempts) = window_open::retry(&window_open::RETRY_PAUSES, std::thread::sleep, || {
+        if let Some(win) = app.get_webview_window(label) {
+            return Attempt::Done((win, false));
+        }
+        match create() {
+            Ok(win) => Attempt::Done((win, true)),
+            Err(e @ (tauri::Error::WebviewLabelAlreadyExists(_) | tauri::Error::WindowLabelAlreadyExists(_))) => {
+                Attempt::LabelTaken(e)
+            }
+            Err(e) => Attempt::Failed(e),
+        }
+    });
+    match result {
+        Ok((win, created)) => {
+            diag::log(&format!(
+                "{label} window: {} (attempt {attempts})",
+                if created { "created" } else { "already open" }
+            ));
+            Some((win, created))
+        }
+        Err(e) => {
+            diag::log(&format!("{label} window: could not be created after {attempts} attempt(s): {e}"));
+            None
+        }
+    }
+}
+
+/// Show the Settings window, creating it on first use and focusing it if it already exists. Never
+/// call from the main thread or a sync command (see `open_settings`); use `request_settings`.
+fn show_settings(app: &AppHandle) {
+    let make = || {
+        new_window(app, SETTINGS_LABEL, WebviewUrl::App("index.html#settings".into()))
+            .title("Settings")
+            .inner_size(460.0, 440.0)
+            .resizable(false)
+            .build()
+    };
+    if let Some((win, created)) = create_or_existing(app, SETTINGS_LABEL, make) {
+        if !created {
+            focus(&win);
+            diag::log("settings window: focused");
+        }
+    }
+}
+
+/// The editor's maximized/normal state as the user last left it this session (set when the window
+/// is hidden or closed); `None` until then. In memory only, never written to disk.
+#[derive(Default)]
+struct EditorMaximized(Mutex<Option<bool>>);
+
+fn remember_editor_state(win: &tauri::WebviewWindow) {
+    if let Ok(maximized) = win.is_maximized() {
+        *win.app_handle().state::<EditorMaximized>().0.lock().unwrap() = Some(maximized);
+    }
+}
+
+/// Hide the editor (for a capture, or ticket 24's pre-warming), remembering whether it was maximized.
+pub(crate) fn hide_editor(win: &tauri::WebviewWindow) {
+    remember_editor_state(win);
+    let _ = win.hide();
+}
+
+/// Show the editor window maximized (normal chrome kept), creating it on first use (pre-warming is
+/// ticket 24). A window the user is looking at is only focused, never resized. A hidden one is
+/// shown in the state the user left it (maximized on its first show), so this works the same for
+/// a window that is created hidden and kept loaded. Never call from the main thread or a sync
+/// command; use `request_editor`.
 fn show_editor(app: &AppHandle) {
+    let remembered = *app.state::<EditorMaximized>().0.lock().unwrap();
+    let maximize = editor_window::should_maximize(remembered);
     if let Some(win) = app.get_webview_window(EDITOR_LABEL) {
+        if !win.is_visible().unwrap_or(true) {
+            if maximize {
+                let _ = win.maximize();
+            } else {
+                let _ = win.unmaximize();
+            }
+        }
         focus(&win);
         return;
     }
-    let _ = WebviewWindowBuilder::new(app, EDITOR_LABEL, WebviewUrl::App("index.html".into()))
-        .title("Screenshot Annotation")
-        .inner_size(1100.0, 720.0)
-        .build();
+    let make = || {
+        new_window(app, EDITOR_LABEL, WebviewUrl::App("index.html".into()))
+            .title("Screenshot Annotation")
+            .inner_size(1100.0, 720.0)
+            .min_inner_size(760.0, 480.0)
+            .maximized(maximize)
+            .build()
+    };
+    if let Some((win, created)) = create_or_existing(app, EDITOR_LABEL, make) {
+        if !created {
+            focus(&win);
+        }
+    }
 }
 
 /// Start a capture (hotkey, tray): freeze the screen and open the overlay; see overlay.rs.
@@ -442,10 +652,27 @@ fn deliver_capture(app: &AppHandle, width: u32, height: u32, captured_at_ms: f64
 pub fn run() {
     tauri::Builder::default()
         .manage(PendingCapture::default())
+        .manage(EditorMaximized::default())
+        .on_window_event(|window, event| {
+            // Closing destroys the editor; remember its state so the next one opens the same way.
+            if window.label() == EDITOR_LABEL && matches!(event, tauri::WindowEvent::CloseRequested { .. }) {
+                if let Some(win) = window.app_handle().get_webview_window(EDITOR_LABEL) {
+                    remember_editor_state(&win);
+                }
+            }
+            // Settings closes on its own and touches no other window; the log shows it did.
+            if window.label() == SETTINGS_LABEL {
+                match event {
+                    tauri::WindowEvent::CloseRequested { .. } => diag::log("settings window: close requested"),
+                    tauri::WindowEvent::Destroyed => diag::log("settings window: closed (label free)"),
+                    _ => {}
+                }
+            }
+        })
         .manage(RawInput::default())
         .manage(overlay::OverlayState::default())
         // A second launch focuses the running instance.
-        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| show_editor(app)))
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| request_editor(app, "second launch")))
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
@@ -456,13 +683,22 @@ pub fn run() {
             copy_image,
             library_save,
             library_discard,
+            library_update,
+            library_open_latest,
+            history_read,
+            history_write,
+            history_delete,
+            history_purge_before,
+            open_settings,
             save_png_as,
             get_hotkey,
             set_hotkey,
             get_print_screen_notice,
             settings_log,
             dismiss_print_screen_notice,
-            open_keyboard_accessibility_settings,
+            open_keyboard_settings,
+            get_tool_styles,
+            set_tool_styles,
             overlay::overlay_frame,
             overlay::overlay_windows,
             overlay::overlay_ready,
@@ -501,7 +737,7 @@ pub fn run() {
             app.manage(AppSettings { dir, data: Mutex::new(loaded) });
             if notice_pending {
                 // First run: open Settings, where the one-time Print Screen notice lives.
-                show_settings(app.handle());
+                request_settings(app.handle(), "first run notice");
             }
 
             let capture = MenuItem::with_id(app, "capture", "Capture", true, None::<&str>)?;
@@ -509,9 +745,11 @@ pub fn run() {
             let settings = MenuItem::with_id(app, "settings", "Settings", true, None::<&str>)?;
             let log_folder = MenuItem::with_id(app, "log", "Open log folder", true, None::<&str>)?;
             let exit = MenuItem::with_id(app, "exit", "Exit", true, None::<&str>)?;
-            TrayIconBuilder::new()
-                .icon(app.default_window_icon().unwrap().clone())
-                .tooltip("Screenshot Annotation")
+            let mut tray = TrayIconBuilder::new();
+            if let Some(icon) = app.default_window_icon() {
+                tray = tray.icon(icon.clone());
+            }
+            tray.tooltip("Screenshot Annotation")
                 .menu(&Menu::with_items(app, &[&capture, &editor, &settings, &log_folder, &exit])?)
                 .show_menu_on_left_click(false)
                 .on_tray_icon_event(|tray, event| {
@@ -521,14 +759,14 @@ pub fn run() {
                         ..
                     } = event
                     {
-                        show_editor(tray.app_handle());
+                        request_editor(tray.app_handle(), "tray icon click");
                     }
                 })
                 .on_menu_event(|app, event| match event.id.as_ref() {
                     "capture" => capture_async(app.clone(), "tray"),
                     "log" => open_log_folder(),
-                    "editor" => show_editor(app),
-                    "settings" => show_settings(app),
+                    "editor" => request_editor(app, "tray menu"),
+                    "settings" => request_settings(app, "tray menu"),
                     "exit" => app.exit(0),
                     _ => {}
                 })

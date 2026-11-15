@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { unpackCapture, unpackFrame } from "./tauriBridge";
+import { unpackCapture, unpackFrame, unpackLibraryFile } from "./tauriBridge";
 
 const frameBytes = [2, 0, 0, 0, 1, 0, 0, 0, 0x89, 0x50, 0x4e, 0x47];
 
@@ -58,5 +58,29 @@ describe("unpackCapture clipboard outcome", () => {
     expect(unpackCapture(body(1))?.clipboard).toBe("copied");
     expect(unpackCapture(body(2))?.clipboard).toBe("failed");
     expect(Array.from(unpackCapture(body(1))!.png)).toEqual([7, 8]);
+  });
+});
+
+describe("unpackLibraryFile", () => {
+  // u32 LE byte length of the path, the path as UTF-8, then the PNG (what library_open_latest sends).
+  const body = (path: string, png: number[]) => {
+    const text = new TextEncoder().encode(path);
+    const bytes = new Uint8Array(4 + text.length + png.length);
+    new DataView(bytes.buffer).setUint32(0, text.length, true);
+    bytes.set(text, 4);
+    bytes.set(png, 4 + text.length);
+    return bytes.buffer;
+  };
+
+  it("reads the path (counted in bytes, so accents survive) and the PNG", () => {
+    const file = unpackLibraryFile(body("C:\\Users\\Jos\u00e9\\a.png", [0x89, 0x50]));
+
+    expect(file?.path).toBe("C:\\Users\\Jos\u00e9\\a.png");
+    expect(Array.from(file!.png)).toEqual([0x89, 0x50]);
+  });
+
+  it("treats an empty reply as an empty Library", () => {
+    expect(unpackLibraryFile(new ArrayBuffer(0))).toBeNull();
+    expect(unpackLibraryFile([] as unknown as ArrayBuffer)).toBeNull();
   });
 });

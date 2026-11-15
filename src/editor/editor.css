@@ -1,0 +1,265 @@
+/* Layout A (ticket 04): top bar, tool column left, the canvas in a neutral well, Style panel right.
+   The Library Strip joins along the bottom with ticket 14. */
+.editor {
+  --bg: #eef0f4;
+  --chrome: #ffffff;
+  --fg: #1b1e27;
+  --muted: #5f6676;
+  --line: #d8dbe3;
+  --accent: #2f5bea;
+  --accent-fg: #ffffff;
+  --well: #c9cdd6;
+  --pressed: #dfe6fd;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) 232px;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  /* Pinned to the window, not `height: 100vh`: the body's default margin would push a 100vh box past
+     the bottom and make the whole page scroll a little (the M1 editor did exactly that). Only the
+     well scrolls. */
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  font-family: system-ui, sans-serif;
+  color: var(--fg);
+  background: var(--chrome);
+}
+@media (prefers-color-scheme: dark) {
+  .editor {
+    --bg: #15171d;
+    --chrome: #1f222b;
+    --fg: #e8eaf0;
+    --muted: #9aa1b2;
+    --line: #333847;
+    --accent: #6d8cff;
+    --accent-fg: #0d1020;
+    --well: #0e1015;
+    --pressed: #2b3558;
+    color-scheme: dark;
+  }
+}
+
+.editor button {
+  font: inherit;
+  color: inherit;
+  background: var(--chrome);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 4px 10px;
+  cursor: pointer;
+}
+.editor button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.editor button[aria-pressed="true"] {
+  background: var(--pressed);
+  border-color: var(--accent);
+}
+.editor button.primary {
+  background: var(--accent);
+  color: var(--accent-fg);
+  border-color: var(--accent);
+  font-weight: 600;
+}
+
+.topbar {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--line);
+}
+.topbar .spacer {
+  flex: 1;
+}
+
+.tools {
+  grid-column: 1;
+  grid-row: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px;
+  width: 164px;
+  border-right: 1px solid var(--line);
+  overflow-y: auto;
+}
+.tools .tool {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  text-align: left;
+}
+.tools .tool-icon {
+  flex: none;
+}
+.tools .tool-label {
+  flex: 1;
+}
+/* Selected tool: the accent border and tint from the shared pressed style, plus an accent icon, a bold name and a bar on the left. */
+.tools .tool[aria-pressed="true"] {
+  border-width: 1px 1px 1px 4px;
+  font-weight: 600;
+}
+.tools .tool[aria-pressed="true"] .tool-icon {
+  color: var(--accent);
+}
+.tools kbd {
+  font: 12px ui-monospace, monospace;
+  color: var(--muted);
+}
+
+/* The well. The image sits in a padded box with `margin: auto`: centred when smaller than the well,
+   starting at the top-left (so scrolling reaches all of it) when bigger. Never `align-items: center`
+   or `place-items: center` here: those clip the top and left of an overflowing child unreachably. */
+.well {
+  grid-column: 2;
+  grid-row: 2;
+  display: flex;
+  overflow: auto;
+  min-width: 0;
+  min-height: 0;
+  background: var(--well);
+}
+.well .empty {
+  margin: auto;
+  color: var(--muted);
+}
+.stage-pad {
+  margin: auto;
+  flex: none;
+  padding: 16px; /* WELL_PADDING in view.ts */
+}
+.stage {
+  position: relative;
+  box-shadow: 0 2px 14px rgba(0, 0, 0, 0.25);
+}
+.stage img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  user-select: none;
+}
+.canvas-host {
+  position: absolute;
+  inset: 0;
+}
+
+.style-panel {
+  grid-column: 3;
+  grid-row: 2;
+  padding: 12px;
+  border-left: 1px solid var(--line);
+  overflow-y: auto;
+}
+.style-panel h2 {
+  margin: 0 0 8px;
+  font-size: 14px;
+}
+.style-panel .tool-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 12px;
+  padding: 8px;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  cursor: pointer;
+}
+.style-panel .tool-option.placeholder {
+  visibility: hidden;
+}
+.style-panel h3 {
+  margin: 0 0 6px;
+  font-size: 12px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.style-panel .group {
+  margin-bottom: 16px;
+}
+.style-panel .hint {
+  color: var(--muted);
+  font-size: 13px;
+}
+.swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.editor .swatch {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+}
+.editor .swatch[aria-pressed="true"] {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.custom-color {
+  width: 28px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid var(--line);
+  background: none;
+}
+.editor .swatches .hex-input {
+  width: 76px;
+  height: 24px;
+  padding: 0 6px;
+  box-sizing: border-box;
+  font: 12px ui-monospace, Consolas, monospace;
+}
+.editor .swatches .hex-input.invalid {
+  border-color: #e02424;
+  outline: 1px solid #e02424;
+  background: rgba(224, 36, 36, 0.12);
+}
+.hex-error {
+  margin: -4px 0 8px;
+  font-size: 12px;
+  color: #e02424;
+}
+.style-panel .row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+  font-size: 13px;
+}
+.style-panel .row input {
+  width: 56px;
+}
+.presets {
+  display: flex;
+  gap: 6px;
+}
+
+.statusbar {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 4px 16px;
+  font-size: 12px;
+  border-top: 1px solid var(--line);
+}
+.statusbar .zoom {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.statusbar .zoom .zoom-level {
+  min-width: 3.5em;
+  text-align: center;
+}
+.statusbar .zoom button {
+  padding: 1px 8px;
+}

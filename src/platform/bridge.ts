@@ -20,6 +20,12 @@ export interface CaptureResult {
   clipboard?: "copied" | "failed";
 }
 
+/** A Library PNG read back from disk: its path and its bytes (which carry the editable data). */
+export interface LibraryFile {
+  path: string;
+  png: Uint8Array;
+}
+
 /** One monitor frozen at the moment of the hotkey: a plain PNG at the monitor's native resolution. */
 export interface OverlayFrame {
   width: number;
@@ -78,6 +84,31 @@ export interface PlatformBridge {
    * (never overwriting; a -2, -3 suffix on collision, written atomically). Returns the path.
    */
   saveToLibrary(png: Uint8Array, capturedAt: Date): Promise<string>;
+  /**
+   * Auto-save: replace the contents of the existing Library PNG at `path` (a path `saveToLibrary` or
+   * `openLatestLibraryImage` returned) with `png`, atomically (temp file, then replace). Rejects, and
+   * never creates a file, if `path` is not an existing PNG in the Library: an image that was discarded
+   * while a save was pending stays gone.
+   */
+  updateLibraryFile(path: string, png: Uint8Array): Promise<void>;
+  /**
+   * The most recently written Library PNG, or null if the Library is empty: what the editor reopens
+   * on start so edits survive a restart. (The Library Strip, ticket 14, supersedes this with a list.)
+   */
+  openLatestLibraryImage(): Promise<LibraryFile | null>;
+  /**
+   * Undo history files (ticket 13), one per image, in the app's local data folder (never in the PNG).
+   * `key` is 64 lowercase hex characters (`contentHash` of the image's path); the text is opaque here.
+   * `readHistory` is null when there is no file. `writeHistory` is atomic (temp file, then replace).
+   * `deleteHistory` is a no-op when there is none. `purgeHistoryBefore` deletes every history file last
+   * written before `cutoffMs` (ms since the epoch) and returns how many it deleted.
+   */
+  readHistory(key: string): Promise<string | null>;
+  writeHistory(key: string, text: string): Promise<void>;
+  deleteHistory(key: string): Promise<void>;
+  purgeHistoryBefore(cutoffMs: number): Promise<number>;
+  /** Open the Settings window (the editor's gear button). */
+  openSettings(): Promise<void>;
 
   // Capture overlay (one window per monitor, each showing its frozen frame).
   /** The frozen frame of monitor `monitor` (its index in the platform's monitor list). */
@@ -111,6 +142,15 @@ export interface PlatformBridge {
   /** The magnifier setting changed (from any window); delivers the new value, not a toggle. */
   onOverlayMagnifier(handler: (enabled: boolean) => void): Promise<() => void>;
 
+  /**
+   * Each tool's last style (the "sticky" styles), keyed by Annotation type, stored in settings.json so
+   * they survive a restart. Opaque to the platform: the editor validates what it reads
+   * (`sanitizeStyle`). An empty object on a fresh install or an older settings file.
+   */
+  getToolStyles(): Promise<Record<string, unknown>>;
+  /** Replace the stored tool styles (all tools at once). A failed write is logged and kept in memory for this run. */
+  setToolStyles(styles: Record<string, unknown>): Promise<void>;
+
   /** The capture hotkey (an accelerator such as "ctrl+shift+s") and whether the OS accepted it. */
   getHotkey(): Promise<HotkeyState>;
   /**
@@ -133,8 +173,11 @@ export interface PlatformBridge {
    * recorder received. Never throws.
    */
   logSettings(message: string): Promise<void>;
-  /** Open Windows Settings at Accessibility > Keyboard. */
-  openKeyboardAccessibilitySettings(): Promise<void>;
+  /**
+   * Open Windows Settings at Bluetooth & devices (`ms-settings:bluetooth`, the closest documented page);
+   * the user clicks on to Keyboard. Not the Accessibility > Keyboard page.
+   */
+  openKeyboardSettings(): Promise<void>;
 
   /**
    * Save as PNG…: open the Windows save dialog, suggesting `suggestedName`, and write `png` (a

@@ -32,6 +32,7 @@ test("recording a new hotkey saves it; a taken one shows a warning and keeps the
 test("the Print Screen notice appears once, and [Open Windows setting] uses the deep link", async ({ page }) => {
   await page.goto("/#settings");
   await expect(page.getByText(/Print Screen opens Snipping Tool/)).toBeVisible();
+  await expect(page.getByText(/Bluetooth & devices > Keyboard > Use the Print screen button to open screen capturing/)).toBeVisible();
 
   await page.getByRole("button", { name: "Open Windows setting" }).click();
   await expect(page.getByText(/Print Screen opens Snipping Tool/)).toHaveCount(0);

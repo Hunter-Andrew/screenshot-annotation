@@ -8,7 +8,7 @@ export interface Pixels {
   rgba: number[];
 }
 
-/** Decode an 8-bit RGBA, non-interlaced, filter-0 PNG (what `encodeRgbaPng` writes). */
+/** Decode an 8-bit RGBA, non-interlaced PNG with any row filters (ours, or a browser canvas's). */
 export function decodePixels(png: Uint8Array): Pixels {
   const view = new DataView(png.buffer, png.byteOffset, png.byteLength);
   let offset = 8;
@@ -28,11 +28,28 @@ export function decodePixels(png: Uint8Array): Pixels {
     offset += 12 + length;
   }
   const raw = inflateSync(Buffer.concat(idat));
+  const bpp = 4;
+  const stride = width * bpp;
   const rgba: number[] = [];
+  let previous = new Array<number>(stride).fill(0);
   for (let y = 0; y < height; y++) {
-    const row = y * (1 + width * 4);
-    if (raw[row] !== 0) throw new Error("test decoder only supports filter type 0");
-    for (let i = 0; i < width * 4; i++) rgba.push(raw[row + 1 + i]!);
+    const start = y * (1 + stride);
+    const filter = raw[start]!;
+    const row = new Array<number>(stride);
+    for (let i = 0; i < stride; i++) {
+      const a = i >= bpp ? row[i - bpp]! : 0;
+      const b = previous[i]!;
+      const c = i >= bpp ? previous[i - bpp]! : 0;
+      const p = a + b - c;
+      const pa = Math.abs(p - a);
+      const pb = Math.abs(p - b);
+      const pc = Math.abs(p - c);
+      const predictor = [0, a, b, (a + b) >> 1, pa <= pb && pa <= pc ? a : pb <= pc ? b : c][filter];
+      if (predictor === undefined) throw new Error(`unknown PNG filter type ${filter}`);
+      row[i] = (raw[start + 1 + i]! + predictor) & 0xff;
+    }
+    rgba.push(...row);
+    previous = row;
   }
   return { width, height, rgba };
 }

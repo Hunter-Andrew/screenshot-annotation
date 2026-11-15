@@ -43,4 +43,40 @@ describe("TS/Rust shared constants", () => {
     expect(lib).toContain("overlay::overlay_log");
     expect(lib.indexOf("fn show_settings")).toBeLessThan(lib.indexOf("fn show_editor"));
   });
+
+  it("every undo-history command the bridge invokes is registered in lib.rs", () => {
+    const tauriBridge = readFileSync(resolve(__dirname, "../platform/tauriBridge.ts"), "utf8");
+    const commands = [...tauriBridge.matchAll(/invoke<[^>]*>\("(history_[a-z_]+)"/g)].map((m) => m[1]);
+    expect(commands.sort()).toEqual(["history_delete", "history_purge_before", "history_read", "history_write"]);
+    const lib = rust("lib.rs");
+    for (const command of commands) {
+      expect(lib).toMatch(new RegExp(`fn ${command}\\(`));
+      expect(lib).toMatch(new RegExp(`\\b${command},`));
+    }
+  });
+
+  it("the history file key is 64 hex characters on both sides (SHA-256)", () => {
+    expect(rust("history_store.rs")).toMatch(/key\.len\(\) == 64/);
+  });
+
+  it("the bridge invokes the Rust command that opens the keyboard setting, and lib.rs registers it", () => {
+    const tauriBridge = readFileSync(resolve(__dirname, "../platform/tauriBridge.ts"), "utf8");
+    const command = tauriBridge.match(/openKeyboardSettings: \(\) => invoke<void>\("([^"]+)"\)/)?.[1];
+    expect(command).toBe("open_keyboard_settings");
+    const lib = rust("lib.rs");
+    expect(lib).toMatch(new RegExp(`fn ${command}\\(`));
+    expect(lib).toMatch(new RegExp(`\\b${command},`));
+  });
+
+  it("the bridge's tool-style commands exist in lib.rs and are registered, with the argument name Rust expects", () => {
+    const tauriBridge = readFileSync(resolve(__dirname, "../platform/tauriBridge.ts"), "utf8");
+    const lib = rust("lib.rs");
+    expect(tauriBridge).toContain('invoke<Record<string, unknown>>("get_tool_styles")');
+    expect(tauriBridge).toContain('invoke<void>("set_tool_styles", { styles })');
+    for (const command of ["get_tool_styles", "set_tool_styles"]) {
+      expect(lib).toMatch(new RegExp(`fn ${command}\\(`));
+      expect(lib).toMatch(new RegExp(`\\b${command},`));
+    }
+    expect(lib).toMatch(/fn set_tool_styles\([^)]*\bstyles: /);
+  });
 });

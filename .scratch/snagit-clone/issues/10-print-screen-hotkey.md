@@ -31,3 +31,5 @@ The app never edits that registry value itself. Ctrl+Shift+S works meanwhile.
 **Rebindable hotkey.** The capture hotkey can be changed in Settings (default Print Screen, fallback Ctrl+Shift+S), with a warning if the chosen combination is already registered by another app.
 
 **Out of scope:** low-level keyboard hooks (fragile, may alarm endpoint security, may not beat Snipping Tool).
+
+Correction (2026-11-15, ticket v1/29): "Accessibility → Keyboard" above is the wrong place on current Windows 11; the setting is under Settings > Bluetooth & devices > Keyboard. The spec (`spec.md`, Notice) carries the same wording and is left as written.

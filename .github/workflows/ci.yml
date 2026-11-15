@@ -18,9 +18,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Smart App Control blocks unsigned installers, so an unsigned build must never be mistaken
-      # for a signed one: it is named ...-UNSIGNED, flagged in the run summary, and a release
-      # tag (v*) refuses to build without signing. Half-configured signing is an error too.
+      # Signing is optional. Unsigned builds are flagged with a warning and a run summary note (some
+      # machines' Smart App Control may block unsigned installers; Andrew's laptop currently does not),
+      # and release tags (v*) may be published unsigned. Half-configured signing is an error, so a
+      # typo in one secret cannot silently produce an unsigned release.
       - name: Check signing configuration
         id: signing
         shell: bash
@@ -39,12 +40,12 @@ jobs:
           else
             list="$(IFS=,; echo "${missing[*]}")"
             echo "signed=false" >> "$GITHUB_OUTPUT"
-            echo "artifact=Screenshot-Annotation-Setup-UNSIGNED" >> "$GITHUB_OUTPUT"
-            echo "::warning title=Installer will be UNSIGNED::Smart App Control blocks unsigned installers. Not configured: $list"
-            echo "### UNSIGNED installer" >> "$GITHUB_STEP_SUMMARY"
-            echo "Smart App Control will block this build. Not configured: $list. Add them under Settings > Secrets and variables > Actions (secrets AZURE_*, variables TRUSTED_SIGNING_*)." >> "$GITHUB_STEP_SUMMARY"
-            if [ "${#missing[@]}" -lt 6 ] || [[ "$GITHUB_REF" == refs/tags/v* ]]; then
-              echo "::error::Signing is required here (a release tag, or only partly configured). Not configured: $list"
+            echo "artifact=Screenshot-Annotation-Setup" >> "$GITHUB_OUTPUT"
+            echo "::warning title=Installer is unsigned::Smart App Control may block unsigned installers on some machines. Not configured: $list"
+            echo "### Unsigned installer" >> "$GITHUB_STEP_SUMMARY"
+            echo "This build is not code-signed. Not configured: $list. To sign, add them under Settings > Secrets and variables > Actions (secrets AZURE_*, variables TRUSTED_SIGNING_*)." >> "$GITHUB_STEP_SUMMARY"
+            if [ "${#missing[@]}" -lt 6 ]; then
+              echo "::error::Signing is only partly configured; set all six values or none. Not configured: $list"
               exit 1
             fi
           fi
@@ -81,8 +82,7 @@ jobs:
 
       # Per-user NSIS installer (installMode "currentUser" in src-tauri/tauri.conf.json, ADR 0001).
       # Signed with Azure Trusted Signing when the AZURE_* secrets and TRUSTED_SIGNING_* variables
-      # exist (ADR 0006); otherwise the build is unsigned, as before. Smart App Control blocks
-      # unsigned installers, so releases should be signed.
+      # exist (ADR 0006); otherwise the build is unsigned, as before.
       - name: Install signing tool
         if: steps.signing.outputs.signed == 'true'
         run: cargo install trusted-signing-cli --locked

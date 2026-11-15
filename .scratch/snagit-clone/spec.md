@@ -112,7 +112,7 @@ The app makes no network calls. Updates are manual installs from public GitHub R
 77. As Andrew, I want bring forward and send back, so that I can control which Annotation sits on top.
 78. As Andrew, I want undo and redo for every change, so that I can experiment safely.
 79. As Andrew, I want undo history to survive switching images and restarting the app, up to 200 steps per image, so that I can undo work from earlier.
-80. As Andrew, I want undo history for images I haven't touched in 2 months to be deleted automatically, so that history doesn't pile up.
+80. As Andrew, I want undo history for images I haven't touched in 60 days to be deleted automatically, so that history doesn't pile up.
 81. As Andrew, I want changes saved automatically about a second after I stop, so that I never lose work.
 
 ### Copy and save
@@ -145,6 +145,7 @@ The app makes no network calls. Updates are manual installs from public GitHub R
 106. As Andrew, I want thumbnails cached outside my Pictures folder, so that Pictures holds only my images.
 107. As Andrew, I want an image saved by a newer app version to open read-only in an older version, so that nothing gets corrupted when versions differ.
 108. As Andrew, I want Settings to show every keyboard shortcut (the capture hotkey, the capture-overlay keys such as Space for the whole monitor, Esc to cancel and M for the magnifier, and the editor's tool and action keys) and let me remap each one, so that the app fits my hands and avoids clashes with other software. *(M5, after v1.0.0; added 2026-11-15 after M1 testing.)*
+109. As Andrew, I want to extend the canvas beyond the Capture, by drawing past its edge or by dragging its edges outward like a rectangle (crop in reverse), with a per-image transparent, white or dark background and a configurable default, so that I can add arrows and notes that sit outside the screenshot. *(M4 with Crop; added 2026-11-15 after M2 testing.)*
 
 ## Implementation Decisions
 

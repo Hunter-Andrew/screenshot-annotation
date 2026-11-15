@@ -1,6 +1,6 @@
 import { encodeRgbaPng } from "../core/png";
 import { formatStamp } from "../shared/stamp";
-import type { CaptureResult, OverlayOutcome, OverlayRect, PlatformBridge } from "./bridge";
+import type { CaptureResult, LibraryFile, OverlayOutcome, OverlayRect, PlatformBridge } from "./bridge";
 
 export interface SimulatedShot {
   width: number;
@@ -22,6 +22,14 @@ export interface FakeBridge extends PlatformBridge {
   readonly savedAs: { suggestedName: string; path: string; bytes: Uint8Array }[];
   /** Library paths moved to the Recycle Bin, in order (they leave `libraryFiles`). */
   readonly discardedPaths: string[];
+  /** Every auto-save `updateLibraryFile` call that succeeded, in order. */
+  readonly libraryUpdates: { path: string; bytes: Uint8Array }[];
+  /** The next `updateLibraryFile` rejects with this message. */
+  failNextLibraryUpdate(message: string): void;
+  /** Undo history files by key (`modifiedAt`: ms since the epoch; tests may set it to age a file). Survive a reload in the browser build. */
+  readonly historyFiles: Map<string, { text: string; modifiedAt: number }>;
+  /** How many times the editor asked to open Settings (the gear button). */
+  readonly settingsOpened: number;
   /** The next Save as PNG… behaves as if the user cancelled the dialog. */
   cancelNextSaveAs(): void;
   /** The next Discard rejects with this message. */
@@ -44,7 +52,7 @@ export interface FakeBridge extends PlatformBridge {
   readonly hotkey: string;
   /** Combinations "another app" owns; `setHotkey` reports a conflict for these. Mutable by tests. */
   readonly takenHotkeys: Set<string>;
-  /** How many times the Accessibility > Keyboard deep link was opened. */
+  /** How many times the Bluetooth & devices settings deep link was opened. */
   readonly keyboardSettingsOpened: number;
   /** Lines the Settings page wrote to the diagnostics log. */
   readonly settingsLogs: string[];
@@ -54,10 +62,22 @@ export interface FakeBridge extends PlatformBridge {
   readonly printScreenNoticeDismissed: boolean;
   /** The stored magnifier setting (`fake.magnifier` in the fake storage; on for a fresh fake). */
   readonly magnifier: boolean;
+  /** The stored tool styles (`fake.toolStyles` in the fake storage; empty for a fresh fake). */
+  readonly toolStyles: Record<string, unknown>;
 }
 
 /** Fake setting storage; the browser build passes localStorage so e2e reloads keep it. */
 export type FakeStorage = Pick<Storage, "getItem" | "setItem">;
+
+function toBase64(bytes: Uint8Array): string {
+  let text = "";
+  for (let i = 0; i < bytes.length; i += 0x8000) text += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(text);
+}
+
+function fromBase64(text: string): Uint8Array {
+  return Uint8Array.from(atob(text), (c) => c.charCodeAt(0));
+}
 
 /** What `startCapture` produces unless a test says otherwise: a small gradient. */
 function defaultShot(): SimulatedShot {
@@ -105,8 +125,51 @@ export function createFakeBridge(
   const openedUrls: string[] = [];
   const copiedImages: Uint8Array[] = [];
   const libraryFiles: { path: string; bytes: Uint8Array }[] = [];
+  const libraryUpdates: { path: string; bytes: Uint8Array }[] = [];
+  // Order in which Library files were last written; the newest is what `openLatestLibraryImage` returns.
+  const writtenAt = new Map<string, number>();
+  let writeCounter = 0;
+  let libraryUpdateFailure: string | null = null;
+  let settingsOpened = 0;
   const savedAs: FakeBridge["savedAs"] = [];
   const discardedPaths: string[] = [];
+  // With a persistent store (the browser build), Library files survive a page reload, like the real
+  // Library survives a restart.
+  const persistLibrary = () => {
+    try {
+      store.setItem(
+        "fake.library",
+        JSON.stringify(libraryFiles.map((f) => ({ path: f.path, b64: toBase64(f.bytes), at: writtenAt.get(f.path) ?? 0 }))),
+      );
+    } catch {
+      // Over the browser's storage quota (big test Captures): the Library then simply does not survive a reload.
+    }
+  };
+  try {
+    const saved = JSON.parse(store.getItem("fake.library") ?? "[]") as { path: string; b64: string; at: number }[];
+    for (const f of saved) {
+      libraryFiles.push({ path: f.path, bytes: fromBase64(f.b64) });
+      writtenAt.set(f.path, f.at);
+      writeCounter = Math.max(writeCounter, f.at);
+    }
+  } catch {
+    // An unreadable store is an empty Library.
+  }
+  // Undo history files, kept like the Library so a reload in the browser build still finds them.
+  const historyFiles: FakeBridge["historyFiles"] = new Map();
+  try {
+    const saved = JSON.parse(store.getItem("fake.history") ?? "[]") as [string, { text: string; modifiedAt: number }][];
+    for (const [key, file] of saved) historyFiles.set(key, file);
+  } catch {
+    // An unreadable store is no history.
+  }
+  const persistHistory = () => {
+    try {
+      store.setItem("fake.history", JSON.stringify([...historyFiles]));
+    } catch {
+      // Over the browser's quota: history then does not survive a reload.
+    }
+  };
   let cancelSaveAs = false;
   let discardFailure: string | null = null;
   const handlers = new Set<(capture: CaptureResult) => void>();
@@ -134,6 +197,14 @@ export function createFakeBridge(
     libraryFiles,
     savedAs,
     discardedPaths,
+    historyFiles,
+    libraryUpdates,
+    failNextLibraryUpdate: (message) => {
+      libraryUpdateFailure = message;
+    },
+    get settingsOpened() {
+      return settingsOpened;
+    },
     cancelNextSaveAs: () => {
       cancelSaveAs = true;
     },
@@ -182,7 +253,7 @@ export function createFakeBridge(
     logSettings: async (message) => {
       settingsLogs.push(message);
     },
-    openKeyboardAccessibilitySettings: async () => {
+    openKeyboardSettings: async () => {
       keyboardSettingsOpened++;
     },
     getVersion: async () => options.version ?? "0.0.0-fake",
@@ -207,7 +278,30 @@ export function createFakeBridge(
         path = `${stamp.slice(0, 7)}\\${stamp}-${n}.png`;
       }
       libraryFiles.push({ path, bytes: png });
+      writtenAt.set(path, ++writeCounter);
+      persistLibrary();
       return path;
+    },
+    updateLibraryFile: async (path, png) => {
+      if (libraryUpdateFailure !== null) {
+        const message = libraryUpdateFailure;
+        libraryUpdateFailure = null;
+        throw new Error(message);
+      }
+      // Like the real Library: replaces an existing file, never creates one.
+      const file = libraryFiles.find((f) => f.path === path);
+      if (!file) throw new Error("not a file in the Library");
+      file.bytes = png;
+      writtenAt.set(path, ++writeCounter);
+      libraryUpdates.push({ path, bytes: png });
+      persistLibrary();
+    },
+    openLatestLibraryImage: async (): Promise<LibraryFile | null> => {
+      const newest = [...libraryFiles].sort((a, b) => (writtenAt.get(b.path) ?? 0) - (writtenAt.get(a.path) ?? 0))[0];
+      return newest ? { path: newest.path, png: newest.bytes } : null;
+    },
+    openSettings: async () => {
+      settingsOpened++;
     },
     overlayFrame: async (monitor) => {
       overlayFrameRequests.push(monitor);
@@ -248,6 +342,13 @@ export function createFakeBridge(
         magnifierHandlers.delete(handler);
       };
     },
+    get toolStyles() {
+      return JSON.parse(store.getItem("fake.toolStyles") ?? "{}") as Record<string, unknown>;
+    },
+    getToolStyles: async () => JSON.parse(store.getItem("fake.toolStyles") ?? "{}"),
+    setToolStyles: async (styles) => {
+      store.setItem("fake.toolStyles", JSON.stringify(styles));
+    },
     savePngAs: async (png, suggestedName) => {
       if (cancelSaveAs) {
         cancelSaveAs = false;
@@ -256,6 +357,26 @@ export function createFakeBridge(
       const path = `C:\\Users\\fake\\Pictures\\${suggestedName}`;
       savedAs.push({ suggestedName, path, bytes: png });
       return path;
+    },
+    readHistory: async (key) => historyFiles.get(key)?.text ?? null,
+    writeHistory: async (key, text) => {
+      historyFiles.set(key, { text, modifiedAt: Date.now() });
+      persistHistory();
+    },
+    deleteHistory: async (key) => {
+      historyFiles.delete(key);
+      persistHistory();
+    },
+    purgeHistoryBefore: async (cutoffMs) => {
+      let purged = 0;
+      for (const [key, file] of historyFiles) {
+        if (file.modifiedAt < cutoffMs) {
+          historyFiles.delete(key);
+          purged++;
+        }
+      }
+      if (purged > 0) persistHistory();
+      return purged;
     },
     discardLibraryFile: async (path) => {
       if (discardFailure !== null) {
@@ -266,7 +387,9 @@ export function createFakeBridge(
       const index = libraryFiles.findIndex((f) => f.path === path);
       if (index < 0) throw new Error("not in the Library");
       libraryFiles.splice(index, 1);
+      writtenAt.delete(path);
       discardedPaths.push(path);
+      persistLibrary();
     },
   };
 }
