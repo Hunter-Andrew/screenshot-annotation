@@ -1,6 +1,7 @@
 import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeAll, describe, expect, it } from "vitest";
+import { createStubKit } from "../canvas/stubKit";
 import { decodePixels, hasChunk } from "../core/testing";
 import { createFakeBridge, type FakeBridge } from "../platform/fakeBridge";
 import { Editor } from "./Editor";
@@ -16,7 +17,8 @@ beforeAll(() => {
 });
 
 async function openEditor(bridge: FakeBridge) {
-  render(<Editor bridge={bridge} />);
+  // jsdom has no canvas: the stub kit stands in for Fabric (the real one runs in the e2e tests).
+  render(<Editor bridge={bridge} kit={createStubKit()} />);
   // Let the editor subscribe to Captures before simulating one.
   await act(async () => {});
 }
