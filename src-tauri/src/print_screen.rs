@@ -2,9 +2,12 @@
 //! PrintScreenKeyForSnippingEnabled. READ-ONLY: this app never writes that value (ticket 10); the
 //! user flips the toggle in Windows Settings, which `SETTINGS_URI` opens. No keyboard hooks.
 
-/// Settings > Accessibility > Keyboard. Opened by the dedicated `open_keyboard_accessibility_settings`
-/// command so `url_guard` (ADR 0006) stays limited to the Releases page.
-pub const SETTINGS_URI: &str = "ms-settings:easeofaccess-keyboard";
+/// Windows Settings > Bluetooth & devices (the page that holds Keyboard > "Use the Print screen button
+/// to open screen capturing" on current Windows 11). Microsoft documents no `ms-settings:` URI for the
+/// Keyboard sub-page, so this is the closest documented one (ADR 0007, correction of 2026-11-15); the UI
+/// text tells the user to click on to Keyboard. Opened by the dedicated `open_keyboard_settings` command
+/// so `url_guard` (ADR 0006) stays limited to the Releases page.
+pub const SETTINGS_URI: &str = "ms-settings:bluetooth";
 
 /// On unless explicitly 0 (the Windows 11 default when the value is missing).
 pub fn snipping_enabled_from(value: Option<u32>) -> bool {
@@ -110,8 +113,10 @@ mod tests {
     }
 
     #[test]
-    fn the_deep_link_targets_the_accessibility_keyboard_page() {
-        assert_eq!(SETTINGS_URI, "ms-settings:easeofaccess-keyboard");
+    fn the_deep_link_targets_the_bluetooth_and_devices_page() {
+        // Microsoft documents no URI for Bluetooth & devices > Keyboard; `bluetooth` is the documented
+        // "Bluetooth & devices" page (Learn: Launch Windows Settings, Devices table).
+        assert_eq!(SETTINGS_URI, "ms-settings:bluetooth");
     }
 
     #[test]

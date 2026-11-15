@@ -43,4 +43,13 @@ describe("TS/Rust shared constants", () => {
     expect(lib).toContain("overlay::overlay_log");
     expect(lib.indexOf("fn show_settings")).toBeLessThan(lib.indexOf("fn show_editor"));
   });
+
+  it("the bridge invokes the Rust command that opens the keyboard setting, and lib.rs registers it", () => {
+    const tauriBridge = readFileSync(resolve(__dirname, "../platform/tauriBridge.ts"), "utf8");
+    const command = tauriBridge.match(/openKeyboardSettings: \(\) => invoke<void>\("([^"]+)"\)/)?.[1];
+    expect(command).toBe("open_keyboard_settings");
+    const lib = rust("lib.rs");
+    expect(lib).toMatch(new RegExp(`fn ${command}\\(`));
+    expect(lib).toMatch(new RegExp(`\\b${command},`));
+  });
 });

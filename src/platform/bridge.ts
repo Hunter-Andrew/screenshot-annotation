@@ -133,8 +133,11 @@ export interface PlatformBridge {
    * recorder received. Never throws.
    */
   logSettings(message: string): Promise<void>;
-  /** Open Windows Settings at Accessibility > Keyboard. */
-  openKeyboardAccessibilitySettings(): Promise<void>;
+  /**
+   * Open Windows Settings at Bluetooth & devices (`ms-settings:bluetooth`, the closest documented page);
+   * the user clicks on to Keyboard. Not the Accessibility > Keyboard page.
+   */
+  openKeyboardSettings(): Promise<void>;
 
   /**
    * Save as PNG…: open the Windows save dialog, suggesting `suggestedName`, and write `png` (a

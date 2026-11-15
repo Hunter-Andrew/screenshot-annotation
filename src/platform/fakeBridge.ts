@@ -44,7 +44,7 @@ export interface FakeBridge extends PlatformBridge {
   readonly hotkey: string;
   /** Combinations "another app" owns; `setHotkey` reports a conflict for these. Mutable by tests. */
   readonly takenHotkeys: Set<string>;
-  /** How many times the Accessibility > Keyboard deep link was opened. */
+  /** How many times the Bluetooth & devices settings deep link was opened. */
   readonly keyboardSettingsOpened: number;
   /** Lines the Settings page wrote to the diagnostics log. */
   readonly settingsLogs: string[];
@@ -182,7 +182,7 @@ export function createFakeBridge(
     logSettings: async (message) => {
       settingsLogs.push(message);
     },
-    openKeyboardAccessibilitySettings: async () => {
+    openKeyboardSettings: async () => {
       keyboardSettingsOpened++;
     },
     getVersion: async () => options.version ?? "0.0.0-fake",

@@ -20,3 +20,5 @@ Spec: `.scratch/snagit-clone/spec.md`.
 - Settings live in `<app_data_dir>/settings.json` (hotkey, printScreenNoticeDismissed). Default stays Ctrl+Shift+S; Print Screen is user-selectable. The notice opens Settings on first run and is retired by either button. Known: RegisterHotKey on Print Screen "succeeds" while Snipping Tool owns it (ticket 10), so no conflict is reported there; that is what the notice is for.
 - The deep link is its own command (`open_keyboard_accessibility_settings`); `url_guard.rs` is unchanged apart from a test that it still refuses `ms-settings:`.
 - Known gap: while recording, the current hotkey is still registered, so pressing it triggers a capture.
+
+- Correction (2026-11-15, ticket 29): "Accessibility → Keyboard" above is the wrong place on current Windows 11. The setting is under Settings > Bluetooth & devices > Keyboard; the deep link is now `ms-settings:bluetooth` and the command `open_keyboard_settings` (was `open_keyboard_accessibility_settings`). The "right Settings page" box stays unticked: still unverified on Windows.
