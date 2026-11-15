@@ -21,13 +21,29 @@ interface Props {
   onChange<K extends GroupId>(group: K, value: PropertyGroups[K]): void;
   /** Stacking order and Delete for the selected Annotation; null when nothing is selected (or read-only). */
   arrange?: Arrange | null;
+  /** The active drawing tool's own behavior option (not a property of any Annotation); null when no drawing tool is active. */
+  toolOption?: { label: string; checked: boolean; onChange(value: boolean): void; hidden?: boolean } | null;
 }
 
 /** The Style panel (right column): one section per property group the kind opts into. */
-export function StylePanel({ kind, style, onChange, arrange = null }: Props) {
+export function StylePanel({ kind, style, onChange, arrange = null, toolOption = null }: Props) {
   return (
     <aside className="style-panel" aria-label="Style">
       <h2>Style</h2>
+      {toolOption &&
+        (toolOption.hidden ? (
+          // Same height, invisible: when a drawing tool's box is committed by clicking a control below, the tool
+          // goes back to Select mid-click, and the panel must not shift under the pointer.
+          <div className="tool-option placeholder" aria-hidden="true">
+            <input type="checkbox" disabled tabIndex={-1} />
+            {toolOption.label}
+          </div>
+        ) : (
+          <label className="tool-option">
+            <input type="checkbox" checked={toolOption.checked} onChange={(e) => toolOption.onChange(e.target.checked)} />
+            {toolOption.label}
+          </label>
+        ))}
       {kind === null ? (
         <p className="hint">Select an Annotation, or pick a tool, to change its style.</p>
       ) : (

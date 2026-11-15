@@ -13,7 +13,7 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
 use tauri::ipc::Response;
-use tauri::{AppHandle, Manager, PhysicalPosition, PhysicalSize, WebviewUrl, WebviewWindowBuilder};
+use tauri::{AppHandle, Manager, PhysicalPosition, PhysicalSize, WebviewUrl};
 
 use crate::capture::{self, MonitorFrame};
 use crate::capture_image::encode_png;
@@ -310,7 +310,7 @@ fn watch(app: AppHandle, attempt: u64) {
 /// Create the (still hidden) overlay window covering exactly one monitor. It is shown by
 /// `overlay_ready` once its frozen frame is decoded, so there is no flash of an empty window.
 fn open_window(app: &AppHandle, index: usize, bounds: &MonitorBounds) -> tauri::Result<()> {
-    let window = WebviewWindowBuilder::new(app, label(index), WebviewUrl::App(format!("index.html#overlay/{index}").into()))
+    let window = crate::new_window(app, &label(index),WebviewUrl::App(format!("index.html#overlay/{index}").into()))
         .title("Capture")
         .decorations(false)
         .resizable(false)

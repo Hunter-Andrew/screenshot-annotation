@@ -451,6 +451,19 @@ async fn save_png_as(app: AppHandle, request: Request<'_>) -> Result<Option<Stri
     Ok(Some(path.to_string_lossy().into_owned()))
 }
 
+/// The one place a window is created, so every window carries the app logo: Windows takes the
+/// taskbar and Alt+Tab icon from the window, and a window made at runtime has none of its own.
+/// `default_window_icon()` is the `bundle.icon` set (on Windows, the icon resource embedded in the
+/// exe); if it is missing or refused the window is still created, just with the system icon.
+pub(crate) fn new_window<'a>(app: &'a AppHandle, label: &str, url: WebviewUrl) -> WebviewWindowBuilder<'a, tauri::Wry, AppHandle> {
+    let make = || WebviewWindowBuilder::new(app, label, url.clone());
+    let with_icon = app.default_window_icon().cloned().and_then(|icon| make().icon(icon).ok());
+    with_icon.unwrap_or_else(|| {
+        diag::log(&format!("window {label}: no app icon available, using the system default"));
+        make()
+    })
+}
+
 fn focus(win: &tauri::WebviewWindow) {
     let _ = win.unminimize();
     let _ = win.show();
@@ -463,7 +476,7 @@ fn show_settings(app: &AppHandle) {
         focus(&win);
         return;
     }
-    let _ = WebviewWindowBuilder::new(app, SETTINGS_LABEL, WebviewUrl::App("index.html#settings".into()))
+    let _ = new_window(app, SETTINGS_LABEL,WebviewUrl::App("index.html#settings".into()))
         .title("Settings")
         .inner_size(460.0, 440.0)
         .resizable(false)
@@ -505,7 +518,7 @@ fn show_editor(app: &AppHandle) {
         focus(&win);
         return;
     }
-    let _ = WebviewWindowBuilder::new(app, EDITOR_LABEL, WebviewUrl::App("index.html".into()))
+    let _ = new_window(app, EDITOR_LABEL,WebviewUrl::App("index.html".into()))
         .title("Screenshot Annotation")
         .inner_size(1100.0, 720.0)
         .min_inner_size(760.0, 480.0)
@@ -646,9 +659,11 @@ pub fn run() {
             let settings = MenuItem::with_id(app, "settings", "Settings", true, None::<&str>)?;
             let log_folder = MenuItem::with_id(app, "log", "Open log folder", true, None::<&str>)?;
             let exit = MenuItem::with_id(app, "exit", "Exit", true, None::<&str>)?;
-            TrayIconBuilder::new()
-                .icon(app.default_window_icon().unwrap().clone())
-                .tooltip("Screenshot Annotation")
+            let mut tray = TrayIconBuilder::new();
+            if let Some(icon) = app.default_window_icon() {
+                tray = tray.icon(icon.clone());
+            }
+            tray.tooltip("Screenshot Annotation")
                 .menu(&Menu::with_items(app, &[&capture, &editor, &settings, &log_folder, &exit])?)
                 .show_menu_on_left_click(false)
                 .on_tray_icon_event(|tray, event| {
