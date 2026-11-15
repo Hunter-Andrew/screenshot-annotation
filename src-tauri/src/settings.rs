@@ -23,6 +23,8 @@ use std::path::Path;
 use serde::{Deserialize, Serialize};
 
 pub const FILE_NAME: &str = "settings.json";
+/// Where an unparseable settings.json is kept (see `load`).
+pub const CORRUPT_FILE_NAME: &str = "settings.json.corrupt";
 pub const DEFAULT_HOTKEY: &str = "ctrl+shift+s";
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -62,19 +64,38 @@ where
     })
 }
 
-/// Loads the settings; a missing or unreadable file gives the defaults.
+/// Loads the settings; a missing file gives the defaults. A file that exists but cannot be parsed
+/// also gives the defaults, but is first copied to `settings.json.corrupt` (one copy, an older one is
+/// overwritten) so the next save does not destroy the user's hotkey and other choices.
 pub fn load(dir: &Path) -> Settings {
-    fs::read(dir.join(FILE_NAME))
-        .ok()
-        .and_then(|bytes| serde_json::from_slice(&bytes).ok())
-        .unwrap_or_default()
+    let Ok(bytes) = fs::read(dir.join(FILE_NAME)) else { return Settings::default() };
+    match serde_json::from_slice(&bytes) {
+        Ok(settings) => settings,
+        Err(parse_error) => {
+            let outcome = match fs::write(dir.join(CORRUPT_FILE_NAME), &bytes) {
+                Ok(()) => format!("a copy was kept as {CORRUPT_FILE_NAME}"),
+                Err(e) => format!("could not keep a copy as {CORRUPT_FILE_NAME}: {e}"),
+            };
+            crate::diag::log(&format!("settings.json could not be read ({parse_error}); using defaults; {outcome}"));
+            Settings::default()
+        }
+    }
 }
 
-/// Saves the settings atomically (temp file, then rename).
+/// Writes `bytes` to `path` and flushes them to disk before returning, so a rename that follows
+/// cannot leave an empty or partial file after a power cut.
+fn write_durably(path: &Path, bytes: &[u8]) -> io::Result<()> {
+    use std::io::Write;
+    let mut file = fs::File::create(path)?;
+    file.write_all(bytes)?;
+    file.sync_all()
+}
+
+/// Saves the settings atomically (temp file flushed to disk, then rename).
 pub fn save(dir: &Path, settings: &Settings) -> io::Result<()> {
     fs::create_dir_all(dir)?;
     let tmp = dir.join(format!("{FILE_NAME}.tmp"));
-    fs::write(&tmp, serde_json::to_vec_pretty(settings)?)?;
+    write_durably(&tmp, &serde_json::to_vec_pretty(settings)?)?;
     fs::rename(&tmp, dir.join(FILE_NAME))
 }
 
@@ -134,6 +155,55 @@ mod tests {
         fs::create_dir_all(&dir).unwrap();
         fs::write(dir.join(FILE_NAME), b"{ not json").unwrap();
         assert_eq!(load(&dir), Settings::default());
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn a_corrupt_file_is_kept_aside_as_settings_json_corrupt_and_defaults_load() {
+        let dir = temp_dir("corrupt-aside");
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(dir.join(FILE_NAME), br#"{"hotkey":"alt+x", oops"#).unwrap();
+        assert_eq!(load(&dir), Settings::default());
+        assert_eq!(fs::read(dir.join(CORRUPT_FILE_NAME)).unwrap(), br#"{"hotkey":"alt+x", oops"#);
+        // A later save overwrites settings.json, but the copy survives.
+        save(&dir, &Settings::default()).unwrap();
+        assert_eq!(fs::read(dir.join(CORRUPT_FILE_NAME)).unwrap(), br#"{"hotkey":"alt+x", oops"#);
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn only_one_corrupt_copy_is_kept_the_newest() {
+        let dir = temp_dir("corrupt-newest");
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(dir.join(FILE_NAME), b"first {").unwrap();
+        load(&dir);
+        fs::write(dir.join(FILE_NAME), b"second {").unwrap();
+        load(&dir);
+        assert_eq!(fs::read(dir.join(CORRUPT_FILE_NAME)).unwrap(), b"second {");
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn a_normal_or_missing_file_is_not_copied_aside() {
+        let dir = temp_dir("no-copy");
+        load(&dir);
+        assert!(!dir.join(CORRUPT_FILE_NAME).exists());
+        save(&dir, &Settings::default()).unwrap();
+        load(&dir);
+        fs::write(dir.join(FILE_NAME), br#"{"hotkey":"alt+x","toolStyles":5}"#).unwrap();
+        load(&dir);
+        assert!(!dir.join(CORRUPT_FILE_NAME).exists());
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn write_durably_writes_the_bytes_and_replaces_an_older_file() {
+        let dir = temp_dir("durable");
+        fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("x.tmp");
+        write_durably(&path, b"old old old").unwrap();
+        write_durably(&path, b"new").unwrap();
+        assert_eq!(fs::read(&path).unwrap(), b"new");
         fs::remove_dir_all(&dir).unwrap();
     }
 
