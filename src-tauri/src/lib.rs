@@ -172,6 +172,26 @@ fn dismiss_print_screen_notice(state: tauri::State<'_, AppSettings>) -> Result<(
     Ok(())
 }
 
+/// Whether the capture overlay shows its magnifier (stored in settings.json; default true).
+#[tauri::command]
+fn get_magnifier(state: tauri::State<'_, AppSettings>) -> bool {
+    state.data.lock().unwrap().magnifier
+}
+
+/// Stores the magnifier setting at once and tells every window (all overlays, Settings) the new
+/// value. A failed write is logged and the value stays in memory for this run: the overlay is
+/// never broken by it.
+#[tauri::command]
+fn set_magnifier(app: AppHandle, state: tauri::State<'_, AppSettings>, enabled: bool) {
+    let mut data = state.data.lock().unwrap();
+    match settings::set_magnifier(&state.dir, &mut data, enabled) {
+        Ok(()) => diag::log(&format!("magnifier set to {enabled} (saved)")),
+        Err(e) => diag::log(&format!("magnifier set to {enabled}; could not save settings.json (kept in memory): {e}")),
+    }
+    drop(data);
+    let _ = app.emit(overlay::MAGNIFIER_EVENT, enabled);
+}
+
 /// Opens Windows Settings > Accessibility > Keyboard. A fixed target, deliberately not routed
 /// through `open_url`, whose allowlist stays limited to the Releases page (ADR 0006).
 #[tauri::command]
@@ -370,7 +390,8 @@ pub fn run() {
             overlay::overlay_ready,
             overlay::overlay_log,
             overlay::overlay_finish,
-            overlay::overlay_toggle_magnifier
+            get_magnifier,
+            set_magnifier
         ])
         .setup(|app| {
             app.handle().plugin(
