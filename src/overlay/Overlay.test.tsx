@@ -10,9 +10,15 @@ const FRAME = { width: 2000, height: 1000 };
 
 let bridge: FakeBridge;
 
-async function showOverlay(monitor = 1) {
+// Windows on the monitor, native pixels local to it, topmost first (as the platform reports them).
+const WINDOWS = [
+  { x: 1000, y: 200, width: 400, height: 200 }, // a dialog: CSS 500,100 200x100
+  { x: 200, y: 100, width: 1200, height: 800 }, // the big window: CSS 100,50 600x400
+];
+
+async function showOverlay(monitor = 1, windows: typeof WINDOWS = []) {
   Object.assign(window, { innerWidth: 1000, innerHeight: 500 });
-  bridge = createFakeBridge({ overlayFrames: { [monitor]: FRAME } });
+  bridge = createFakeBridge({ overlayFrames: { [monitor]: FRAME }, overlayWindows: { [monitor]: windows } });
   render(<Overlay bridge={bridge} monitor={monitor} />);
   const frozen = await screen.findByRole("img", { name: "Frozen screen" });
   fireEvent.load(frozen); // jsdom never decodes images, so announce the decode ourselves
@@ -112,5 +118,66 @@ describe("Overlay region mode", () => {
     move(120, 80);
     expect(screen.getByTestId("guide-x")).toHaveStyle({ left: "120px" });
     expect(screen.getByTestId("guide-y")).toHaveStyle({ top: "80px" });
+  });
+});
+
+describe("Overlay window mode", () => {
+  it("asks for the windows of its own monitor", async () => {
+    await showOverlay(2, WINDOWS);
+    expect(bridge.overlayWindowRequests).toEqual([2]);
+  });
+
+  it("hovering highlights the window under the pointer, with its pixel size", async () => {
+    await showOverlay(1, WINDOWS);
+    move(300, 100); // CSS -> native 600,200: inside the big window only
+    const highlight = await screen.findByTestId("window-highlight");
+    expect(highlight).toHaveStyle({ left: "100px", top: "50px", width: "600px", height: "400px" });
+    expect(screen.getByText("1200 × 800")).toBeVisible();
+  });
+
+  it("the highlight follows the pointer to the window on top", async () => {
+    await showOverlay(1, WINDOWS);
+    move(300, 100);
+    await screen.findByTestId("window-highlight");
+    move(550, 130); // native 1100,260: the dialog sits over the big window here
+    await waitFor(() =>
+      expect(screen.getByTestId("window-highlight")).toHaveStyle({ left: "500px", top: "100px", width: "200px", height: "100px" }),
+    );
+  });
+
+  it("shows no highlight over the bare desktop", async () => {
+    await showOverlay(1, WINDOWS);
+    move(950, 480);
+    expect(screen.queryByTestId("window-highlight")).toBeNull();
+  });
+
+  it("a click captures the highlighted window", async () => {
+    await showOverlay(1, WINDOWS);
+    move(550, 130);
+    press(550, 130);
+    release(550, 130);
+    await waitFor(() => expect(bridge.overlayOutcomes).toEqual([{ kind: "window", monitor: 1, window: 0 }]));
+  });
+
+  it("a click over the bare desktop captures nothing", async () => {
+    await showOverlay(1, WINDOWS);
+    move(950, 480);
+    press(950, 480);
+    release(950, 480);
+    expect(bridge.overlayOutcomes).toEqual([]);
+  });
+
+  it("dragging from over a window still captures the dragged region, and hides the highlight meanwhile", async () => {
+    await showOverlay(1, WINDOWS);
+    move(300, 100);
+    press(300, 100);
+    move(400, 200);
+    expect(screen.queryByTestId("window-highlight")).toBeNull();
+    release(400, 200);
+    await waitFor(() =>
+      expect(bridge.overlayOutcomes).toEqual([
+        { kind: "region", monitor: 1, region: { x: 600, y: 200, width: 200, height: 200 } },
+      ]),
+    );
   });
 });

@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { formatStamp } from "../shared/stamp";
-import type { CaptureResult, HotkeyState, OverlayFrame, PlatformBridge } from "./bridge";
+import type { CaptureResult, HotkeyState, OverlayFrame, OverlayRect, PlatformBridge } from "./bridge";
 
 /**
  * Decode the `take_capture` body (see `pack_capture` in src-tauri/src/lib.rs): u32 LE width,
@@ -59,6 +59,7 @@ export function createTauriBridge(): PlatformBridge {
     saveToLibrary: (png, capturedAt) =>
       invoke<string>("library_save", png, { headers: { "x-captured-at": formatStamp(capturedAt) } }),
     overlayFrame: async (monitor) => unpackFrame(await invoke<ArrayBuffer>("overlay_frame", { monitor })),
+    overlayWindows: (monitor) => invoke<OverlayRect[]>("overlay_windows", { monitor }),
     overlayReady: (monitor) => invoke<void>("overlay_ready", { monitor }),
     finishOverlay: (outcome) => invoke<void>("overlay_finish", { outcome }),
     toggleOverlayMagnifier: () => invoke<void>("overlay_toggle_magnifier"),

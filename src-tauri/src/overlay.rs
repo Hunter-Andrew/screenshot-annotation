@@ -10,7 +10,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use tauri::ipc::Response;
 use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, PhysicalSize, WebviewUrl, WebviewWindowBuilder};
 
@@ -27,6 +27,8 @@ const MAGNIFIER_EVENT: &str = "overlay-magnifier";
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum Outcome {
     Region { monitor: usize, region: RegionArg },
+    /// A click on a highlighted window; `window` indexes that monitor's list from `overlay_windows`.
+    Window { monitor: usize, window: usize },
     Monitor,
     Cancel,
 }
@@ -39,8 +41,26 @@ pub struct RegionArg {
     height: u32,
 }
 
+/// A rectangle sent to the overlay page (`OverlayRect` in `src/platform/bridge.ts`).
+#[derive(Serialize)]
+pub struct RectOut {
+    x: u32,
+    y: u32,
+    width: u32,
+    height: u32,
+}
+
+impl From<Region> for RectOut {
+    fn from(r: Region) -> Self {
+        RectOut { x: r.x, y: r.y, width: r.width, height: r.height }
+    }
+}
+
 struct Session {
     frames: Vec<Arc<MonitorFrame>>,
+    /// Per monitor: the visible windows clipped to it, topmost first. The page hit-tests a copy and
+    /// reports an index back, so the rectangle that is cropped always comes from here.
+    windows: Vec<Vec<Region>>,
     /// When the screen was read; names the Library file.
     captured_at_ms: f64,
     editor_was_visible: bool,
@@ -90,6 +110,21 @@ fn restore_editor(app: &AppHandle, was_visible: bool) {
     }
 }
 
+/// Native handles of the overlay windows, so window enumeration can never offer them as targets.
+#[cfg(windows)]
+fn overlay_handles(app: &AppHandle) -> Vec<isize> {
+    app.webview_windows()
+        .into_iter()
+        .filter(|(name, _)| name.starts_with(LABEL_PREFIX))
+        .filter_map(|(_, window)| window.hwnd().ok().map(|h| h.0 as isize))
+        .collect()
+}
+
+#[cfg(not(windows))]
+fn overlay_handles(_app: &AppHandle) -> Vec<isize> {
+    Vec::new()
+}
+
 /// Hotkey / tray entry point: hide the editor (so it is not in the picture), freeze all monitors
 /// and open an overlay on each. Runs on its own thread so the caller returns at once.
 pub fn begin(app: AppHandle) {
@@ -116,10 +151,20 @@ pub fn begin(app: AppHandle) {
             }
         };
         let captured_at_ms = now_ms();
+        // Read the windows right after the frozen frames, before any overlay window exists, and
+        // leave out the overlays regardless (see `overlay_handles`).
+        let windows = match capture::list_windows() {
+            Ok(facts) => geometry::pickable_rects(&facts, &overlay_handles(&app)),
+            Err(message) => {
+                eprintln!("could not list windows (window mode is off): {message}");
+                Vec::new()
+            }
+        };
         let frames: Vec<Arc<MonitorFrame>> = frames.into_iter().map(Arc::new).collect();
         let layout: Vec<MonitorBounds> = frames.iter().map(|f| f.bounds).collect();
+        let windows = layout.iter().map(|m| geometry::windows_on_monitor(&windows, *m)).collect();
         *app.state::<OverlayState>().session.lock().unwrap() =
-            Some(Session { frames, captured_at_ms, editor_was_visible });
+            Some(Session { frames, windows, captured_at_ms, editor_was_visible });
 
         for (index, bounds) in layout.iter().enumerate() {
             if let Err(e) = open_window(&app, index, bounds) {
@@ -163,6 +208,15 @@ pub async fn overlay_frame(state: tauri::State<'_, OverlayState>, monitor: usize
     Ok(Response::new(pack_frame(frame.bounds.width, frame.bounds.height, &png)))
 }
 
+/// The windows visible on one monitor, topmost first, for the overlay's hover highlight.
+#[tauri::command]
+pub async fn overlay_windows(state: tauri::State<'_, OverlayState>, monitor: usize) -> Result<Vec<RectOut>, String> {
+    let session = state.session.lock().unwrap();
+    let session = session.as_ref().ok_or("no capture in progress")?;
+    let windows = session.windows.get(monitor).ok_or("no such monitor")?;
+    Ok(windows.iter().copied().map(RectOut::from).collect())
+}
+
 /// An overlay has its frame on screen: show it, and give keyboard focus to the one under the
 /// mouse pointer (Space and Esc go to the focused window).
 #[tauri::command]
@@ -203,6 +257,11 @@ pub async fn overlay_finish(app: AppHandle, outcome: Outcome) -> Result<(), Stri
                 (index, Region { x: 0, y: 0, width: b.width, height: b.height })
             })
         }
+        Outcome::Window { monitor, window } => session
+            .windows
+            .get(monitor)
+            .and_then(|list| list.get(window))
+            .map(|r| (monitor, *r)),
         Outcome::Region { monitor, region } => {
             let region = Region { x: region.x, y: region.y, width: region.width, height: region.height };
             session

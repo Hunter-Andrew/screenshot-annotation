@@ -59,3 +59,22 @@ export function magnifierPlacement(cursor: Point, viewport: Size, box: Size): Po
     y: flipY ? cursor.y - MAGNIFIER_OFFSET - box.height : cursor.y + MAGNIFIER_OFFSET,
   };
 }
+
+/**
+ * The window under a point: `windows` are in native pixels local to the monitor, topmost first
+ * (the platform enumerates in z-order), so the first one containing the point is the one the
+ * user sees there. Edges are half-open, like pixels. Null over the bare desktop.
+ */
+export function windowAt(windows: readonly Rect[], point: Point): number | null {
+  const index = windows.findIndex(
+    (w) => point.x >= w.x && point.x < w.x + w.width && point.y >= w.y && point.y < w.y + w.height,
+  );
+  return index < 0 ? null : index;
+}
+
+const CLICK_TOLERANCE = 4;
+
+/** A press and release this close together is a click (window mode), not a drag (region mode). */
+export function isClick(press: Point, release: Point): boolean {
+  return Math.abs(release.x - press.x) < CLICK_TOLERANCE && Math.abs(release.y - press.y) < CLICK_TOLERANCE;
+}

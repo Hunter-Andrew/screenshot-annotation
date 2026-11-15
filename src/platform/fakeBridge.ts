@@ -1,6 +1,6 @@
 import { encodeRgbaPng } from "../core/png";
 import { formatStamp } from "../shared/stamp";
-import type { CaptureResult, OverlayOutcome, PlatformBridge } from "./bridge";
+import type { CaptureResult, OverlayOutcome, OverlayRect, PlatformBridge } from "./bridge";
 
 export interface SimulatedShot {
   width: number;
@@ -28,6 +28,8 @@ export interface FakeBridge extends PlatformBridge {
   simulateCapture(shot: SimulatedShot): void;
   /** Monitor indexes whose overlay asked for its frozen frame, in order. */
   readonly overlayFrameRequests: number[];
+  /** Monitor indexes whose overlay asked for its window list, in order. */
+  readonly overlayWindowRequests: number[];
   /** Monitor indexes whose overlay reported ready, in order. */
   readonly readyOverlays: number[];
   /** What the overlay finished with, in order. */
@@ -63,6 +65,8 @@ export function createFakeBridge(
     printScreenSnippingEnabled?: boolean;
     storage?: FakeStorage;
     overlayFrames?: Record<number, { width: number; height: number }>;
+    /** Windows per monitor (topmost first, native pixels local to the monitor); none by default. */
+    overlayWindows?: Record<number, OverlayRect[]>;
   } = {},
 ): FakeBridge {
   const memory = new Map<string, string>();
@@ -74,6 +78,7 @@ export function createFakeBridge(
   const takenHotkeys = new Set<string>();
   let keyboardSettingsOpened = 0;
   const overlayFrameRequests: number[] = [];
+  const overlayWindowRequests: number[] = [];
   const readyOverlays: number[] = [];
   const overlayOutcomes: OverlayOutcome[] = [];
   const magnifierHandlers = new Set<() => void>();
@@ -114,6 +119,7 @@ export function createFakeBridge(
     },
     simulateCapture,
     overlayFrameRequests,
+    overlayWindowRequests,
     readyOverlays,
     overlayOutcomes,
     get hotkey() {
@@ -169,6 +175,10 @@ export function createFakeBridge(
       const { width, height } = options.overlayFrames?.[monitor] ?? { width: 640, height: 360 };
       const shot = defaultShot();
       return { width, height, png: encodeRgbaPng(shot.width, shot.height, Uint8Array.from(shot.rgba)) };
+    },
+    overlayWindows: async (monitor) => {
+      overlayWindowRequests.push(monitor);
+      return options.overlayWindows?.[monitor] ?? [];
     },
     overlayReady: async (monitor) => {
       readyOverlays.push(monitor);

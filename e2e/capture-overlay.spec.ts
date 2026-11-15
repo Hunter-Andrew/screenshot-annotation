@@ -60,3 +60,41 @@ test("Esc cancels", async ({ page }) => {
     .poll(() => outcomes(page))
     .toEqual([{ kind: "cancel" }]);
 });
+
+test.describe("window mode", () => {
+  // Native pixels on the 640x360 frame (CSS x2): a dialog over a big window.
+  const windows = {
+    1: [
+      { x: 300, y: 100, width: 200, height: 100 }, // CSS 150,50 100x50
+      { x: 100, y: 40, width: 400, height: 280 }, // CSS 50,20 200x140
+    ],
+  };
+  const url = `/?overlayWindows=${encodeURIComponent(JSON.stringify(windows))}#overlay/1`;
+
+  test.beforeEach(async ({ page }) => {
+    await page.goto(url);
+    await expect(page.getByRole("img", { name: "Frozen screen" })).toBeVisible();
+    await expect.poll(() => page.evaluate(() => (window as unknown as Fake).__fakeBridge.readyOverlays)).toEqual([1]);
+  });
+
+  test("hovering highlights the window under the pointer and a click captures it", async ({ page }) => {
+    await page.mouse.move(60, 30); // only the big window
+    const highlight = page.getByTestId("window-highlight");
+    await expect(highlight).toBeVisible();
+    await expect(page.getByText("400 × 280")).toBeVisible();
+
+    await page.mouse.move(200, 70); // the dialog is on top here
+    await expect(page.getByText("200 × 100")).toBeVisible();
+    await page.mouse.down();
+    await page.mouse.up();
+    await expect.poll(() => outcomes(page)).toEqual([{ kind: "window", monitor: 1, window: 0 }]);
+  });
+
+  test("no highlight over the bare desktop, and a click there captures nothing", async ({ page }) => {
+    await page.mouse.move(310, 170);
+    await expect(page.getByTestId("window-highlight")).toHaveCount(0);
+    await page.mouse.down();
+    await page.mouse.up();
+    expect(await outcomes(page)).toEqual([]);
+  });
+});

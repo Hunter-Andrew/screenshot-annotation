@@ -12,7 +12,15 @@ export function selectBridge(): PlatformBridge {
   // Dev/e2e hooks: `?printScreenSnipping=off` mimics the Windows value being 0; settings persist in
   // localStorage so a reload keeps them.
   const params = new URLSearchParams(window.location.search);
+  // `?overlayWindows={"1":[{"x":..,"y":..,"width":..,"height":..}]}`: windows per monitor for the overlay.
+  let overlayWindows;
+  try {
+    overlayWindows = JSON.parse(params.get("overlayWindows") ?? "null") ?? undefined;
+  } catch {
+    overlayWindows = undefined;
+  }
   const fake = createFakeBridge({
+    overlayWindows,
     printScreenSnippingEnabled: params.get("printScreenSnipping") !== "off",
     storage: window.localStorage,
   });

@@ -298,6 +298,7 @@ pub fn run() {
             dismiss_print_screen_notice,
             open_keyboard_accessibility_settings,
             overlay::overlay_frame,
+            overlay::overlay_windows,
             overlay::overlay_ready,
             overlay::overlay_finish,
             overlay::overlay_toggle_magnifier

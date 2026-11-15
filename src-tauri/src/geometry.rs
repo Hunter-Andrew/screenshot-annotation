@@ -77,6 +77,66 @@ pub fn crop_rgba(rgba: &[u8], width: u32, height: u32, region: Region) -> Option
     Some(out)
 }
 
+/// What the OS says about one top-level window; `capture.rs` fills it in, `pickable_rects` decides.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct WindowFacts {
+    /// The native window handle (HWND), as an integer.
+    pub handle: isize,
+    /// The visible frame on the virtual screen: without the invisible resize border and the drop
+    /// shadow (DWMWA_EXTENDED_FRAME_BOUNDS on Windows), not GetWindowRect.
+    pub rect: MonitorBounds,
+    pub visible: bool,
+    pub minimized: bool,
+    /// Hidden by the shell although "visible" (other virtual desktop, suspended UWP app).
+    pub cloaked: bool,
+    /// The desktop / wallpaper host (Progman, WorkerW): not something to capture as a window.
+    pub shell_background: bool,
+}
+
+/// The rectangles of the windows that can be picked, in the order given (the OS enumerates
+/// top-level windows from the top of the z-order down, and that order is kept). `excluded` are
+/// handles that must never appear: the capture overlays themselves.
+pub fn pickable_rects(windows: &[WindowFacts], excluded: &[isize]) -> Vec<MonitorBounds> {
+    windows
+        .iter()
+        .filter(|w| {
+            w.visible
+                && !w.minimized
+                && !w.cloaked
+                && !w.shell_background
+                && w.rect.width > 0
+                && w.rect.height > 0
+                && !excluded.contains(&w.handle)
+        })
+        .map(|w| w.rect)
+        .collect()
+}
+
+/// The part of `window` (virtual-screen coordinates) that lies on `monitor`, in that monitor's
+/// local coordinates; `None` when they do not overlap. This is the "clip to the clicked monitor"
+/// rule. Done in i64 so extreme rectangles cannot overflow.
+pub fn clip_to_monitor(window: MonitorBounds, monitor: MonitorBounds) -> Option<Region> {
+    let left = (window.x as i64).max(monitor.x as i64);
+    let top = (window.y as i64).max(monitor.y as i64);
+    let right = (window.x as i64 + window.width as i64).min(monitor.x as i64 + monitor.width as i64);
+    let bottom = (window.y as i64 + window.height as i64).min(monitor.y as i64 + monitor.height as i64);
+    if right <= left || bottom <= top {
+        return None;
+    }
+    Some(Region {
+        x: (left - monitor.x as i64) as u32,
+        y: (top - monitor.y as i64) as u32,
+        width: (right - left) as u32,
+        height: (bottom - top) as u32,
+    })
+}
+
+/// The pickable windows as seen from one monitor: each clipped to it, windows that miss it
+/// dropped, z-order (top first) kept. The overlay on that monitor hit-tests this list.
+pub fn windows_on_monitor(windows: &[MonitorBounds], monitor: MonitorBounds) -> Vec<Region> {
+    windows.iter().filter_map(|w| clip_to_monitor(*w, monitor)).collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -144,5 +204,88 @@ mod tests {
     #[test]
     fn crop_rgba_rejects_a_buffer_that_does_not_match_the_size() {
         assert_eq!(crop_rgba(&[0; 8], 4, 3, Region { x: 0, y: 0, width: 1, height: 1 }), None);
+    }
+
+    // ---- window mode ----
+
+    fn rect(x: i32, y: i32, width: u32, height: u32) -> MonitorBounds {
+        MonitorBounds { x, y, width, height }
+    }
+
+    #[test]
+    fn clip_to_monitor_returns_monitor_local_coordinates_with_negative_origins() {
+        // A window fully inside the left monitor (x = -1280, y = 56): local = virtual - origin.
+        assert_eq!(
+            clip_to_monitor(rect(-1000, 100, 400, 300), LEFT),
+            Some(Region { x: 280, y: 44, width: 400, height: 300 })
+        );
+    }
+
+    #[test]
+    fn clip_to_monitor_cuts_a_window_hanging_off_the_edge() {
+        // Straddles the LEFT/PRIMARY border at x = 0: 200 px on the left monitor, 300 on the primary.
+        let straddling = rect(-200, 100, 500, 200);
+        assert_eq!(clip_to_monitor(straddling, LEFT), Some(Region { x: 1080, y: 44, width: 200, height: 200 }));
+        assert_eq!(clip_to_monitor(straddling, PRIMARY), Some(Region { x: 0, y: 100, width: 300, height: 200 }));
+        // Hangs off the top and bottom of the primary (a maximised window's invisible 8 px border).
+        assert_eq!(
+            clip_to_monitor(rect(-8, -8, 1936, 1096), PRIMARY),
+            Some(Region { x: 0, y: 0, width: 1920, height: 1080 })
+        );
+    }
+
+    #[test]
+    fn clip_to_monitor_is_none_for_a_window_on_another_monitor_or_merely_touching() {
+        assert_eq!(clip_to_monitor(rect(100, 100, 50, 50), LEFT), None);
+        assert_eq!(clip_to_monitor(rect(-300, 100, 300, 50), PRIMARY), None); // ends exactly at x = 0
+        assert_eq!(clip_to_monitor(rect(0, 0, 0, 50), PRIMARY), None);
+    }
+
+    #[test]
+    fn clip_to_monitor_does_not_overflow_on_extreme_rectangles() {
+        let huge = rect(i32::MIN, i32::MIN, u32::MAX, u32::MAX);
+        assert_eq!(
+            clip_to_monitor(huge, PRIMARY),
+            Some(Region { x: 0, y: 0, width: 1920, height: 1080 })
+        );
+    }
+
+    fn facts(handle: isize, r: MonitorBounds) -> WindowFacts {
+        WindowFacts { handle, rect: r, visible: true, minimized: false, cloaked: false, shell_background: false }
+    }
+
+    #[test]
+    fn pickable_windows_keep_z_order_and_drop_everything_that_is_not_a_visible_window() {
+        let list = [
+            WindowFacts { visible: false, ..facts(1, rect(0, 0, 100, 100)) },
+            facts(2, rect(10, 10, 100, 100)),
+            WindowFacts { minimized: true, ..facts(3, rect(-32000, -32000, 160, 28)) },
+            WindowFacts { cloaked: true, ..facts(4, rect(0, 0, 500, 500)) }, // another virtual desktop / UWP ghost
+            WindowFacts { shell_background: true, ..facts(5, rect(0, 0, 1920, 1080)) }, // the desktop itself
+            facts(6, rect(0, 0, 0, 40)),
+            facts(7, rect(300, 300, 50, 50)),
+        ];
+        assert_eq!(pickable_rects(&list, &[]), vec![rect(10, 10, 100, 100), rect(300, 300, 50, 50)]);
+    }
+
+    #[test]
+    fn pickable_windows_never_include_the_overlay_windows_themselves() {
+        let list = [facts(11, rect(-1280, 56, 1280, 1024)), facts(12, rect(0, 0, 1920, 1080)), facts(13, rect(5, 5, 50, 50))];
+        assert_eq!(pickable_rects(&list, &[11, 12]), vec![rect(5, 5, 50, 50)]);
+    }
+
+    #[test]
+    fn windows_on_monitor_clips_each_window_keeps_order_and_drops_those_elsewhere() {
+        let windows = [
+            rect(-200, 100, 500, 200), // top: straddles LEFT and PRIMARY
+            rect(2000, 0, 100, 100),   // only on ABOVE
+            rect(-1280, 56, 1280, 1024), // fills LEFT
+        ];
+        assert_eq!(
+            windows_on_monitor(&windows, LEFT),
+            vec![Region { x: 1080, y: 44, width: 200, height: 200 }, Region { x: 0, y: 0, width: 1280, height: 1024 }]
+        );
+        assert_eq!(windows_on_monitor(&windows, PRIMARY), vec![Region { x: 0, y: 100, width: 300, height: 200 }]);
+        assert_eq!(windows_on_monitor(&windows, ABOVE), vec![Region { x: 80, y: 360, width: 100, height: 100 }]);
     }
 }

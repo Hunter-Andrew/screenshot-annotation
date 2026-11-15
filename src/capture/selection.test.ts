@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dragRect, magnifierPlacement, sizeLabel, toPhysicalRegion } from "./selection";
+import { dragRect, isClick, magnifierPlacement, sizeLabel, toPhysicalRegion, windowAt } from "./selection";
 
 const viewport = { width: 1000, height: 500 };
 
@@ -80,5 +80,47 @@ describe("magnifierPlacement", () => {
   });
   it("flips to the other side near the right and bottom edges", () => {
     expect(magnifierPlacement({ x: 950, y: 480 }, viewport, box)).toEqual({ x: 810, y: 340 });
+  });
+});
+
+describe("windowAt (the window under the pointer, by z-order)", () => {
+  // Native pixels, local to the monitor, topmost window first: a dialog over a big window over a
+  // window that hangs off the left edge (already clipped to the monitor by the platform).
+  const windows = [
+    { x: 400, y: 300, width: 200, height: 100 },
+    { x: 100, y: 100, width: 800, height: 600 },
+    { x: 0, y: 50, width: 300, height: 900 },
+  ];
+
+  it("picks the topmost window containing the point, so a dialog wins over what is behind it", () => {
+    expect(windowAt(windows, { x: 450, y: 350 })).toBe(0);
+    expect(windowAt(windows, { x: 700, y: 650 })).toBe(1);
+    expect(windowAt(windows, { x: 50, y: 800 })).toBe(2);
+  });
+
+  it("where windows overlap, the upper one wins", () => {
+    expect(windowAt(windows, { x: 200, y: 200 })).toBe(1); // inside windows 1 and 2
+  });
+
+  it("includes a window's top-left pixel and excludes its far edge", () => {
+    expect(windowAt(windows, { x: 400, y: 300 })).toBe(0);
+    expect(windowAt(windows, { x: 599, y: 399 })).toBe(0);
+    expect(windowAt(windows, { x: 600, y: 399 })).toBe(1);
+  });
+
+  it("is null over the bare desktop", () => {
+    expect(windowAt(windows, { x: 950, y: 10 })).toBeNull();
+    expect(windowAt([], { x: 1, y: 1 })).toBeNull();
+  });
+});
+
+describe("isClick (a press and release that barely moved is a click, not a region)", () => {
+  it("tolerates a few pixels of jitter", () => {
+    expect(isClick({ x: 100, y: 100 }, { x: 102, y: 99 })).toBe(true);
+    expect(isClick({ x: 100, y: 100 }, { x: 100, y: 100 })).toBe(true);
+  });
+  it("is a drag once the pointer has moved noticeably", () => {
+    expect(isClick({ x: 100, y: 100 }, { x: 108, y: 100 })).toBe(false);
+    expect(isClick({ x: 100, y: 100 }, { x: 100, y: 90 })).toBe(false);
   });
 });

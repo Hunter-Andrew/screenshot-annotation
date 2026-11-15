@@ -24,9 +24,19 @@ export interface OverlayFrame {
 /** What the user did in the capture overlay. Coordinates are native pixels, local to the monitor. */
 export type OverlayOutcome =
   | { kind: "region"; monitor: number; region: { x: number; y: number; width: number; height: number } }
+  /** A click on a highlighted window: `window` indexes the list `overlayWindows(monitor)` returned. */
+  | { kind: "window"; monitor: number; window: number }
   /** Space: the monitor under the mouse pointer (the platform knows where the pointer is). */
   | { kind: "monitor" }
   | { kind: "cancel" };
+
+/** A rectangle in native pixels local to one monitor. */
+export interface OverlayRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
 
 export interface PlatformBridge {
   /** The installed app version, e.g. "0.1.0". */
@@ -54,6 +64,12 @@ export interface PlatformBridge {
   // Capture overlay (one window per monitor, each showing its frozen frame).
   /** The frozen frame of monitor `monitor` (its index in the platform's monitor list). */
   overlayFrame(monitor: number): Promise<OverlayFrame>;
+  /**
+   * The windows visible on monitor `monitor` at the moment of the hotkey, topmost first, as visible
+   * rectangles (no shadow) clipped to that monitor, in native pixels local to it. The overlay
+   * hit-tests this list; the platform keeps its own copy and never trusts the index it gets back.
+   */
+  overlayWindows(monitor: number): Promise<OverlayRect[]>;
   /** The overlay of `monitor` has its frame on screen; the platform may now show the window. */
   overlayReady(monitor: number): Promise<void>;
   /** Finish the capture. The platform closes every overlay and delivers the Capture via `onCapture`. */
