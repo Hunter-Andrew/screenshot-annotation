@@ -1,7 +1,14 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { formatStamp } from "../shared/stamp";
-import type { CaptureResult, HotkeyState, OverlayFrame, OverlayRect, PlatformBridge } from "./bridge";
+import type {
+  CaptureResult,
+  HotkeyState,
+  LibraryFile,
+  OverlayFrame,
+  OverlayRect,
+  PlatformBridge,
+} from "./bridge";
 
 /**
  * Decode the `take_capture` body (see `pack_capture` in src-tauri/src/lib.rs): u32 LE width,
@@ -32,6 +39,18 @@ function asBuffer(reply: unknown): ArrayBuffer {
   if (ArrayBuffer.isView(reply)) return new Uint8Array(reply.buffer, reply.byteOffset, reply.byteLength).slice().buffer;
   if (Array.isArray(reply)) return Uint8Array.from(reply).buffer;
   throw new Error(`unexpected reply from the app (${typeof reply})`);
+}
+
+/**
+ * Decode `library_open_latest` (see `pack_library_file` in src-tauri/src/library.rs): u32 LE byte
+ * length of the path, the path as UTF-8, then the PNG. Empty means the Library has no image.
+ */
+export function unpackLibraryFile(reply: ArrayBuffer): LibraryFile | null {
+  const body = asBuffer(reply);
+  if (body.byteLength < 4) return null;
+  const pathLength = new DataView(body).getUint32(0, true);
+  const path = new TextDecoder().decode(new Uint8Array(body, 4, pathLength));
+  return { path, png: new Uint8Array(body, 4 + pathLength) };
 }
 
 export function unpackFrame(reply: ArrayBuffer): OverlayFrame {
@@ -81,6 +100,11 @@ export function createTauriBridge(): PlatformBridge {
     copyImage: (png) => invoke<void>("copy_image", png),
     saveToLibrary: (png, capturedAt) =>
       invoke<string>("library_save", png, { headers: { "x-captured-at": formatStamp(capturedAt) } }),
+    // The path travels in a header, which cannot carry arbitrary characters: percent-encode it.
+    updateLibraryFile: (path, png) =>
+      invoke<void>("library_update", png, { headers: { "x-library-path": encodeURIComponent(path) } }),
+    openLatestLibraryImage: async () => unpackLibraryFile(await invoke<ArrayBuffer>("library_open_latest")),
+    openSettings: () => invoke<void>("open_settings"),
     overlayFrame: async (monitor) => unpackFrame(await invoke<ArrayBuffer>("overlay_frame", { monitor })),
     overlayWindows: (monitor) => invoke<OverlayRect[]>("overlay_windows", { monitor }),
     overlayReady: (monitor) => invoke<void>("overlay_ready", { monitor }),

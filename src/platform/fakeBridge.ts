@@ -1,6 +1,6 @@
 import { encodeRgbaPng } from "../core/png";
 import { formatStamp } from "../shared/stamp";
-import type { CaptureResult, OverlayOutcome, OverlayRect, PlatformBridge } from "./bridge";
+import type { CaptureResult, LibraryFile, OverlayOutcome, OverlayRect, PlatformBridge } from "./bridge";
 
 export interface SimulatedShot {
   width: number;
@@ -22,6 +22,12 @@ export interface FakeBridge extends PlatformBridge {
   readonly savedAs: { suggestedName: string; path: string; bytes: Uint8Array }[];
   /** Library paths moved to the Recycle Bin, in order (they leave `libraryFiles`). */
   readonly discardedPaths: string[];
+  /** Every auto-save `updateLibraryFile` call that succeeded, in order. */
+  readonly libraryUpdates: { path: string; bytes: Uint8Array }[];
+  /** The next `updateLibraryFile` rejects with this message. */
+  failNextLibraryUpdate(message: string): void;
+  /** How many times the editor asked to open Settings (the gear button). */
+  readonly settingsOpened: number;
   /** The next Save as PNG… behaves as if the user cancelled the dialog. */
   cancelNextSaveAs(): void;
   /** The next Discard rejects with this message. */
@@ -58,6 +64,16 @@ export interface FakeBridge extends PlatformBridge {
 
 /** Fake setting storage; the browser build passes localStorage so e2e reloads keep it. */
 export type FakeStorage = Pick<Storage, "getItem" | "setItem">;
+
+function toBase64(bytes: Uint8Array): string {
+  let text = "";
+  for (let i = 0; i < bytes.length; i += 0x8000) text += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(text);
+}
+
+function fromBase64(text: string): Uint8Array {
+  return Uint8Array.from(atob(text), (c) => c.charCodeAt(0));
+}
 
 /** What `startCapture` produces unless a test says otherwise: a small gradient. */
 function defaultShot(): SimulatedShot {
@@ -105,8 +121,31 @@ export function createFakeBridge(
   const openedUrls: string[] = [];
   const copiedImages: Uint8Array[] = [];
   const libraryFiles: { path: string; bytes: Uint8Array }[] = [];
+  const libraryUpdates: { path: string; bytes: Uint8Array }[] = [];
+  // Order in which Library files were last written; the newest is what `openLatestLibraryImage` returns.
+  const writtenAt = new Map<string, number>();
+  let writeCounter = 0;
+  let libraryUpdateFailure: string | null = null;
+  let settingsOpened = 0;
   const savedAs: FakeBridge["savedAs"] = [];
   const discardedPaths: string[] = [];
+  // With a persistent store (the browser build), Library files survive a page reload, like the real
+  // Library survives a restart.
+  const persistLibrary = () =>
+    store.setItem(
+      "fake.library",
+      JSON.stringify(libraryFiles.map((f) => ({ path: f.path, b64: toBase64(f.bytes), at: writtenAt.get(f.path) ?? 0 }))),
+    );
+  try {
+    const saved = JSON.parse(store.getItem("fake.library") ?? "[]") as { path: string; b64: string; at: number }[];
+    for (const f of saved) {
+      libraryFiles.push({ path: f.path, bytes: fromBase64(f.b64) });
+      writtenAt.set(f.path, f.at);
+      writeCounter = Math.max(writeCounter, f.at);
+    }
+  } catch {
+    // An unreadable store is an empty Library.
+  }
   let cancelSaveAs = false;
   let discardFailure: string | null = null;
   const handlers = new Set<(capture: CaptureResult) => void>();
@@ -134,6 +173,13 @@ export function createFakeBridge(
     libraryFiles,
     savedAs,
     discardedPaths,
+    libraryUpdates,
+    failNextLibraryUpdate: (message) => {
+      libraryUpdateFailure = message;
+    },
+    get settingsOpened() {
+      return settingsOpened;
+    },
     cancelNextSaveAs: () => {
       cancelSaveAs = true;
     },
@@ -207,7 +253,30 @@ export function createFakeBridge(
         path = `${stamp.slice(0, 7)}\\${stamp}-${n}.png`;
       }
       libraryFiles.push({ path, bytes: png });
+      writtenAt.set(path, ++writeCounter);
+      persistLibrary();
       return path;
+    },
+    updateLibraryFile: async (path, png) => {
+      if (libraryUpdateFailure !== null) {
+        const message = libraryUpdateFailure;
+        libraryUpdateFailure = null;
+        throw new Error(message);
+      }
+      // Like the real Library: replaces an existing file, never creates one.
+      const file = libraryFiles.find((f) => f.path === path);
+      if (!file) throw new Error("not a file in the Library");
+      file.bytes = png;
+      writtenAt.set(path, ++writeCounter);
+      libraryUpdates.push({ path, bytes: png });
+      persistLibrary();
+    },
+    openLatestLibraryImage: async (): Promise<LibraryFile | null> => {
+      const newest = [...libraryFiles].sort((a, b) => (writtenAt.get(b.path) ?? 0) - (writtenAt.get(a.path) ?? 0))[0];
+      return newest ? { path: newest.path, png: newest.bytes } : null;
+    },
+    openSettings: async () => {
+      settingsOpened++;
     },
     overlayFrame: async (monitor) => {
       overlayFrameRequests.push(monitor);
@@ -266,7 +335,9 @@ export function createFakeBridge(
       const index = libraryFiles.findIndex((f) => f.path === path);
       if (index < 0) throw new Error("not in the Library");
       libraryFiles.splice(index, 1);
+      writtenAt.delete(path);
       discardedPaths.push(path);
+      persistLibrary();
     },
   };
 }

@@ -114,6 +114,62 @@ pub fn library_file_in(root: &Path, path: &Path) -> Option<PathBuf> {
     (png && real.is_file() && real != root && real.starts_with(&root)).then(|| without_verbatim_prefix(real))
 }
 
+/// Auto-save: replace the contents of an existing Library PNG (atomically). Refuses anything
+/// `library_file_in` refuses, and never creates a file: an image that was discarded (or deleted in
+/// Explorer) while a save was pending stays gone instead of coming back.
+pub fn update_existing(root: &Path, path: &Path, bytes: &[u8]) -> Result<PathBuf, String> {
+    let file = library_file_in(root, path).ok_or("not a file in the Library")?;
+    write_atomic(&file, bytes).map_err(|e| e.to_string())?;
+    Ok(file)
+}
+
+/// Decode `%XX` escapes (UTF-8): paths travel in an HTTP header as `encodeURIComponent` output,
+/// because header values cannot carry arbitrary characters. None for a malformed escape or bad UTF-8.
+pub fn percent_decode(text: &str) -> Option<String> {
+    let bytes = text.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] == b'%' {
+            let hex = text.get(i + 1..i + 3)?;
+            out.push(u8::from_str_radix(hex, 16).ok()?);
+            i += 3;
+        } else {
+            out.push(bytes[i]);
+            i += 1;
+        }
+    }
+    String::from_utf8(out).ok()
+}
+
+/// The most recently written `.png` in the Library (one folder level down, plus the root itself),
+/// or None if there is none. Ties go to the greater path. This is what the editor reopens on start.
+pub fn latest_png(root: &Path) -> Option<PathBuf> {
+    let mut dirs = vec![root.to_path_buf()];
+    if let Ok(entries) = std::fs::read_dir(root) {
+        dirs.extend(entries.flatten().map(|e| e.path()).filter(|p| p.is_dir()));
+    }
+    dirs.iter()
+        .filter_map(|dir| std::fs::read_dir(dir).ok())
+        .flat_map(|entries| entries.flatten())
+        .map(|e| e.path())
+        .filter(|p| p.extension().is_some_and(|e| e.eq_ignore_ascii_case("png")) && p.is_file())
+        .filter_map(|p| Some((p.metadata().ok()?.modified().ok()?, p)))
+        .max()
+        .map(|(_, path)| path)
+}
+
+/// The reply of `library_open_latest`: u32 LE byte length of the path, the path (UTF-8), then the PNG.
+/// `unpackLibraryFile` in src/platform/tauriBridge.ts reads it.
+pub fn pack_library_file(path: &Path, png: &[u8]) -> Vec<u8> {
+    let path = path.to_string_lossy();
+    let mut out = Vec::with_capacity(4 + path.len() + png.len());
+    out.extend_from_slice(&(path.len() as u32).to_le_bytes());
+    out.extend_from_slice(path.as_bytes());
+    out.extend_from_slice(png);
+    out
+}
+
 /// A file name for the Save as PNG… dialog to suggest: letters, digits, space, `-`, `_` and `.` only.
 pub fn dialog_file_name(requested: &str) -> String {
     let ok = !requested.is_empty()
@@ -314,6 +370,99 @@ mod tests {
         assert!(target.exists());
         let _ = std::fs::remove_dir_all(&root);
         let _ = std::fs::remove_dir_all(&outside_dir);
+    }
+
+    fn set_mtime(path: &Path, secs: u64) {
+        let file = std::fs::OpenOptions::new().write(true).open(path).unwrap();
+        file.set_modified(std::time::UNIX_EPOCH + std::time::Duration::from_secs(secs)).unwrap();
+    }
+
+    #[test]
+    fn update_existing_replaces_a_library_file_atomically() {
+        let root = scratch("update");
+        let file = root.join("2026-11").join("2026-11-15 134501.png");
+        touch(&file);
+
+        let written = update_existing(&root, &file, b"annotated").unwrap();
+
+        assert_eq!(std::fs::read(&written).unwrap(), b"annotated");
+        let names: Vec<_> = std::fs::read_dir(root.join("2026-11")).unwrap().map(|e| e.unwrap().file_name()).collect();
+        assert_eq!(names, vec![std::ffi::OsString::from("2026-11-15 134501.png")]);
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn update_existing_never_creates_a_file_so_a_discarded_image_stays_gone() {
+        let root = scratch("update-gone");
+        std::fs::create_dir_all(root.join("2026-11")).unwrap();
+        let gone = root.join("2026-11").join("2026-11-15 134501.png");
+
+        assert!(update_existing(&root, &gone, b"late autosave").is_err());
+
+        assert!(!gone.exists());
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn update_existing_refuses_paths_outside_the_library_and_non_png_files() {
+        let root = scratch("update-guard");
+        let outside = root.parent().unwrap().join(format!("update-outside-{}.png", std::process::id()));
+        touch(&outside);
+        let notes = root.join("2026-11").join("notes.txt");
+        touch(&notes);
+
+        assert!(update_existing(&root, &outside, b"x").is_err());
+        assert!(update_existing(&root, &notes, b"x").is_err());
+        assert_eq!(std::fs::read(&outside).unwrap(), b"png");
+        let _ = std::fs::remove_file(&outside);
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn percent_decoding_restores_a_path_sent_in_a_header() {
+        assert_eq!(percent_decode("C%3A%5CUsers%5CJos%C3%A9%5Ca%20b.png").as_deref(), Some("C:\\Users\\Jos\u{e9}\\a b.png"));
+        assert_eq!(percent_decode("plain-name.png").as_deref(), Some("plain-name.png"));
+        for bad in ["%", "%4", "%zz", "%FF%FE"] {
+            assert_eq!(percent_decode(bad), None, "{bad:?}");
+        }
+    }
+
+    #[test]
+    fn the_latest_image_is_the_most_recently_written_png_in_any_month_folder() {
+        let root = scratch("latest");
+        let older = root.join("2026-10").join("2026-10-31 090000.png");
+        let newer = root.join("2026-11").join("2026-11-01 090000.png");
+        let edited_later = root.join("2026-10").join("2026-10-30 090000.png");
+        for (file, secs) in [(&older, 100), (&newer, 200), (&edited_later, 300)] {
+            touch(file);
+            set_mtime(file, secs);
+        }
+        touch(&root.join("2026-11").join("notes.txt"));
+        set_mtime(&root.join("2026-11").join("notes.txt"), 900);
+        touch(&root.join("2026-11").join(".2026-11-02 090000.png.tmp"));
+        set_mtime(&root.join("2026-11").join(".2026-11-02 090000.png.tmp"), 900);
+
+        assert_eq!(latest_png(&root), Some(edited_later.clone()));
+
+        set_mtime(&newer, 400);
+        assert_eq!(latest_png(&root), Some(newer));
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn there_is_no_latest_image_in_an_empty_or_missing_library() {
+        let root = scratch("latest-empty");
+        assert_eq!(latest_png(&root), None);
+        assert_eq!(latest_png(&root.join("does-not-exist")), None);
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn a_library_file_is_packed_as_path_length_path_then_png() {
+        let packed = pack_library_file(Path::new("C:\\Pics\\a.png"), b"PNGDATA");
+        assert_eq!(&packed[..4], &[13, 0, 0, 0]);
+        assert_eq!(&packed[4..17], b"C:\\Pics\\a.png");
+        assert_eq!(&packed[17..], b"PNGDATA");
     }
 
     #[test]

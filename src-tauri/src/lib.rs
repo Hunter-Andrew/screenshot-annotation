@@ -334,6 +334,46 @@ fn library_discard(app: AppHandle, path: String) -> Result<(), String> {
     library::move_to_recycle_bin(&file)
 }
 
+/// Auto-save: replaces the contents of an existing Library PNG with the raw body (the Library PNG,
+/// which carries the editable data; `require_png` only). The `x-library-path` header holds the path
+/// as `encodeURIComponent` output. Refuses anything that is not an existing `.png` in the Library and
+/// never creates a file, so a discarded image cannot be resurrected by a late save.
+#[tauri::command]
+fn library_update(app: AppHandle, request: Request<'_>) -> Result<(), String> {
+    let InvokeBody::Raw(bytes) = request.body() else {
+        return Err("expected raw PNG bytes".into());
+    };
+    png_guard::require_png(bytes)?;
+    let path = request
+        .headers()
+        .get("x-library-path")
+        .and_then(|v| v.to_str().ok())
+        .and_then(library::percent_decode)
+        .ok_or("missing or malformed x-library-path header")?;
+    let root = library_root(&app)?;
+    library::update_existing(&root, std::path::Path::new(&path), bytes)?;
+    Ok(())
+}
+
+/// The most recently written Library PNG, for the editor to reopen on start (see
+/// `pack_library_file`); an empty body when the Library has none. The Library Strip (ticket 14)
+/// supersedes this with a real list.
+#[tauri::command]
+fn library_open_latest(app: AppHandle) -> Result<Response, String> {
+    let root = library_root(&app)?;
+    let Some(path) = library::latest_png(&root).and_then(|p| library::library_file_in(&root, &p)) else {
+        return Ok(Response::new(Vec::new()));
+    };
+    let png = std::fs::read(&path).map_err(|e| e.to_string())?;
+    Ok(Response::new(library::pack_library_file(&path, &png)))
+}
+
+/// Opens the Settings window (the editor's gear button).
+#[tauri::command]
+fn open_settings(app: AppHandle) {
+    show_settings(&app);
+}
+
 /// Save as PNG…: shows the Windows save dialog (suggesting the `x-suggested-name` header) and
 /// writes the raw PNG body, a plain Export, where the user chooses. Returns the path, or null if
 /// they cancelled. Async so the blocking dialog does not stall the main thread.
@@ -391,6 +431,7 @@ fn show_editor(app: &AppHandle) {
     let _ = WebviewWindowBuilder::new(app, EDITOR_LABEL, WebviewUrl::App("index.html".into()))
         .title("Screenshot Annotation")
         .inner_size(1100.0, 720.0)
+        .min_inner_size(760.0, 480.0)
         .build();
 }
 
@@ -456,6 +497,9 @@ pub fn run() {
             copy_image,
             library_save,
             library_discard,
+            library_update,
+            library_open_latest,
+            open_settings,
             save_png_as,
             get_hotkey,
             set_hotkey,

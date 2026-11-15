@@ -20,6 +20,12 @@ export interface CaptureResult {
   clipboard?: "copied" | "failed";
 }
 
+/** A Library PNG read back from disk: its path and its bytes (which carry the editable data). */
+export interface LibraryFile {
+  path: string;
+  png: Uint8Array;
+}
+
 /** One monitor frozen at the moment of the hotkey: a plain PNG at the monitor's native resolution. */
 export interface OverlayFrame {
   width: number;
@@ -78,6 +84,20 @@ export interface PlatformBridge {
    * (never overwriting; a -2, -3 suffix on collision, written atomically). Returns the path.
    */
   saveToLibrary(png: Uint8Array, capturedAt: Date): Promise<string>;
+  /**
+   * Auto-save: replace the contents of the existing Library PNG at `path` (a path `saveToLibrary` or
+   * `openLatestLibraryImage` returned) with `png`, atomically (temp file, then replace). Rejects, and
+   * never creates a file, if `path` is not an existing PNG in the Library: an image that was discarded
+   * while a save was pending stays gone.
+   */
+  updateLibraryFile(path: string, png: Uint8Array): Promise<void>;
+  /**
+   * The most recently written Library PNG, or null if the Library is empty: what the editor reopens
+   * on start so edits survive a restart. (The Library Strip, ticket 14, supersedes this with a list.)
+   */
+  openLatestLibraryImage(): Promise<LibraryFile | null>;
+  /** Open the Settings window (the editor's gear button). */
+  openSettings(): Promise<void>;
 
   // Capture overlay (one window per monitor, each showing its frozen frame).
   /** The frozen frame of monitor `monitor` (its index in the platform's monitor list). */
