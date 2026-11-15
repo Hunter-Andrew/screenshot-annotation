@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { formatStamp } from "../shared/stamp";
-import type { CaptureResult, PlatformBridge } from "./bridge";
+import type { CaptureResult, HotkeyState, PlatformBridge } from "./bridge";
 
 /**
  * Decode the `take_capture` body (see `pack_capture` in src-tauri/src/lib.rs): u32 LE width,
@@ -35,6 +35,19 @@ export function createTauriBridge(): PlatformBridge {
       await deliverPending();
       return unlisten;
     },
+    getHotkey: () => invoke<HotkeyState>("get_hotkey"),
+    setHotkey: async (accelerator) => {
+      try {
+        await invoke<void>("set_hotkey", { accelerator });
+        return { ok: true };
+      } catch (e) {
+        return { ok: false, reason: e === "conflict" || e === "invalid" ? e : "failed" };
+      }
+    },
+    getPrintScreenNotice: () =>
+      invoke<{ snippingEnabled: boolean; dismissed: boolean }>("get_print_screen_notice"),
+    dismissPrintScreenNotice: () => invoke<void>("dismiss_print_screen_notice"),
+    openKeyboardAccessibilitySettings: () => invoke<void>("open_keyboard_accessibility_settings"),
     copyImage: (png) => invoke<void>("copy_image", png),
     saveToLibrary: (png, capturedAt) =>
       invoke<string>("library_save", png, { headers: { "x-captured-at": formatStamp(capturedAt) } }),

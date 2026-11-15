@@ -18,7 +18,16 @@ export interface FakeBridge extends PlatformBridge {
   readonly libraryFiles: { path: string; bytes: Uint8Array }[];
   /** Deliver a Capture as if the hotkey had been pressed. */
   simulateCapture(shot: SimulatedShot): void;
+  /** The registered capture hotkey (accelerator). */
+  readonly hotkey: string;
+  /** Combinations "another app" owns; `setHotkey` reports a conflict for these. Mutable by tests. */
+  readonly takenHotkeys: Set<string>;
+  /** How many times the Accessibility > Keyboard deep link was opened. */
+  readonly keyboardSettingsOpened: number;
 }
+
+/** Fake setting storage; the browser build passes localStorage so e2e reloads keep it. */
+export type FakeStorage = Pick<Storage, "getItem" | "setItem">;
 
 /** What `startCapture` produces unless a test says otherwise: a small gradient. */
 function defaultShot(): SimulatedShot {
@@ -33,7 +42,22 @@ function defaultShot(): SimulatedShot {
   return { width, height, rgba };
 }
 
-export function createFakeBridge(options: { version?: string } = {}): FakeBridge {
+export function createFakeBridge(
+  options: {
+    version?: string;
+    /** Windows' PrintScreenKeyForSnippingEnabled reads as on (the default) or explicitly 0. */
+    printScreenSnippingEnabled?: boolean;
+    storage?: FakeStorage;
+  } = {},
+): FakeBridge {
+  const memory = new Map<string, string>();
+  const store: FakeStorage = options.storage ?? {
+    getItem: (k) => memory.get(k) ?? null,
+    setItem: (k, v) => void memory.set(k, v),
+  };
+  let hotkey = store.getItem("fake.hotkey") ?? "ctrl+shift+s";
+  const takenHotkeys = new Set<string>();
+  let keyboardSettingsOpened = 0;
   const openedUrls: string[] = [];
   const copiedImages: Uint8Array[] = [];
   const libraryFiles: { path: string; bytes: Uint8Array }[] = [];
@@ -58,6 +82,29 @@ export function createFakeBridge(options: { version?: string } = {}): FakeBridge
     copiedImages,
     libraryFiles,
     simulateCapture,
+    get hotkey() {
+      return hotkey;
+    },
+    takenHotkeys,
+    get keyboardSettingsOpened() {
+      return keyboardSettingsOpened;
+    },
+    getHotkey: async () => ({ accelerator: hotkey, registered: true }),
+    setHotkey: async (accelerator) => {
+      if (accelerator === hotkey) return { ok: true };
+      if (takenHotkeys.has(accelerator)) return { ok: false, reason: "conflict" };
+      hotkey = accelerator;
+      store.setItem("fake.hotkey", accelerator);
+      return { ok: true };
+    },
+    getPrintScreenNotice: async () => ({
+      snippingEnabled: options.printScreenSnippingEnabled ?? true,
+      dismissed: store.getItem("fake.printScreenNoticeDismissed") === "1",
+    }),
+    dismissPrintScreenNotice: async () => store.setItem("fake.printScreenNoticeDismissed", "1"),
+    openKeyboardAccessibilitySettings: async () => {
+      keyboardSettingsOpened++;
+    },
     getVersion: async () => options.version ?? "0.0.0-fake",
     openUrl: async (url) => {
       openedUrls.push(url);

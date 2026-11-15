@@ -1,6 +1,9 @@
 mod capture;
 mod capture_image;
+mod hotkey;
 mod library;
+mod print_screen;
+mod settings;
 mod url_guard;
 
 use std::sync::Mutex;
@@ -13,16 +16,54 @@ use tauri::{
     AppHandle, Emitter, Manager, RunEvent, WebviewUrl, WebviewWindowBuilder,
 };
 use tauri_plugin_clipboard_manager::ClipboardExt;
-use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
+use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 
 const SETTINGS_LABEL: &str = "settings";
 const EDITOR_LABEL: &str = "editor";
-/// Default capture hotkey (spec: Ctrl+Shift+S). Rebinding arrives with ticket 08.
-const CAPTURE_HOTKEY: &str = "ctrl+shift+s";
 /// Event telling the editor a Capture is waiting; it then calls `take_capture`.
 const CAPTURE_READY_EVENT: &str = "capture-ready";
 /// How long the editor stays hidden before the screen is read, so it is not in the picture.
 const HIDE_SETTLE: Duration = Duration::from_millis(150);
+
+/// The settings file's folder and its in-memory copy (see `settings.rs`).
+struct AppSettings {
+    dir: std::path::PathBuf,
+    data: Mutex<settings::Settings>,
+}
+
+/// `hotkey::ShortcutRegistry` over the global-shortcut plugin (RegisterHotKey on Windows).
+struct PluginRegistry<'a>(&'a AppHandle);
+
+impl hotkey::ShortcutRegistry for PluginRegistry<'_> {
+    fn register(&self, accelerator: &str) -> Result<(), hotkey::RegisterError> {
+        let shortcut: Shortcut = accelerator.parse().map_err(|_| hotkey::RegisterError::Invalid)?;
+        self.0.global_shortcut().register(shortcut).map_err(|_| hotkey::RegisterError::Taken)
+    }
+    fn unregister(&self, accelerator: &str) {
+        if let Ok(shortcut) = accelerator.parse::<Shortcut>() {
+            let _ = self.0.global_shortcut().unregister(shortcut);
+        }
+    }
+    fn is_registered(&self, accelerator: &str) -> bool {
+        accelerator
+            .parse::<Shortcut>()
+            .is_ok_and(|shortcut| self.0.global_shortcut().is_registered(shortcut))
+    }
+}
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct HotkeyState {
+    accelerator: String,
+    registered: bool,
+}
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PrintScreenNotice {
+    snipping_enabled: bool,
+    dismissed: bool,
+}
 
 /// A Capture waiting for the editor to pick it up, in the wire format of `take_capture`.
 #[derive(Default)]
@@ -52,6 +93,56 @@ fn open_url(url: String) -> Result<(), String> {
         return Err("URL not allowed".into());
     }
     tauri_plugin_opener::open_url(url, None::<&str>).map_err(|e| e.to_string())
+}
+
+/// The capture hotkey and whether the OS accepted it (false: another app has it).
+#[tauri::command]
+fn get_hotkey(app: AppHandle, state: tauri::State<'_, AppSettings>) -> HotkeyState {
+    use hotkey::ShortcutRegistry;
+    let accelerator = state.data.lock().unwrap().hotkey.clone();
+    let registered = PluginRegistry(&app).is_registered(&accelerator);
+    HotkeyState { accelerator, registered }
+}
+
+/// Re-registers the capture hotkey and saves it. Errors: "conflict" (another app owns it; the old
+/// hotkey stays), "invalid", "failed" (could not save; the old hotkey stays).
+#[tauri::command]
+fn set_hotkey(app: AppHandle, state: tauri::State<'_, AppSettings>, accelerator: String) -> Result<(), String> {
+    let mut data = state.data.lock().unwrap();
+    let old = data.hotkey.clone();
+    let mut next = data.clone();
+    next.hotkey = accelerator.clone();
+    hotkey::change_hotkey(&PluginRegistry(&app), &old, &accelerator, || settings::save(&state.dir, &next))
+        .map_err(String::from)?;
+    data.hotkey = accelerator;
+    Ok(())
+}
+
+/// Whether Windows still gives Print Screen to Snipping Tool (read-only registry check), and
+/// whether the one-time notice was already answered.
+#[tauri::command]
+fn get_print_screen_notice(state: tauri::State<'_, AppSettings>) -> PrintScreenNotice {
+    PrintScreenNotice {
+        snipping_enabled: print_screen::snipping_enabled(),
+        dismissed: state.data.lock().unwrap().print_screen_notice_dismissed,
+    }
+}
+
+#[tauri::command]
+fn dismiss_print_screen_notice(state: tauri::State<'_, AppSettings>) -> Result<(), String> {
+    let mut data = state.data.lock().unwrap();
+    let mut next = data.clone();
+    next.print_screen_notice_dismissed = true;
+    settings::save(&state.dir, &next).map_err(|e| e.to_string())?;
+    *data = next;
+    Ok(())
+}
+
+/// Opens Windows Settings > Accessibility > Keyboard. A fixed target, deliberately not routed
+/// through `open_url`, whose allowlist stays limited to the Releases page (ADR 0006).
+#[tauri::command]
+fn open_keyboard_accessibility_settings() -> Result<(), String> {
+    tauri_plugin_opener::open_url(print_screen::SETTINGS_URI, None::<&str>).map_err(|e| e.to_string())
 }
 
 /// Capture the monitor under the cursor (what the hotkey does) and hand it to the editor.
@@ -112,7 +203,7 @@ fn show_settings(app: &AppHandle) {
     }
     let _ = WebviewWindowBuilder::new(app, SETTINGS_LABEL, WebviewUrl::App("index.html#settings".into()))
         .title("Settings")
-        .inner_size(420.0, 300.0)
+        .inner_size(460.0, 440.0)
         .resizable(false)
         .build();
 }
@@ -172,7 +263,12 @@ pub fn run() {
             start_capture,
             take_capture,
             copy_image,
-            library_save
+            library_save,
+            get_hotkey,
+            set_hotkey,
+            get_print_screen_notice,
+            dismiss_print_screen_notice,
+            open_keyboard_accessibility_settings
         ])
         .setup(|app| {
             app.handle().plugin(
@@ -184,9 +280,17 @@ pub fn run() {
                     })
                     .build(),
             )?;
-            // A taken hotkey must not stop the app from starting; the conflict warning is ticket 08.
-            if let Err(e) = app.global_shortcut().register(CAPTURE_HOTKEY) {
-                eprintln!("could not register {CAPTURE_HOTKEY}: {e}");
+            let dir = app.path().app_data_dir()?;
+            let loaded = settings::load(&dir);
+            // A taken hotkey must not stop the app from starting; Settings shows the conflict warning.
+            if let Err(e) = app.global_shortcut().register(loaded.hotkey.as_str()) {
+                eprintln!("could not register {}: {e}", loaded.hotkey);
+            }
+            let notice_pending = !loaded.print_screen_notice_dismissed && print_screen::snipping_enabled();
+            app.manage(AppSettings { dir, data: Mutex::new(loaded) });
+            if notice_pending {
+                // First run: open Settings, where the one-time Print Screen notice lives.
+                show_settings(app.handle());
             }
 
             let capture = MenuItem::with_id(app, "capture", "Capture", true, None::<&str>)?;

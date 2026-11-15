@@ -26,6 +26,8 @@ mod tests {
         assert!(!is_allowed("http://github.com/Hunter-Andrew/screenshot-annotation/releases"));
         assert!(!is_allowed("https://github.com/Hunter-Andrew/screenshot-annotation/releases.evil.com"));
         assert!(!is_allowed("https://github.com/Hunter-Andrew/screenshot-annotation/releases@evil.com"));
+        // The Settings deep link has its own command; the allowlist must not grow for it.
+        assert!(!is_allowed("ms-settings:easeofaccess-keyboard"));
         assert!(!is_allowed("file:///C:/Windows/System32/calc.exe"));
         assert!(!is_allowed(""));
     }

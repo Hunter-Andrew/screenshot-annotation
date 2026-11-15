@@ -25,6 +25,8 @@ Each item shows the milestone it applies from: **M0** (v0.1.0), **M1** (v0.2.0),
 - [ ] **M1** Every capture appears in `Pictures\Screenshot Annotation\YYYY-MM\YYYY-MM-DD HHmmss.png` straight away. The file opens in Explorer and Photos showing the capture. Two captures in the same second get `-2` on the second. No `.tmp` files are left behind.
 - [ ] **M1** Close the editor, then confirm the hotkey still works from the tray.
 - [ ] **M1** Sign out and back in; confirm the tray icon returns.
+- [ ] **M1** Hotkey setting: in Settings click the hotkey field, press a new combination (for example Ctrl+Alt+K), and it shows at once and works without a restart (the old combination no longer does). Restart the app: the new hotkey is still in force. Pressing a combination another app owns (try Win+E or a hotkey from another running tool) shows a warning and leaves the old hotkey working.
+- [ ] **M1** Print Screen notice: with Windows' "Use the Print screen button to open screen capturing" on, a fresh install opens Settings with the notice. "Open Windows setting" opens Settings > Accessibility > Keyboard (the app writes nothing there; flip the toggle yourself, then record Print Screen as the hotkey and check it opens the overlay and not Snipping Tool). The notice does not come back after either button, and not at all when the toggle was already off.
 
 ## Copy and paste
 
