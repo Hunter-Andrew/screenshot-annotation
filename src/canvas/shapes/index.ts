@@ -1,13 +1,14 @@
 // Every Annotation type's Fabric adapter. A new tool adds one line here.
 import type { Annotation } from "../../core/annotation";
 import { arrowAdapter } from "./arrow";
+import { penAdapter } from "./pen";
 import type { ShapeAdapter } from "./shape";
 
 const ADAPTERS: readonly ShapeAdapter<any>[] = [
   arrowAdapter,
   // lineAdapter, rectAdapter, ellipseAdapter, (ticket 10)
   // textAdapter, (ticket 11)
-  // penAdapter, (ticket 12)
+  penAdapter,
 ];
 
 export function adapterFor(type: Annotation["type"] | string): ShapeAdapter | undefined {

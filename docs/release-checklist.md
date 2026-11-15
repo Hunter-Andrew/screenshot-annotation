@@ -42,7 +42,7 @@ Each item shows the milestone it applies from: **M0** (v0.1.0), **M1** (v0.2.0),
 
 ## Annotate
 
-M2 has the Arrow tool; the other tools add their own items as they arrive.
+M2 has the Arrow and Pen tools; the other tools add their own items as they arrive.
 
 - [ ] **M2** Draw an arrow: take a capture, press `A` (or click Arrow in the tool column), drag on the image. The arrow appears, stays selected (the Style panel on the right shows Stroke and Arrowheads), and the tool goes back to Select. Switch it to "Both ends" and back to "One end".
 - [ ] **M2** Move and resize an arrow: click it (a thin arrow is easy to hit, a click beside it selects nothing), drag the line to move it, drag either end handle to resize or re-aim it. Esc deselects and returns to Select; `V` and `A` switch tools.
@@ -50,6 +50,8 @@ M2 has the Arrow tool; the other tools add their own items as they arrive.
 - [ ] **M2** Auto-save and reopen: edit an arrow and wait about a second (the status line says "All changes saved"). Open the file in `Pictures\Screenshot Annotation` in Explorer or Photos: the arrow is burned into the picture. Quit from the tray menu, start the app again, and open the editor from the tray: it shows that image with the arrow still selectable and movable.
 - [ ] **M2** Copy has the arrow burned in: Copy, then paste into Teams and into Outlook; Save as PNG… and open the file in another viewer. Both show the arrow, and both are plain pictures (no editable data inside: the file is about the size of a normal screenshot, not 2x).
 - [ ] **M2** Discard right after drawing: draw an arrow and click Discard at once. The file is gone from `Pictures\Screenshot Annotation` and does not come back a few seconds later.
+- [ ] **M2** Pen: press `P` (or click Pen in the tool column) and draw a freehand stroke with the mouse, then with the pen or touch of the work laptop if it has one. The stroke follows the pointer without lag, looks lightly smoothed (no jagged steps, no visible rounding-off of deliberate corners), and the tool goes back to Select with the stroke selected (the Style panel shows Stroke only, no Arrowheads). A plain click draws nothing. Drag the stroke to move it; change its color and thickness (it changes at once).
+- [ ] **M2** Pen burn-in and reopen: copy a picture with a pen stroke (paste into Teams and Outlook, and Save as PNG…): the stroke looks the same as on screen. Quit and restart the app, open the editor from the tray: the stroke is still selectable and movable.
 - [ ] **M2** Editor layout: top bar (Capture on the left; Discard, Save as PNG…, Copy and the gear on the right), tool column on the left with the shortcut keys, Style panel on the right, the image in a grey well. The gear opens Settings.
 - [ ] **M2** Fit and scrolling (Andrew's note from M1 testing): a very tall capture (for example a full web page) is shown whole in the window with nothing to scroll; resizing the window refits it. Click "100%": the well scrolls from the very top to the very bottom of the picture, and Zoom in/out (or Ctrl and the mouse wheel) keeps the middle of the view where it was. Take or discard another capture: the new one starts fitted and at the top, not at the old scroll position. The window itself never scrolls (the status line stays visible at the bottom).
 
