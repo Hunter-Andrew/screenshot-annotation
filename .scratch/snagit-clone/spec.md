@@ -145,6 +145,7 @@ The app makes no network calls. Updates are manual installs from public GitHub R
 106. As Andrew, I want thumbnails cached outside my Pictures folder, so that Pictures holds only my images.
 107. As Andrew, I want an image saved by a newer app version to open read-only in an older version, so that nothing gets corrupted when versions differ.
 108. As Andrew, I want Settings to show every keyboard shortcut (the capture hotkey, the capture-overlay keys such as Space for the whole monitor, Esc to cancel and M for the magnifier, and the editor's tool and action keys) and let me remap each one, so that the app fits my hands and avoids clashes with other software. *(M5, after v1.0.0; added 2026-11-15 after M1 testing.)*
+109. As Andrew, I want to extend the canvas beyond the Capture, by drawing past its edge or by dragging its edges outward like a rectangle (crop in reverse), with a per-image transparent, white or dark background and a configurable default, so that I can add arrows and notes that sit outside the screenshot. *(M4 with Crop; added 2026-11-15 after M2 testing.)*
 
 ## Implementation Decisions
 
