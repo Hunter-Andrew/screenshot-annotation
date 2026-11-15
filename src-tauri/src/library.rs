@@ -90,14 +90,28 @@ pub fn save_new(root: &Path, stamp: &Stamp, bytes: &[u8]) -> std::io::Result<Pat
     Ok(path)
 }
 
-/// `path` if it is a `.png` file strictly inside the Library `root` (absolute, no `..`), else None.
-/// The webview supplies discard paths, so this keeps the command from touching anything else.
+/// `canonicalize` returns Windows paths as `\\?\C:\...`, which the shell's file operations reject;
+/// drop that prefix for plain drive paths (`\\?\UNC\` paths are left alone).
+pub fn without_verbatim_prefix(path: PathBuf) -> PathBuf {
+    let text = path.to_string_lossy();
+    match text.strip_prefix(r"\\?\") {
+        Some(rest) if !rest.starts_with(r"UNC\") => PathBuf::from(rest),
+        _ => path,
+    }
+}
+
+/// The resolved path of `path` if it is an existing `.png` file strictly inside the Library `root`,
+/// else None. The webview supplies discard paths, so both sides are resolved first (symlinks,
+/// junctions and `..` followed to the real location) and the containment check runs on the result:
+/// a link inside the Library that points outside is refused. The resolved path is what gets used.
 pub fn library_file_in(root: &Path, path: &Path) -> Option<PathBuf> {
-    use std::path::Component;
-    let clean = path.is_absolute()
-        && path.components().all(|c| !matches!(c, Component::ParentDir | Component::CurDir));
-    let png = path.extension().is_some_and(|e| e.eq_ignore_ascii_case("png"));
-    (clean && png && path != root && path.starts_with(root)).then(|| path.to_path_buf())
+    if !path.is_absolute() {
+        return None;
+    }
+    let root = root.canonicalize().ok()?;
+    let real = path.canonicalize().ok()?;
+    let png = real.extension().is_some_and(|e| e.eq_ignore_ascii_case("png"));
+    (png && real.is_file() && real != root && real.starts_with(&root)).then(|| without_verbatim_prefix(real))
 }
 
 /// A file name for the Save as PNG… dialog to suggest: letters, digits, space, `-`, `_` and `.` only.
@@ -226,24 +240,87 @@ mod tests {
         let _ = std::fs::remove_dir_all(&root);
     }
 
+    fn touch(path: &Path) {
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(path, b"png").unwrap();
+    }
+
     #[test]
     fn only_png_files_inside_the_library_may_be_discarded() {
         let root = scratch("guard");
         let file = root.join("2026-11").join("2026-11-15 134501.png");
-        assert_eq!(library_file_in(&root, &file), Some(file.clone()));
+        touch(&file);
+        let resolved = library_file_in(&root, &file).expect("a Library png is allowed");
+        assert_eq!(resolved, without_verbatim_prefix(file.canonicalize().unwrap()));
 
-        let outside = root.parent().unwrap().join("elsewhere.png");
-        let sneaky = root.join("2026-11").join("..").join("..").join("elsewhere.png");
+        let outside = root.parent().unwrap().join(format!("elsewhere-{}.png", std::process::id()));
+        touch(&outside);
+        let notes = root.join("2026-11").join("notes.txt");
+        touch(&notes);
         for bad in [
-            outside,
-            sneaky,
+            outside.clone(),
             root.clone(),
-            root.join("2026-11").join("notes.txt"),
+            notes,
+            root.join("2026-11").join("missing.png"),
             PathBuf::from("2026-11/relative.png"),
         ] {
             assert_eq!(library_file_in(&root, &bad), None, "{bad:?}");
         }
+        let _ = std::fs::remove_file(&outside);
         let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn dot_dot_traversal_out_of_the_library_is_refused() {
+        let root = scratch("dotdot");
+        touch(&root.join("2026-11").join("a.png"));
+        let outside = root.parent().unwrap().join(format!("traversal-{}.png", std::process::id()));
+        touch(&outside);
+        let sneaky = root
+            .join("2026-11")
+            .join("..")
+            .join("..")
+            .join(outside.file_name().unwrap());
+        assert!(sneaky.exists(), "the traversal really reaches the outside file");
+        assert_eq!(library_file_in(&root, &sneaky), None);
+        // A `..` that stays inside still resolves to the real file.
+        let inside = root.join("2026-11").join("..").join("2026-11").join("a.png");
+        assert_eq!(
+            library_file_in(&root, &inside),
+            Some(without_verbatim_prefix(root.join("2026-11").join("a.png").canonicalize().unwrap()))
+        );
+        let _ = std::fs::remove_file(&outside);
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_symlink_out_of_the_library_is_refused() {
+        use std::os::unix::fs::symlink;
+        let root = scratch("symlink");
+        let outside_dir = scratch("symlink-outside");
+        let target = outside_dir.join("precious.png");
+        touch(&target);
+        std::fs::create_dir_all(root.join("2026-11")).unwrap();
+
+        // A png-named link to a file outside, and a link to a folder outside.
+        let file_link = root.join("2026-11").join("link.png");
+        symlink(&target, &file_link).unwrap();
+        let dir_link = root.join("2026-12");
+        symlink(&outside_dir, &dir_link).unwrap();
+
+        assert_eq!(library_file_in(&root, &file_link), None);
+        assert_eq!(library_file_in(&root, &dir_link.join("precious.png")), None);
+        assert!(target.exists());
+        let _ = std::fs::remove_dir_all(&root);
+        let _ = std::fs::remove_dir_all(&outside_dir);
+    }
+
+    #[test]
+    fn the_verbatim_prefix_is_dropped_for_the_shell() {
+        assert_eq!(without_verbatim_prefix(PathBuf::from(r"\\?\C:\Pics\a.png")), PathBuf::from(r"C:\Pics\a.png"));
+        assert_eq!(without_verbatim_prefix(PathBuf::from(r"\\?\UNC\srv\share\a.png")), PathBuf::from(r"\\?\UNC\srv\share\a.png"));
+        assert_eq!(without_verbatim_prefix(PathBuf::from("/home/a.png")), PathBuf::from("/home/a.png"));
     }
 
     #[test]
