@@ -6,11 +6,11 @@ Each item shows the milestone it applies from: **M0** (v0.1.0), **M1** (v0.2.0),
 
 ## Install and upgrade
 
-- [ ] **M0** Setup runs with no admin prompt. SmartScreen shows "More info → Run anyway" and the app installs per-user.
-- [ ] **M0** The tray icon appears and its menu works; Settings opens and About shows the right version.
-- [ ] **M0** "Check for updates" opens the Releases page in the browser. The app makes no other network calls.
-- [ ] **M0** Upgrade closes and relaunches the app. Install the previous release, start it (tray icon showing), then run the new setup over it. The setup must not ask you to close the app. When it finishes, the tray icon is back (leave "Run Screenshot Annotation" ticked on the last page), and About shows the new version. Repeat once from a command prompt with `Setup.exe /P` (passive): the app must come back on its own.
-- [ ] **M0** If the upgrade shows a reinstall page, leave the default ("Uninstall before installing"). If an uninstall wizard then appears, leave the delete-app-data box ("Delete the application data", our "Also delete app data" option) unticked and carry on. Tell Claude if the wizard appears: it should not need any input.
+- [x] **M0** Setup runs with no admin prompt. SmartScreen shows "More info → Run anyway" and the app installs per-user.
+- [x] **M0** The tray icon appears and its menu works; Settings opens and About shows the right version.
+- [x] **M0** "Check for updates" opens the Releases page in the browser. The app makes no other network calls.
+- [x] **M0** Upgrade closes and relaunches the app. Install the previous release, start it (tray icon showing), then run the new setup over it. The setup must not ask you to close the app. When it finishes, the tray icon is back (leave "Run Screenshot Annotation" ticked on the last page), and About shows the new version. Repeat once from a command prompt with `Setup.exe /P` (passive): the app must come back on its own.
+- [x] **M0** If the upgrade shows a reinstall page, leave the default ("Uninstall before installing"). If an uninstall wizard then appears, leave the delete-app-data box ("Delete the application data", our "Also delete app data" option) unticked and carry on. Tell Claude if the wizard appears: it should not need any input.
 - [ ] **M1** Upgrade keeps your data. Before upgrading, change a setting, take a capture so `Pictures\Screenshot Annotation` has a file, and note the folders `%APPDATA%\io.github.hunter-andrew.screenshot-annotation` and `%LOCALAPPDATA%\io.github.hunter-andrew.screenshot-annotation`. After upgrading, the setting, the file and both folders are all still there, with unchanged contents.
 - [ ] **M2** Upgrade keeps tool styles and undo history: after upgrading, reopen the image you edited and the tool styles are as you left them and Undo still steps back.
 - [ ] **M3** Upgrade keeps the thumbnail cache: the Library Strip fills without a visible rebuild, and the cache folder under `%LOCALAPPDATA%\io.github.hunter-andrew.screenshot-annotation` still has its files.
