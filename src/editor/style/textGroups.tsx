@@ -8,33 +8,8 @@ import {
   MIN_FONT_SIZE,
   MIN_OUTLINE_WIDTH,
 } from "../../core/annotations/text";
-import { PALETTE, type GroupEditorProps } from "./groups";
-
-/** A color choice: the shared palette plus a custom picker. */
-function ColorRow({ value, label, onPick }: { value: string; label: string; onPick(color: string): void }) {
-  return (
-    <div className="swatches" role="group" aria-label={label}>
-      {PALETTE.map((color) => (
-        <button
-          key={color}
-          type="button"
-          className="swatch"
-          style={{ background: color }}
-          aria-label={`Color ${color}`}
-          aria-pressed={value.toLowerCase() === color}
-          onClick={() => onPick(color)}
-        />
-      ))}
-      <input
-        type="color"
-        className="custom-color"
-        aria-label={`Custom ${label.toLowerCase()}`}
-        value={value}
-        onChange={(e) => onPick(e.target.value)}
-      />
-    </div>
-  );
-}
+import { ColorField } from "./ColorField";
+import type { GroupEditorProps } from "./groups";
 
 /** A whole-number box that keeps what is typed until it is valid, and only then reports it. */
 function NumberBox({
@@ -116,7 +91,7 @@ export function FontEditor({ value, onChange }: GroupEditorProps<"font">) {
           I
         </button>
       </div>
-      <ColorRow value={value.color} label="Text color" onPick={(color) => onChange({ ...value, color })} />
+      <ColorField label="Text color" swatchLabel="Color" color={value.color} onPick={(color) => onChange({ ...value, color })} />
     </>
   );
 }
@@ -135,7 +110,7 @@ export function TextOutlineEditor({ value, onChange }: GroupEditorProps<"textOut
       </label>
       {value.enabled && (
         <>
-          <ColorRow value={value.color} label="Outline color" onPick={(color) => onChange({ ...value, color })} />
+          <ColorField label="Outline color" swatchLabel="Color" color={value.color} onPick={(color) => onChange({ ...value, color })} />
           <label className="row">
             Width
             <NumberBox

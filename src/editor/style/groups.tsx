@@ -3,6 +3,7 @@
 // editor here. A new group (Fill: ticket 10; Font and Text outline: ticket 11) adds one entry.
 import { type ComponentType, useEffect, useState } from "react";
 import { MAX_STROKE_WIDTH, MIN_STROKE_WIDTH, type GroupId, type PropertyGroups } from "../../core/propertyGroups";
+import { ColorField, PALETTE } from "./ColorField";
 import { FontEditor, TextOutlineEditor } from "./textGroups";
 
 export interface GroupEditorProps<K extends GroupId> {
@@ -15,43 +16,8 @@ export interface GroupEditor<K extends GroupId> {
   Editor: ComponentType<GroupEditorProps<K>>;
 }
 
-export const PALETTE: readonly string[] = [
-  "#e02424", // red
-  "#f97316", // orange
-  "#facc15", // yellow
-  "#16a34a", // green
-  "#2563eb", // blue
-  "#9333ea", // purple
-  "#111827", // black
-  "#ffffff", // white
-];
+export { PALETTE };
 export const THICKNESS_PRESETS = [2, 4, 8] as const;
-
-/** The 8-color palette plus a custom picker; `label` names it ("Color", "Fill color") for assistive tech and tests. */
-function ColorChoice({ label, color, onPick }: { label: string; color: string; onPick(color: string): void }) {
-  return (
-    <div className="swatches" role="group" aria-label={label}>
-      {PALETTE.map((swatch) => (
-        <button
-          key={swatch}
-          type="button"
-          className="swatch"
-          style={{ background: swatch }}
-          aria-label={`${label} ${swatch}`}
-          aria-pressed={color.toLowerCase() === swatch}
-          onClick={() => onPick(swatch)}
-        />
-      ))}
-      <input
-        type="color"
-        className="custom-color"
-        aria-label={`Custom ${label.toLowerCase()}`}
-        value={color}
-        onChange={(e) => onPick(e.target.value)}
-      />
-    </div>
-  );
-}
 
 function StrokeEditor({ value, onChange }: GroupEditorProps<"stroke">) {
   // The number box keeps what is typed until it is a valid thickness.
@@ -59,7 +25,7 @@ function StrokeEditor({ value, onChange }: GroupEditorProps<"stroke">) {
   useEffect(() => setText(String(value.width)), [value.width]);
   return (
     <>
-      <ColorChoice label="Color" color={value.color} onPick={(color) => onChange({ ...value, color })} />
+      <ColorField label="Color" color={value.color} onPick={(color) => onChange({ ...value, color })} />
       <label className="row">
         Thickness
         <input
@@ -124,7 +90,7 @@ function FillEditor({ value, onChange }: GroupEditorProps<"fill">) {
         ))}
       </div>
       {value.mode !== "none" && (
-        <ColorChoice label="Fill color" color={value.color} onPick={(color) => onChange({ ...value, color })} />
+        <ColorField label="Fill color" color={value.color} onPick={(color) => onChange({ ...value, color })} />
       )}
       {value.mode === "semi" && (
         <label className="row">

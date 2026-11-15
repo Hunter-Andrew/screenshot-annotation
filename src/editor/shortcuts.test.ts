@@ -125,6 +125,16 @@ describe("isTypingTarget", () => {
   });
 });
 
+describe("isTypingTarget and the hex field", () => {
+  it("treats the ColorField's hex input as a typing target, but not its native color picker", () => {
+    const input = (type: string) => ({ tagName: "INPUT", type, isContentEditable: false }) as never;
+
+    expect(isTypingTarget(input("text"))).toBe(true);
+    expect(isTypingTarget(input("color"))).toBe(false);
+    for (const action of ["tool.arrow", "tool.rect", "editor.delete", "editor.undo"]) expect(allowedWhileTyping(action, { ctrlKey: false })).toBe(false);
+  });
+});
+
 describe("keys while typing in a text field or the text box", () => {
   it("bare keys never act, so typing T, A or V does not switch tools", () => {
     for (const k of ["t", "a", "v", "Escape", "Delete"]) {
