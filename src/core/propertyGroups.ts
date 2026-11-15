@@ -71,7 +71,7 @@ export function fillPaint(fill: Fill): string | null {
 
 import { MAX_FONT_SIZE, MAX_OUTLINE_WIDTH, MIN_FONT_SIZE, MIN_OUTLINE_WIDTH } from "./annotations/text";
 
-const HEX = /^#[0-9a-fA-F]{6}$/;
+export const HEX = /^#[0-9a-fA-F]{6}$/;
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
 
 /** The stored object with a valid hex `color`, or undefined: the start of every reader of a group that has a color. */
