@@ -261,6 +261,22 @@ fn set_magnifier(app: AppHandle, state: tauri::State<'_, AppSettings>, enabled: 
     let _ = app.emit(overlay::MAGNIFIER_EVENT, enabled);
 }
 
+/// Each drawing tool's last style, as stored in settings.json (the editor reads and checks it).
+#[tauri::command]
+fn get_tool_styles(state: tauri::State<'_, AppSettings>) -> serde_json::Map<String, serde_json::Value> {
+    state.data.lock().unwrap().tool_styles.clone()
+}
+
+/// Stores the tool styles at once. A failed write is logged and the value stays in memory for this
+/// run: restyling is never broken by it.
+#[tauri::command]
+fn set_tool_styles(state: tauri::State<'_, AppSettings>, styles: serde_json::Map<String, serde_json::Value>) {
+    let mut data = state.data.lock().unwrap();
+    if let Err(e) = settings::set_tool_styles(&state.dir, &mut data, styles) {
+        diag::log(&format!("tool styles changed; could not save settings.json (kept in memory): {e}"));
+    }
+}
+
 /// Opens Windows Settings > Bluetooth & devices (the user then clicks Keyboard). A fixed target, deliberately not routed
 /// through `open_url`, whose allowlist stays limited to the Releases page (ADR 0006).
 #[tauri::command]
@@ -507,6 +523,8 @@ pub fn run() {
             settings_log,
             dismiss_print_screen_notice,
             open_keyboard_settings,
+            get_tool_styles,
+            set_tool_styles,
             overlay::overlay_frame,
             overlay::overlay_windows,
             overlay::overlay_ready,

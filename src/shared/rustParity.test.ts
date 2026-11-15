@@ -52,4 +52,16 @@ describe("TS/Rust shared constants", () => {
     expect(lib).toMatch(new RegExp(`fn ${command}\\(`));
     expect(lib).toMatch(new RegExp(`\\b${command},`));
   });
+
+  it("the bridge's tool-style commands exist in lib.rs and are registered, with the argument name Rust expects", () => {
+    const tauriBridge = readFileSync(resolve(__dirname, "../platform/tauriBridge.ts"), "utf8");
+    const lib = rust("lib.rs");
+    expect(tauriBridge).toContain('invoke<Record<string, unknown>>("get_tool_styles")');
+    expect(tauriBridge).toContain('invoke<void>("set_tool_styles", { styles })');
+    for (const command of ["get_tool_styles", "set_tool_styles"]) {
+      expect(lib).toMatch(new RegExp(`fn ${command}\\(`));
+      expect(lib).toMatch(new RegExp(`\\b${command},`));
+    }
+    expect(lib).toMatch(/fn set_tool_styles\([^)]*\bstyles: /);
+  });
 });

@@ -120,6 +120,8 @@ export function createTauriBridge(): PlatformBridge {
     getMagnifier: () => invoke<boolean>("get_magnifier"),
     setMagnifier: (enabled) => invoke<void>("set_magnifier", { enabled }),
     onOverlayMagnifier: (handler) => listen<boolean>("overlay-magnifier", (event) => handler(event.payload === true)),
+    getToolStyles: () => invoke<Record<string, unknown>>("get_tool_styles"),
+    setToolStyles: (styles) => invoke<void>("set_tool_styles", { styles }),
     savePngAs: (png, suggestedName) =>
       invoke<string | null>("save_png_as", png, { headers: { "x-suggested-name": suggestedName } }),
     discardLibraryFile: (path) => invoke<void>("library_discard", { path }),

@@ -131,6 +131,15 @@ export interface PlatformBridge {
   /** The magnifier setting changed (from any window); delivers the new value, not a toggle. */
   onOverlayMagnifier(handler: (enabled: boolean) => void): Promise<() => void>;
 
+  /**
+   * Each tool's last style (the "sticky" styles), keyed by Annotation type, stored in settings.json so
+   * they survive a restart. Opaque to the platform: the editor validates what it reads
+   * (`sanitizeStyle`). An empty object on a fresh install or an older settings file.
+   */
+  getToolStyles(): Promise<Record<string, unknown>>;
+  /** Replace the stored tool styles (all tools at once). A failed write is logged and kept in memory for this run. */
+  setToolStyles(styles: Record<string, unknown>): Promise<void>;
+
   /** The capture hotkey (an accelerator such as "ctrl+shift+s") and whether the OS accepted it. */
   getHotkey(): Promise<HotkeyState>;
   /**

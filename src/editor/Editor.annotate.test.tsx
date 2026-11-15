@@ -92,13 +92,13 @@ describe("tools and shortcut keys", () => {
     await waitFor(() => expect(kit.latest.tool).toBe("select"));
   });
 
-  it("ignores a key for a tool that does not exist yet (L is in the table, but there is no Line tool)", async () => {
+  it("ignores a key for a tool that does not exist yet (B is in the table, but there is no Blur tool)", async () => {
     const bridge = createFakeBridge();
     const kit = await openEditor(bridge);
     await capture(bridge);
     await userEvent.keyboard("a");
 
-    await userEvent.keyboard("l");
+    await userEvent.keyboard("b");
 
     expect(screen.getByRole("button", { name: /^Arrow/ })).toHaveAttribute("aria-pressed", "true");
     expect(kit.latest.tool).toBe("arrow");

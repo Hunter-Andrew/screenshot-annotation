@@ -60,6 +60,8 @@ export interface FakeBridge extends PlatformBridge {
   readonly printScreenNoticeDismissed: boolean;
   /** The stored magnifier setting (`fake.magnifier` in the fake storage; on for a fresh fake). */
   readonly magnifier: boolean;
+  /** The stored tool styles (`fake.toolStyles` in the fake storage; empty for a fresh fake). */
+  readonly toolStyles: Record<string, unknown>;
 }
 
 /** Fake setting storage; the browser build passes localStorage so e2e reloads keep it. */
@@ -321,6 +323,13 @@ export function createFakeBridge(
       return () => {
         magnifierHandlers.delete(handler);
       };
+    },
+    get toolStyles() {
+      return JSON.parse(store.getItem("fake.toolStyles") ?? "{}") as Record<string, unknown>;
+    },
+    getToolStyles: async () => JSON.parse(store.getItem("fake.toolStyles") ?? "{}"),
+    setToolStyles: async (styles) => {
+      store.setItem("fake.toolStyles", JSON.stringify(styles));
     },
     savePngAs: async (png, suggestedName) => {
       if (cancelSaveAs) {
