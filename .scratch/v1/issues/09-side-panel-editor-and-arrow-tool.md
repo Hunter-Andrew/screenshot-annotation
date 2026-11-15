@@ -12,3 +12,7 @@
 - [ ] Auto-save is debounced about 1 s
 
 Spec: `.scratch/snagit-clone/spec.md`.
+
+## Comments
+
+2026-11-15 (Andrew, from M1 testing on the work laptop): vertical scrolling in the editor feels a little off. Deliberately not fixed in M1 because this ticket replaces the editor layout. When building the side-panel editor, check how the Capture scrolls and fits vertically (tall Captures, window resize, scroll position when switching images) and make it feel right.
