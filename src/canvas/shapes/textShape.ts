@@ -17,6 +17,8 @@ export class TextShape extends Textbox {
 
   /** The Annotation as last applied: what an edit that ends with no words falls back to. */
   private annotation!: TextAnnotation;
+  /** The lowest height of the box (the area the user dragged out); read while Fabric lays the text out. */
+  declare private areaMinHeight?: number;
 
   constructor(annotation: TextAnnotation) {
     super(annotation.text, {
@@ -73,6 +75,7 @@ export class TextShape extends Textbox {
     this.annotation = annotation;
     const { font, textOutline } = annotation;
     const outlined = textOutline.enabled && textOutline.width > 0;
+    this.areaMinHeight = annotation.minHeight ?? 0;
     this.set({
       left: annotation.x,
       top: annotation.y,
@@ -86,8 +89,14 @@ export class TextShape extends Textbox {
       strokeWidth: outlined ? textOutline.width * 2 : 0,
     });
     if (!this.isEditing && this.text !== annotation.text) this.set({ text: annotation.text });
+    this.initDimensions(); // the minimum height may have changed
     this.setCoords();
     this.dirty = true;
+  }
+
+  /** The box is as tall as its lines, but never shorter than the area it was dragged out as. */
+  override calcTextHeight(): number {
+    return Math.max(super.calcTextHeight(), this.areaMinHeight ?? 0);
   }
 
   /** The Annotation as it is on screen now: its box and its words. */

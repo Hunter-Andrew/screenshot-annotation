@@ -2,7 +2,7 @@
 // over the Capture image: it holds one Fabric object per Annotation, built by the per-type adapters in
 // ./shapes, and follows the model (`sync`). User gestures leave through `CanvasEvents` as model edits;
 // the canvas never keeps state of its own that the model does not have.
-import { Canvas, type FabricObject } from "fabric";
+import { Canvas, type FabricObject, Rect } from "fabric";
 import { kindOf } from "../core/annotations";
 import { newAnnotationId, type Annotation, type AnnotationModel } from "../core/annotation";
 import type { Style } from "../core/propertyGroups";
@@ -83,6 +83,33 @@ export function createFabricCanvas(host: HTMLElement, { size, events }: MountOpt
     if (drag?.ghost) canvas.remove(drag.ghost);
     if (drag) drag.ghost = null;
   };
+  /** The live area of a typed-in tool (Text): a dashed rectangle, like the Rectangle tool's preview. */
+  const previewArea = (gesture: NonNullable<typeof drag>, to: { x: number; y: number }) => {
+    const box = {
+      left: Math.min(gesture.from.x, to.x),
+      top: Math.min(gesture.from.y, to.y),
+      width: Math.abs(to.x - gesture.from.x),
+      height: Math.abs(to.y - gesture.from.y),
+    };
+    // Sized so the dashes keep their on-screen size at any zoom.
+    const zoom = canvas.getZoom() || 1;
+    if (gesture.ghost) gesture.ghost.set(box);
+    else {
+      gesture.ghost = new Rect({
+        ...box,
+        fill: "rgba(47, 91, 234, 0.06)",
+        stroke: "#2f5bea",
+        strokeWidth: 1.5 / zoom,
+        strokeDashArray: [6 / zoom, 4 / zoom],
+        strokeUniform: true,
+        selectable: false,
+        evented: false,
+        objectCaching: false,
+      });
+      canvas.add(gesture.ghost);
+    }
+    canvas.requestRenderAll();
+  };
   /** A click with a typed-in tool (Text): the box appears, the user types, and it counts once it has words. */
   const startTyping = (annotation: Annotation) => {
     const adapter = adapterFor(annotation.type);
@@ -114,8 +141,9 @@ export function createFabricCanvas(host: HTMLElement, { size, events }: MountOpt
   canvas.on("mouse:move", (event) => {
     const kind = kindOf(tool);
     const adapter = adapterFor(tool);
-    if (!drag || !kind || !adapter || kind.typedInPlace) return;
+    if (!drag || !kind || !adapter) return;
     const to = clampToImage(canvas.getScenePoint(event.e));
+    if (kind.typedInPlace) return previewArea(drag, to);
     drag.path.push(to);
     // A freehand kind (Pen) gets every point the pointer passed; the others only the two ends.
     const preview = kind.fromPath
@@ -175,6 +203,7 @@ export function createFabricCanvas(host: HTMLElement, { size, events }: MountOpt
     },
     setTool(next) {
       tool = next;
+      dropGhost(); // Esc (or any tool change) during a drag cancels it
       drag = null;
       silently(() => canvas.discardActiveObject());
       refreshMode();

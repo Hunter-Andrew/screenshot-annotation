@@ -4,7 +4,7 @@ import { createFromCapture, decodeLibraryPng, encodeLibraryPng } from "../annota
 import { applyEdit } from "../editSession";
 import { encodeRgbaPngCompressed } from "../png";
 import { sanitizeStyle } from "../propertyGroups";
-import { clampFontSize, FONT_SIZE_PRESETS, textKind, type TextAnnotation } from "./text";
+import { clampFontSize, FONT_SIZE_PRESETS, textAreaFromDrag, textKind, type TextAnnotation } from "./text";
 
 describe("Text kind", () => {
   it("is red with a white outline by default (spec: tools > Text)", () => {
@@ -70,6 +70,80 @@ describe("Text kind", () => {
 
     expect(text.font).toEqual(style.font);
     expect(text.textOutline).toEqual(style.textOutline);
+  });
+});
+
+describe("the area a drag defines for a text box (ticket 35)", () => {
+  const capture = { width: 600, height: 300 };
+
+  it("a drag down and right is the box: its top-left, its width, and its height as the minimum height", () => {
+    expect(textAreaFromDrag({ x: 100, y: 50 }, { x: 300, y: 130 }, capture)).toEqual({
+      x: 100,
+      y: 50,
+      width: 200,
+      minHeight: 80,
+    });
+  });
+
+  it("a drag up and left defines the same box", () => {
+    expect(textAreaFromDrag({ x: 300, y: 130 }, { x: 100, y: 50 }, capture)).toEqual({
+      x: 100,
+      y: 50,
+      width: 200,
+      minHeight: 80,
+    });
+  });
+
+  it("a drag past the Capture is clamped to it", () => {
+    const area = textAreaFromDrag({ x: 500, y: 250 }, { x: 900, y: 700 }, capture);
+    expect(area).toEqual({ x: 500, y: 250, width: 100, minHeight: 50 });
+    const before = textAreaFromDrag({ x: 40, y: 20 }, { x: -300, y: -90 }, capture);
+    expect(before).toEqual({ x: 0, y: 0, width: 40, minHeight: 20 });
+  });
+
+  it("a click (under 4 px of movement) is the default width at the click, with no minimum height", () => {
+    const expected = { x: 100, y: 50, width: 240, minHeight: 0 };
+    expect(textAreaFromDrag({ x: 100, y: 50 }, { x: 100, y: 50 }, capture)).toEqual(expected);
+    expect(textAreaFromDrag({ x: 100, y: 50 }, { x: 103, y: 52 }, capture)).toEqual(expected);
+  });
+
+  it("a click near the right edge slides the default-width box back inside the Capture", () => {
+    expect(textAreaFromDrag({ x: 590, y: 10 }, { x: 590, y: 10 }, capture)).toEqual({
+      x: 360,
+      y: 10,
+      width: 240,
+      minHeight: 0,
+    });
+  });
+
+  it("a drag narrower than 20 px falls back to the default width and drops its height", () => {
+    expect(textAreaFromDrag({ x: 100, y: 50 }, { x: 112, y: 200 }, capture)).toEqual({
+      x: 100,
+      y: 50,
+      width: 240,
+      minHeight: 0,
+    });
+    expect(textAreaFromDrag({ x: 100, y: 50 }, { x: 120, y: 200 }, capture).width).toBe(20);
+  });
+
+  it("is what fromDrag stores: x, y, width, and the minimum height only when there is one", () => {
+    const dragged = textKind.fromDrag("t1", { x: 100, y: 50 }, { x: 300, y: 130 }, textKind.defaultStyle, capture)!;
+    expect(dragged).toMatchObject({ x: 100, y: 50, width: 200, minHeight: 80 });
+    const clicked = textKind.fromDrag("t2", { x: 100, y: 50 }, { x: 100, y: 50 }, textKind.defaultStyle, capture)!;
+    expect(clicked).not.toHaveProperty("minHeight");
+  });
+
+  it("an image saved before there was a minimum height still loads", async () => {
+    const old: TextAnnotation = {
+      id: "t1", type: "text", x: 1, y: 2, width: 120, text: "old",
+      font: { size: 24, bold: false, italic: false, color: "#e02424" },
+      textOutline: { enabled: true, color: "#ffffff", width: 2 },
+    };
+    const capture = await encodeRgbaPngCompressed(2, 2, new Uint8Array(16).fill(255));
+    const image = applyEdit(createFromCapture(capture), { kind: "add", annotation: { ...old, minHeight: 90 } });
+    const decoded = decodeLibraryPng(await encodeLibraryPng(image, async (i) => i.capture));
+    expect(decoded.model.annotations).toEqual([{ ...old, minHeight: 90 }]);
+    expect(old).not.toHaveProperty("minHeight");
   });
 });
 
