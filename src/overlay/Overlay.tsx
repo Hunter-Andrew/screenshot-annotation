@@ -31,7 +31,13 @@ export function Overlay({ bridge, monitor }: { bridge: PlatformBridge; monitor: 
   const [frame, setFrame] = useState<OverlayFrame | null>(null);
   const [pointer, setPointer] = useState<Point | null>(null);
   const [drag, setDrag] = useState<{ start: Point; current: Point } | null>(null);
-  const [magnifier, setMagnifier] = useState(false);
+  const [magnifier, setMagnifierState] = useState(false);
+  const magnifierRef = useRef(false); // the latest value, for key presses between renders
+  const magnifierKnown = useRef(false); // an event already said what it is: a later read is stale
+  const showMagnifier = (enabled: boolean) => {
+    magnifierRef.current = enabled;
+    setMagnifierState(enabled);
+  };
   const [windows, setWindows] = useState<OverlayRect[]>([]);
   const imageRef = useRef<HTMLImageElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -101,7 +107,14 @@ export function Overlay({ bridge, monitor }: { bridge: PlatformBridge; monitor: 
       else if (event.key === " ") {
         event.preventDefault();
         finish({ kind: "monitor" });
-      } else if (event.key === "m" || event.key === "M") void bridge.toggleOverlayMagnifier();
+      } else if (event.key === "m" || event.key === "M") {
+        // The platform stores the value and tells every overlay (other monitors included); this
+        // window switches at once rather than waiting for that round trip.
+        const next = !magnifierRef.current;
+        magnifierKnown.current = true;
+        showMagnifier(next);
+        bridge.setMagnifier(next).catch((e) => void bridge.logOverlay(`overlay ${monitor}: setMagnifier failed: ${e}`));
+      }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
@@ -110,15 +123,28 @@ export function Overlay({ bridge, monitor }: { bridge: PlatformBridge; monitor: 
   useEffect(() => {
     let off: (() => void) | undefined;
     let cancelled = false;
-    void bridge.onOverlayMagnifier(() => setMagnifier((on) => !on)).then((unsubscribe) => {
-      if (cancelled) unsubscribe();
-      else off = unsubscribe;
-    });
+    void bridge
+      .onOverlayMagnifier((enabled) => {
+        magnifierKnown.current = true;
+        showMagnifier(enabled);
+      })
+      .then((unsubscribe) => {
+        if (cancelled) unsubscribe();
+        else off = unsubscribe;
+      });
+    // Start in the stored state, so the magnifier shows before any key press. An unreadable
+    // setting is logged and leaves it off; it never ends the capture.
+    bridge.getMagnifier().then(
+      (enabled) => {
+        if (!cancelled && !magnifierKnown.current) showMagnifier(enabled);
+      },
+      (e) => void bridge.logOverlay(`overlay ${monitor}: getMagnifier failed: ${e}`),
+    );
     return () => {
       cancelled = true;
       off?.();
     };
-  }, [bridge]);
+  }, [bridge, monitor]);
 
   // Paint the magnifier from the frozen image around the pointer, in native pixels.
   useEffect(() => {

@@ -93,8 +93,9 @@ export function createTauriBridge(): PlatformBridge {
         console.error(message);
       }
     },
-    toggleOverlayMagnifier: () => invoke<void>("overlay_toggle_magnifier"),
-    onOverlayMagnifier: (handler) => listen("overlay-magnifier", () => handler()),
+    getMagnifier: () => invoke<boolean>("get_magnifier"),
+    setMagnifier: (enabled) => invoke<void>("set_magnifier", { enabled }),
+    onOverlayMagnifier: (handler) => listen<boolean>("overlay-magnifier", (event) => handler(event.payload === true)),
     savePngAs: (png, suggestedName) =>
       invoke<string | null>("save_png_as", png, { headers: { "x-suggested-name": suggestedName } }),
     discardLibraryFile: (path) => invoke<void>("library_discard", { path }),

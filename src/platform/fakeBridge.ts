@@ -52,6 +52,8 @@ export interface FakeBridge extends PlatformBridge {
   setPrintScreenSnipping(enabled: boolean): void;
   /** Whether the one-time Print Screen notice was answered. */
   readonly printScreenNoticeDismissed: boolean;
+  /** The stored magnifier setting (`fake.magnifier` in the fake storage; on for a fresh fake). */
+  readonly magnifier: boolean;
 }
 
 /** Fake setting storage; the browser build passes localStorage so e2e reloads keep it. */
@@ -97,7 +99,7 @@ export function createFakeBridge(
   const overlayOutcomes: OverlayOutcome[] = [];
   const overlayLogs: { message: string; fatal: boolean }[] = [];
   let overlayFrameFailure: string | null = null;
-  const magnifierHandlers = new Set<() => void>();
+  const magnifierHandlers = new Set<(enabled: boolean) => void>();
   const openedUrls: string[] = [];
   const copiedImages: Uint8Array[] = [];
   const libraryFiles: { path: string; bytes: Uint8Array }[] = [];
@@ -227,7 +229,14 @@ export function createFakeBridge(
     logOverlay: async (message, fatal = false) => {
       overlayLogs.push({ message, fatal });
     },
-    toggleOverlayMagnifier: async () => magnifierHandlers.forEach((handler) => handler()),
+    get magnifier() {
+      return store.getItem("fake.magnifier") !== "0";
+    },
+    getMagnifier: async () => store.getItem("fake.magnifier") !== "0",
+    setMagnifier: async (enabled) => {
+      store.setItem("fake.magnifier", enabled ? "1" : "0");
+      magnifierHandlers.forEach((handler) => handler(enabled));
+    },
     onOverlayMagnifier: async (handler) => {
       magnifierHandlers.add(handler);
       return () => {

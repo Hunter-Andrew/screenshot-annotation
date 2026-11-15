@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import type { PlatformBridge } from "../platform/bridge";
 import { MAIN_STYLE, RELEASES_URL } from "../shared/constants";
 import { HotkeyRecorder } from "./HotkeyRecorder";
+import { MagnifierSetting } from "./MagnifierSetting";
 import { PrintScreenNotice } from "./PrintScreenNotice";
 
 export function Settings({ bridge }: { bridge: PlatformBridge }) {
@@ -15,6 +16,7 @@ export function Settings({ bridge }: { bridge: PlatformBridge }) {
       <h1 style={{ fontSize: 18 }}>Settings</h1>
       <HotkeyRecorder bridge={bridge} />
       <PrintScreenNotice bridge={bridge} />
+      <MagnifierSetting bridge={bridge} />
       <section aria-labelledby="about-heading">
         <h2 id="about-heading" style={{ fontSize: 15 }}>
           About
