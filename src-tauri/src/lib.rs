@@ -2,6 +2,7 @@ mod capture;
 mod capture_image;
 mod capture_wire;
 mod diag;
+mod editor_window;
 mod geometry;
 mod history_store;
 mod hotkey;
@@ -469,9 +470,38 @@ fn show_settings(app: &AppHandle) {
         .build();
 }
 
-/// Show the editor window, creating it on first use (pre-warming is ticket 24).
+/// The editor's maximized/normal state as the user last left it this session (set when the window
+/// is hidden or closed); `None` until then. In memory only, never written to disk.
+#[derive(Default)]
+struct EditorMaximized(Mutex<Option<bool>>);
+
+fn remember_editor_state(win: &tauri::WebviewWindow) {
+    if let Ok(maximized) = win.is_maximized() {
+        *win.app_handle().state::<EditorMaximized>().0.lock().unwrap() = Some(maximized);
+    }
+}
+
+/// Hide the editor (for a capture, or ticket 24's pre-warming), remembering whether it was maximized.
+pub(crate) fn hide_editor(win: &tauri::WebviewWindow) {
+    remember_editor_state(win);
+    let _ = win.hide();
+}
+
+/// Show the editor window maximized (normal chrome kept), creating it on first use (pre-warming is
+/// ticket 24). A window the user is looking at is only focused, never resized. A hidden one is
+/// shown in the state the user left it (maximized on its first show), so this works the same for
+/// a window that is created hidden and kept loaded.
 fn show_editor(app: &AppHandle) {
+    let remembered = *app.state::<EditorMaximized>().0.lock().unwrap();
+    let maximize = editor_window::should_maximize(remembered);
     if let Some(win) = app.get_webview_window(EDITOR_LABEL) {
+        if !win.is_visible().unwrap_or(true) {
+            if maximize {
+                let _ = win.maximize();
+            } else {
+                let _ = win.unmaximize();
+            }
+        }
         focus(&win);
         return;
     }
@@ -479,6 +509,7 @@ fn show_editor(app: &AppHandle) {
         .title("Screenshot Annotation")
         .inner_size(1100.0, 720.0)
         .min_inner_size(760.0, 480.0)
+        .maximized(maximize)
         .build();
 }
 
@@ -530,6 +561,15 @@ fn deliver_capture(app: &AppHandle, width: u32, height: u32, captured_at_ms: f64
 pub fn run() {
     tauri::Builder::default()
         .manage(PendingCapture::default())
+        .manage(EditorMaximized::default())
+        .on_window_event(|window, event| {
+            // Closing destroys the editor; remember its state so the next one opens the same way.
+            if window.label() == EDITOR_LABEL && matches!(event, tauri::WindowEvent::CloseRequested { .. }) {
+                if let Some(win) = window.app_handle().get_webview_window(EDITOR_LABEL) {
+                    remember_editor_state(&win);
+                }
+            }
+        })
         .manage(RawInput::default())
         .manage(overlay::OverlayState::default())
         // A second launch focuses the running instance.

@@ -194,7 +194,7 @@ fn run(app: &AppHandle, attempt: u64) {
     let started = Instant::now();
     let editor_was_visible = match app.get_webview_window(crate::EDITOR_LABEL) {
         Some(win) if win.is_visible().unwrap_or(false) => {
-            let _ = win.hide();
+            crate::hide_editor(&win);
             std::thread::sleep(crate::HIDE_SETTLE);
             diag::log("editor was visible: hidden for the capture");
             true
