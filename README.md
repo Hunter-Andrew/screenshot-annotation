@@ -55,4 +55,17 @@ See [LICENSE](LICENSE).
 
 ## App icon
 
-The master artwork is `assets/icon-source.png` (1024 px, transparent background). The files in `src-tauri/icons/` are generated from it with `npx tauri icon assets/icon-source.png -o <temp folder>`; copy `32x32.png`, `128x128.png`, `128x128@2x.png`, `icon.png` and `icon.ico` from the output into `src-tauri/icons/`.
+`assets/icon-source.png` is the only file to replace to change the logo everywhere. It must be square, at least 512 px (1024 px recommended) and have a transparent background.
+
+1. Replace `assets/icon-source.png` with the new artwork.
+2. Run `npm run icons`. It runs `tauri icon` into a temporary folder, copies only the five files the app uses (`32x32.png`, `128x128.png`, `128x128@2x.png`, `icon.png`, `icon.ico`) into `src-tauri/icons/`, and deletes the temporary folder. Nothing else in the repository changes.
+3. Run `npm test`. `src/shared/icons.test.ts` fails if the source is not square, is under 512 px or has no transparency, or if any icon file is missing, has no real alpha, or `icon.ico` lacks the 16, 24, 32, 48, 64 and 256 px sizes.
+4. Commit `assets/icon-source.png` and `src-tauri/icons/`. The next build uses it everywhere below.
+
+Where the logo is used (all from the files in `src-tauri/icons/`, listed in `bundle.icon` in `tauri.conf.json`):
+
+- The `.exe` file icon, the installer, the desktop shortcut and the entry in Settings > Apps: from `icon.ico`, embedded by `tauri-build` and the NSIS bundler.
+- The taskbar and Alt+Tab icon of the editor and Settings windows: every window is created through `new_window` in `src-tauri/src/lib.rs`, which gives it the app icon (`default_window_icon()`, i.e. the `icon.ico` resource in the exe). The capture overlay windows use it too but are not shown in the taskbar. A test fails if a window is created any other way.
+- The system tray icon: the same default icon.
+
+Not using the logo yet: there is no logo inside the app's own pages (the Settings About section shows only the name and version, and the editor has none); the setup wizard pages have no logo image or sidebar artwork beyond what the NSIS installer takes from `icon.ico`. Changing the logo does not change the app name.
