@@ -97,9 +97,19 @@ export interface PlatformBridge {
    * the platform also tears every overlay down and tells the user what went wrong. Never throws.
    */
   logOverlay(message: string, fatal?: boolean): Promise<void>;
-  /** Toggle the magnifier on every overlay (keys reach only the focused overlay window). */
-  toggleOverlayMagnifier(): Promise<void>;
-  onOverlayMagnifier(handler: () => void): Promise<() => void>;
+  /**
+   * Whether the capture overlay shows its magnifier: a stored setting (default true on a fresh
+   * install) that each overlay reads when it starts and the Settings window can change too.
+   */
+  getMagnifier(): Promise<boolean>;
+  /**
+   * Store the magnifier setting at once and tell every overlay (and Settings) the new value via
+   * `onOverlayMagnifier`. If the platform cannot write the file it keeps the value in memory for
+   * this run and logs the failure; the overlay is never broken by it.
+   */
+  setMagnifier(enabled: boolean): Promise<void>;
+  /** The magnifier setting changed (from any window); delivers the new value, not a toggle. */
+  onOverlayMagnifier(handler: (enabled: boolean) => void): Promise<() => void>;
 
   /** The capture hotkey (an accelerator such as "ctrl+shift+s") and whether the OS accepted it. */
   getHotkey(): Promise<HotkeyState>;

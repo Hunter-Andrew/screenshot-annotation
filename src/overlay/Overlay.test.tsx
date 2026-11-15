@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createFakeBridge, type FakeBridge } from "../platform/fakeBridge";
 import { Overlay } from "./Overlay";
@@ -16,9 +16,15 @@ const WINDOWS = [
   { x: 200, y: 100, width: 1200, height: 800 }, // the big window: CSS 100,50 600x400
 ];
 
-async function showOverlay(monitor = 1, windows: typeof WINDOWS = []) {
+/** Fake settings storage holding `fake.magnifier` as the platform would have saved it (absent: a fresh install). */
+const storedMagnifier = (value?: "0" | "1") => {
+  const memory = new Map<string, string>(value === undefined ? [] : [["fake.magnifier", value]]);
+  return { getItem: (k: string) => memory.get(k) ?? null, setItem: (k: string, v: string) => void memory.set(k, v) };
+};
+
+async function showOverlay(monitor = 1, windows: typeof WINDOWS = [], storage = storedMagnifier("0")) {
   Object.assign(window, { innerWidth: 1000, innerHeight: 500 });
-  bridge = createFakeBridge({ overlayFrames: { [monitor]: FRAME }, overlayWindows: { [monitor]: windows } });
+  bridge = createFakeBridge({ overlayFrames: { [monitor]: FRAME }, overlayWindows: { [monitor]: windows }, storage });
   render(<Overlay bridge={bridge} monitor={monitor} />);
   const frozen = await screen.findByRole("img", { name: "Frozen screen" });
   fireEvent.load(frozen); // jsdom never decodes images, so announce the decode ourselves
@@ -102,15 +108,59 @@ describe("Overlay region mode", () => {
     expect(bridge.overlayOutcomes).toEqual([{ kind: "cancel" }]); // no region after cancelling
   });
 
-  it("M toggles the magnifier on every overlay", async () => {
-    await showOverlay(1);
+  it("M toggles the magnifier and stores the new state", async () => {
+    await showOverlay(1); // stored off
     move(100, 100);
     expect(screen.queryByTestId("magnifier")).toBeNull();
     fireEvent.keyDown(window, { key: "m" });
     expect(await screen.findByTestId("magnifier")).toBeVisible();
-    // The toggle is broadcast by the platform, so a press on another monitor's overlay works too.
-    await act(() => bridge.toggleOverlayMagnifier());
+    await waitFor(() => expect(bridge.magnifier).toBe(true));
+    fireEvent.keyDown(window, { key: "M" });
     await waitFor(() => expect(screen.queryByTestId("magnifier")).toBeNull());
+    expect(bridge.magnifier).toBe(false);
+  });
+
+  it("follows the value another overlay (another monitor) stored", async () => {
+    await showOverlay(1);
+    move(100, 100);
+    await act(() => bridge.setMagnifier(true));
+    expect(await screen.findByTestId("magnifier")).toBeVisible();
+    await act(() => bridge.setMagnifier(false));
+    await waitFor(() => expect(screen.queryByTestId("magnifier")).toBeNull());
+  });
+
+  it("starts with the magnifier on when the stored setting is on, before any key press", async () => {
+    await showOverlay(1, [], storedMagnifier("1"));
+    move(100, 100);
+    expect(await screen.findByTestId("magnifier")).toBeVisible();
+  });
+
+  it("starts with the magnifier off when the stored setting is off", async () => {
+    await showOverlay(1, [], storedMagnifier("0"));
+    move(100, 100);
+    await waitFor(() => expect(bridge.magnifier).toBe(false));
+    expect(screen.queryByTestId("magnifier")).toBeNull();
+  });
+
+  it("is on by default on a fresh install", async () => {
+    await showOverlay(1, [], storedMagnifier());
+    move(100, 100);
+    expect(await screen.findByTestId("magnifier")).toBeVisible();
+  });
+
+  it("a magnifier setting that cannot be read leaves the overlay working, magnifier off", async () => {
+    await showOverlay(1);
+    bridge.getMagnifier = async () => {
+      throw new Error("boom");
+    };
+    cleanup();
+    Object.assign(window, { innerWidth: 1000, innerHeight: 500 });
+    render(<Overlay bridge={bridge} monitor={1} />);
+    fireEvent.load(await screen.findByRole("img", { name: "Frozen screen" }));
+    move(100, 100);
+    fireEvent.keyDown(window, { key: " " });
+    await waitFor(() => expect(bridge.overlayOutcomes).toEqual([{ kind: "monitor" }]));
+    expect(screen.queryByTestId("magnifier")).toBeNull();
   });
 
   it("draws crosshair guides at the pointer", async () => {

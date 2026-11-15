@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { createFakeBridge } from "../platform/fakeBridge";
@@ -266,5 +266,44 @@ describe("Settings > recorder diagnostics", () => {
     hasFocus.mockRestore();
     expect(await screen.findByRole("alert")).toHaveTextContent(/Snipping Tool/);
     expect(bridge.settingsLogs.join("\n")).toMatch(/lost focus while recording/);
+  });
+});
+
+describe("Settings > Magnifier", () => {
+  const storage = (value?: "0" | "1") => {
+    const memory = new Map<string, string>(value === undefined ? [] : [["fake.magnifier", value]]);
+    return { getItem: (k: string) => memory.get(k) ?? null, setItem: (k: string, v: string) => void memory.set(k, v) };
+  };
+  const checkbox = () => screen.findByRole("checkbox", { name: "Show the magnifier in the capture overlay" });
+
+  it("is ticked on a fresh install", async () => {
+    render(<Settings bridge={createFakeBridge({ storage: storage() })} />);
+    expect(await checkbox()).toBeChecked();
+  });
+
+  it("shows the stored value", async () => {
+    render(<Settings bridge={createFakeBridge({ storage: storage("0") })} />);
+    await waitFor(async () => expect(await checkbox()).not.toBeChecked());
+    expect(await checkbox()).toBeEnabled();
+  });
+
+  it("unticking stores the same value the overlay reads, and ticking again restores it", async () => {
+    const bridge = createFakeBridge({ storage: storage("1") });
+    render(<Settings bridge={bridge} />);
+    await waitFor(async () => expect(await checkbox()).toBeEnabled());
+    await userEvent.click(await checkbox());
+    expect(bridge.magnifier).toBe(false);
+    expect(await bridge.getMagnifier()).toBe(false);
+    expect(await checkbox()).not.toBeChecked();
+    await userEvent.click(await checkbox());
+    expect(bridge.magnifier).toBe(true);
+  });
+
+  it("follows a change made from the overlay (M)", async () => {
+    const bridge = createFakeBridge({ storage: storage("1") });
+    render(<Settings bridge={bridge} />);
+    expect(await checkbox()).toBeChecked();
+    await act(() => bridge.setMagnifier(false));
+    await waitFor(async () => expect(await checkbox()).not.toBeChecked());
   });
 });
