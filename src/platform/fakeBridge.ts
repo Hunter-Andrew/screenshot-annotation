@@ -26,6 +26,8 @@ export interface FakeBridge extends PlatformBridge {
   readonly libraryUpdates: { path: string; bytes: Uint8Array }[];
   /** The next `updateLibraryFile` rejects with this message. */
   failNextLibraryUpdate(message: string): void;
+  /** Undo history files by key (`modifiedAt`: ms since the epoch; tests may set it to age a file). Survive a reload in the browser build. */
+  readonly historyFiles: Map<string, { text: string; modifiedAt: number }>;
   /** How many times the editor asked to open Settings (the gear button). */
   readonly settingsOpened: number;
   /** The next Save as PNG… behaves as if the user cancelled the dialog. */
@@ -151,6 +153,21 @@ export function createFakeBridge(
   } catch {
     // An unreadable store is an empty Library.
   }
+  // Undo history files, kept like the Library so a reload in the browser build still finds them.
+  const historyFiles: FakeBridge["historyFiles"] = new Map();
+  try {
+    const saved = JSON.parse(store.getItem("fake.history") ?? "[]") as [string, { text: string; modifiedAt: number }][];
+    for (const [key, file] of saved) historyFiles.set(key, file);
+  } catch {
+    // An unreadable store is no history.
+  }
+  const persistHistory = () => {
+    try {
+      store.setItem("fake.history", JSON.stringify([...historyFiles]));
+    } catch {
+      // Over the browser's quota: history then does not survive a reload.
+    }
+  };
   let cancelSaveAs = false;
   let discardFailure: string | null = null;
   const handlers = new Set<(capture: CaptureResult) => void>();
@@ -178,6 +195,7 @@ export function createFakeBridge(
     libraryFiles,
     savedAs,
     discardedPaths,
+    historyFiles,
     libraryUpdates,
     failNextLibraryUpdate: (message) => {
       libraryUpdateFailure = message;
@@ -330,6 +348,26 @@ export function createFakeBridge(
       const path = `C:\\Users\\fake\\Pictures\\${suggestedName}`;
       savedAs.push({ suggestedName, path, bytes: png });
       return path;
+    },
+    readHistory: async (key) => historyFiles.get(key)?.text ?? null,
+    writeHistory: async (key, text) => {
+      historyFiles.set(key, { text, modifiedAt: Date.now() });
+      persistHistory();
+    },
+    deleteHistory: async (key) => {
+      historyFiles.delete(key);
+      persistHistory();
+    },
+    purgeHistoryBefore: async (cutoffMs) => {
+      let purged = 0;
+      for (const [key, file] of historyFiles) {
+        if (file.modifiedAt < cutoffMs) {
+          historyFiles.delete(key);
+          purged++;
+        }
+      }
+      if (purged > 0) persistHistory();
+      return purged;
     },
     discardLibraryFile: async (path) => {
       if (discardFailure !== null) {

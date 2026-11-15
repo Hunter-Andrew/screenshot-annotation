@@ -62,11 +62,28 @@ describe("actionForKeyEvent", () => {
   });
 
   it("does not take a key with the wrong modifiers", () => {
-    expect(actionForKeyEvent(key("Delete"))).toBeNull();
+    expect(actionForKeyEvent(key("Delete", { alt: true }))).toBeNull();
     expect(actionForKeyEvent(key("a", { ctrl: true }))).toBeNull();
     expect(actionForKeyEvent(key("a", { alt: true }))).toBeNull();
     expect(actionForKeyEvent(key("c"))).toBe("tool.crop");
     expect(actionForKeyEvent(key("z"))).toBeNull();
+  });
+
+  it("maps undo, both redo keys, delete (Delete and Backspace) and the stacking keys", () => {
+    expect(actionForKeyEvent(key("z", { ctrl: true }))).toBe("editor.undo");
+    expect(actionForKeyEvent(key("y", { ctrl: true }))).toBe("editor.redo");
+    // Shift held makes the browser report "Z": that is redo, not undo.
+    expect(actionForKeyEvent(key("Z", { ctrl: true, shift: true }))).toBe("editor.redoAlt");
+    expect(actionForKeyEvent(key("Delete"))).toBe("editor.delete");
+    expect(actionForKeyEvent(key("Backspace"))).toBe("editor.deleteBackspace");
+    expect(actionForKeyEvent(key("]", { ctrl: true }))).toBe("editor.bringForward");
+    expect(actionForKeyEvent(key("[", { ctrl: true }))).toBe("editor.sendBack");
+  });
+
+  it("keeps Delete and Backspace fixed (not remappable) and Ctrl+Delete as Discard", () => {
+    const fixed = SHORTCUT_ACTIONS.filter((a) => a.fixed).map((a) => a.id);
+    expect(fixed).toEqual(["editor.delete", "editor.deleteBackspace"]);
+    expect(actionForKeyEvent(key("Delete", { ctrl: true }))).toBe("editor.discard");
   });
 
   it("reads zoom keys, taking + as =", () => {

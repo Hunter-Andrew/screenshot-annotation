@@ -189,6 +189,53 @@ describe("auto-save", () => {
   });
 });
 
+describe("onSaved (undo history is stored against each written PNG)", () => {
+  it("hands over the bytes written and the history as it was when they were encoded, in save order", async () => {
+    const saved: { path: string; png: Uint8Array; undoSteps: number }[] = [];
+    const fake = createFakeBridge();
+    const session = newSession();
+    const persister = createPersister({
+      bridge: fake,
+      session,
+      capturedAt: CAPTURED_AT,
+      render: async (image) => {
+        // An edit lands while the PNG is being rendered: it belongs to the next save, not this one.
+        if (image.model.annotations.length === 1) session.apply({ kind: "add", annotation: arrow("late") });
+        return image.capture;
+      },
+      onSaved: async ({ path, png, history }) => void saved.push({ path, png, undoSteps: history.undo.length }),
+    });
+    session.apply({ kind: "add", annotation: arrow("a1") });
+    persister.markDirty();
+
+    const path = (await persister.start())!;
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(saved.map((s) => [s.path, s.undoSteps])).toEqual([[path, 1]]);
+    expect(saved[0]!.png).toBe(fake.libraryFiles[0]!.bytes);
+    persister.markDirty();
+    await persister.flush();
+    expect(saved.map((s) => s.undoSteps)).toEqual([1, 2]);
+  });
+
+  it("a failing onSaved never fails the save", async () => {
+    const fake = createFakeBridge();
+    const events: PersisterEvent[] = [];
+    const persister = createPersister({
+      bridge: fake,
+      session: newSession(),
+      capturedAt: CAPTURED_AT,
+      render,
+      onEvent: (e) => events.push(e),
+      onSaved: async () => {
+        throw new Error("history disk full");
+      },
+    });
+    await expect(persister.start()).resolves.toMatch(/\.png$/);
+    expect(events.map((e) => e.kind)).toEqual(["saved"]);
+  });
+});
+
 describe("races", () => {
   it("an edit made while the first save is in flight goes into the same file, never a second one", async () => {
     const gate = deferred();
