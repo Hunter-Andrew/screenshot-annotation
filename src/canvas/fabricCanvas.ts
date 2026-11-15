@@ -121,8 +121,7 @@ export function createFabricCanvas(host: HTMLElement, { size, events }: MountOpt
       const typed = { ...annotation, ...adapter.read(object) } as Annotation;
       pending = null;
       silently(() => canvas.remove(object));
-      // Like a drawn shape: done, so back to Select (unless the user already picked another tool).
-      if (tool === annotation.type) tool = SELECT;
+      // Whether the tool then goes back to Select is the editor's call (the per-tool option, in `onCreate`).
       refreshMode();
       canvas.requestRenderAll();
       if ("text" in typed && typed.text.trim() !== "") events.onCreate(typed);

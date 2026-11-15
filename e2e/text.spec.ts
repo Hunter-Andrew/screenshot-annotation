@@ -612,3 +612,23 @@ test("Text: Esc during the drag cancels it, nothing is created", async ({ page }
   await page.waitForTimeout(1300);
   expect(await saved(page)).toEqual([]);
 });
+
+test("Text set to keep drawing: drag out one box, click away, drag out another", async ({ page }) => {
+  await page.goto("/");
+  await capture(page, 600, 300);
+  const view = await atActualSize(page, 600);
+  await page.keyboard.press("t");
+  await page.getByRole("checkbox", { name: "Return to Select after drawing" }).uncheck();
+
+  await drag(page, view.at(40, 40), view.at(200, 90));
+  await page.keyboard.type("One");
+  await page.mouse.click(view.at(500, 250).x, view.at(500, 250).y); // clicking away ends the typing
+  await expectSaved(page, (texts) => texts.length === 1, "first text created");
+  await expect(page.getByRole("button", { name: /^Text/ })).toHaveAttribute("aria-pressed", "true");
+
+  await drag(page, view.at(300, 150), view.at(500, 200));
+  await page.keyboard.type("Two");
+  await page.keyboard.press("Escape"); // Esc ends it and returns to Select, as always
+  await expectSaved(page, (texts) => texts.length === 2, "second text created");
+  expectArea((await saved(page))[1], { x: 300, y: 150, width: 200, minHeight: 50 });
+});
