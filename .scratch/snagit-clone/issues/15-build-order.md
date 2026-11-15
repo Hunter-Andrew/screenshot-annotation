@@ -19,6 +19,7 @@ Decided with Andrew on 2026-11-14. Each milestone is a release Andrew installs o
 | **M2 · Annotate** | v0.3.0 | See below. |
 | **M3 · Library** | v0.4.0 | See below. |
 | **M4 · Complete v1** | v1.0.0 | See below. |
+| **M5 · Shortcuts** | v1.1.0 | After the v1.0.0 release. See below. |
 
 **M0 · Skeleton (v0.1.0)**
 - Tauri 2 + React + TypeScript + Fabric.js scaffold.
@@ -50,7 +51,6 @@ Decided with Andrew on 2026-11-14. Each milestone is a release Andrew installs o
 - Discard.
 - The folder is the source of truth.
 - The thumbnail cache.
-- Settings shows all keyboard shortcuts and lets each one be remapped, including the capture-overlay keys (Space, Esc, M) and the editor keys (added 2026-11-15; ticket 28).
 
 **M4 · Complete v1 (v1.0.0)**
 - Callout, Highlighter, pixelate Blur and Crop.
@@ -59,6 +59,10 @@ Decided with Andrew on 2026-11-14. Each milestone is a release Andrew installs o
 - Close-to-tray with its notice.
 - Pre-warmed windows meeting the speed targets.
 - Done when the full checklist passes.
+
+**M5 · Shortcuts (v1.1.0), after the v1.0.0 release** (added 2026-11-15)
+- Settings lists every keyboard shortcut and lets each one be remapped (ticket 28): the capture-overlay keys (Space, M), the editor's tool and action keys, and Discard. Esc and the standard editing keys stay fixed and read-only.
+- Low-risk by design, like Snagit and Greenshot: in-app keys are handled inside the app's own windows; the only global registration is the capture hotkey, using the standard Windows method plus the passive Print Screen listener of ADR 0007. No hooks, no key blocking.
 
 **Planning approach**
 - Only M0 is broken into implementation tickets now (`.scratch/m0-skeleton/`). Later milestones are broken down when reached.
