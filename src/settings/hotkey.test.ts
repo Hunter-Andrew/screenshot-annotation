@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { comboFromKeyEvent, formatCombo, isModifierCode, usesPrintScreen } from "./hotkey";
+import { comboFromKeyEvent, formatCombo, isBarePrintScreen, isModifierCode, usesPrintScreen } from "./hotkey";
 
 const ev = (
   code: string,
@@ -74,6 +74,15 @@ describe("isModifierCode", () => {
   it("recognises modifier keys", () => {
     expect(isModifierCode("MetaLeft")).toBe(true);
     expect(isModifierCode("KeyA")).toBe(false);
+  });
+});
+
+describe("isBarePrintScreen", () => {
+  it("is true only for Print Screen with no modifiers (the one hotkey that uses Raw Input)", () => {
+    expect(isBarePrintScreen("PrintScreen")).toBe(true);
+    expect(isBarePrintScreen("ctrl+PrintScreen")).toBe(false);
+    expect(isBarePrintScreen("ctrl+shift+s")).toBe(false);
+    expect(isBarePrintScreen("")).toBe(false);
   });
 });
 

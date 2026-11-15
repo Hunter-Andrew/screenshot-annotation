@@ -75,6 +75,8 @@ export function createFakeBridge(
     version?: string;
     /** Windows' PrintScreenKeyForSnippingEnabled reads as on (the default) or explicitly 0. */
     printScreenSnippingEnabled?: boolean;
+    /** The Raw Input listener for bare Print Screen cannot start (the backend then reports it as not registered). */
+    rawInputFails?: boolean;
     storage?: FakeStorage;
     overlayFrames?: Record<number, { width: number; height: number }>;
     /** Windows per monitor (topmost first, native pixels local to the monitor); none by default. */
@@ -159,7 +161,10 @@ export function createFakeBridge(
     get keyboardSettingsOpened() {
       return keyboardSettingsOpened;
     },
-    getHotkey: async () => ({ accelerator: hotkey, registered: true }),
+    getHotkey: async () => {
+      const rawInputFailed = options.rawInputFails === true && hotkey === "PrintScreen";
+      return { accelerator: hotkey, registered: !rawInputFailed, rawInputFailed };
+    },
     setHotkey: async (accelerator) => {
       if (accelerator === hotkey) return { ok: true };
       if (takenHotkeys.has(accelerator)) return { ok: false, reason: "conflict" };

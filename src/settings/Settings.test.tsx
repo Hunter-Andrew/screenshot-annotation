@@ -119,7 +119,9 @@ describe("Settings > Print Screen warning (independent of the one-time notice)",
     fireEvent.keyUp(window, { code: "PrintScreen" });
     await screen.findByRole("button", { name: "Print Screen" });
     expect(bridge.hotkey).toBe("PrintScreen");
-    expect(await screen.findByRole("status")).toHaveTextContent(/Windows will keep sending Print Screen to Snipping Tool/);
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      /Windows will keep sending Print Screen to Snipping Tool, so Snipping Tool opens as well as the capture overlay/,
+    );
   });
 
   it("is shown on load for a saved Print Screen hotkey even after the one-time notice was answered", async () => {
@@ -174,6 +176,60 @@ describe("Settings > Print Screen warning (independent of the one-time notice)",
     bridge.setPrintScreenSnipping(true);
     fireEvent.focus(window);
     expect(await screen.findByRole("status")).toBeVisible();
+  });
+});
+
+describe("Settings > Print Screen clipboard note", () => {
+  const note = /Windows still copies the whole screen to the clipboard.*replaces that copy/;
+
+  it("explains next to a bare Print Screen hotkey that Windows' own copy happens and the captured region replaces it", async () => {
+    const bridge = createFakeBridge({ printScreenSnippingEnabled: false });
+    await bridge.setHotkey("PrintScreen");
+    render(<Settings bridge={bridge} />);
+    expect(await screen.findByText(note)).toBeVisible();
+  });
+
+  it("is also shown with the Snipping Tool warning, and appears right after recording Print Screen", async () => {
+    const bridge = createFakeBridge();
+    render(<Settings bridge={bridge} />);
+    await userEvent.click(await screen.findByRole("button", { name: "Ctrl+Shift+S" }));
+    expect(screen.queryByText(note)).toBeNull();
+    fireEvent.keyUp(window, { code: "PrintScreen" });
+    await screen.findByRole("status");
+    expect(await screen.findByText(note)).toBeVisible();
+  });
+
+  it("is absent for other hotkeys, Ctrl+Print Screen included", async () => {
+    const bridge = createFakeBridge({ printScreenSnippingEnabled: false });
+    const first = render(<Settings bridge={bridge} />);
+    await screen.findByRole("button", { name: "Ctrl+Shift+S" });
+    expect(screen.queryByText(note)).toBeNull();
+    first.unmount();
+    await bridge.setHotkey("ctrl+PrintScreen");
+    render(<Settings bridge={bridge} />);
+    await screen.findByRole("button", { name: "Ctrl+Print Screen" });
+    expect(screen.queryByText(note)).toBeNull();
+  });
+});
+
+describe("Settings > Print Screen listener failure", () => {
+  it("shows the failure like any other hotkey problem when the Raw Input listener could not start", async () => {
+    const bridge = createFakeBridge({ printScreenSnippingEnabled: false, rawInputFails: true });
+    await bridge.setHotkey("PrintScreen");
+    render(<Settings bridge={bridge} />);
+    expect(await screen.findByRole("alert")).toHaveTextContent(/could not watch the Print Screen key.*capture\.log/s);
+  });
+
+  it("shows it right after recording Print Screen, and not for other hotkeys", async () => {
+    const bridge = createFakeBridge({ printScreenSnippingEnabled: false, rawInputFails: true });
+    render(<Settings bridge={bridge} />);
+    await userEvent.click(await screen.findByRole("button", { name: "Ctrl+Shift+S" }));
+    fireEvent.keyUp(window, { code: "PrintScreen" });
+    expect(await screen.findByRole("alert")).toHaveTextContent(/could not watch the Print Screen key/);
+    await userEvent.click(screen.getByRole("button", { name: "Print Screen" }));
+    await userEvent.keyboard("{Control>}{Alt>}k{/Alt}{/Control}");
+    await screen.findByRole("button", { name: "Ctrl+Alt+K" });
+    expect(screen.queryByRole("alert")).toBeNull();
   });
 });
 

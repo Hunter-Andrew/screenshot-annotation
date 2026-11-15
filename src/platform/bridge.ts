@@ -48,6 +48,8 @@ export interface HotkeyState {
   accelerator: string;
   /** False when the OS refused the combination at startup (another app has it). */
   registered: boolean;
+  /** Bare Print Screen only: the Raw Input listener could not start (details in capture.log). */
+  rawInputFailed?: boolean;
 }
 
 export type SetHotkeyResult =

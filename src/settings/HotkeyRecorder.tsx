@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
 import type { PlatformBridge } from "../platform/bridge";
-import { comboFromKeyEvent, formatCombo } from "./hotkey";
+import { comboFromKeyEvent, formatCombo, isBarePrintScreen } from "./hotkey";
 import { shouldWarnPrintScreenTaken } from "./noticeRule";
 
 type Problem =
-  | { accelerator: string; reason: "conflict" | "failed" }
+  | { accelerator: string; reason: "conflict" | "failed" | "raw-input" }
   | "needs-modifier"
   | "unsupported-key"
   | "lost-focus"
@@ -31,7 +31,7 @@ export function HotkeyRecorder({ bridge }: { bridge: PlatformBridge }) {
   useEffect(() => {
     void bridge.getHotkey().then((state) => {
       setCurrent(state.accelerator);
-      if (!state.registered) setProblem({ accelerator: state.accelerator, reason: "conflict" });
+      if (!state.registered) setProblem(unregisteredProblem(state));
     });
     refreshSnipping();
   }, [bridge, refreshSnipping]);
@@ -69,6 +69,10 @@ export function HotkeyRecorder({ bridge }: { bridge: PlatformBridge }) {
           setCurrent(accelerator);
           setProblem(null);
           refreshSnipping();
+          // The backend may have fallen back from Raw Input; show that like any other hotkey problem.
+          void bridge.getHotkey().then((state) => {
+            if (!state.registered) setProblem(unregisteredProblem(state));
+          });
         } else {
           setProblem({ accelerator, reason: saved.reason === "conflict" ? "conflict" : "failed" });
         }
@@ -116,10 +120,16 @@ export function HotkeyRecorder({ bridge }: { bridge: PlatformBridge }) {
           {describe(problem)}
         </p>
       )}
+      {current !== null && isBarePrintScreen(current) && (
+        <p style={{ margin: "8px 0" }}>
+          Windows still copies the whole screen to the clipboard when you press Print Screen; the region you capture
+          replaces that copy.
+        </p>
+      )}
       {warn && (
         <div role="status" style={{ border: "1px solid #b26a00", padding: 8, margin: "8px 0" }}>
           <p style={{ margin: "0 0 8px" }}>
-            Windows will keep sending Print Screen to Snipping Tool, so this hotkey will not open the capture
+            Windows will keep sending Print Screen to Snipping Tool, so Snipping Tool opens as well as the capture
             overlay, until you turn off &ldquo;Use the Print screen button to open screen capturing&rdquo; in
             Windows Settings. This warning goes away by itself once that is off.
           </p>
@@ -132,6 +142,10 @@ export function HotkeyRecorder({ bridge }: { bridge: PlatformBridge }) {
   );
 }
 
+function unregisteredProblem(state: { accelerator: string; rawInputFailed?: boolean }): NonNullable<Problem> {
+  return { accelerator: state.accelerator, reason: state.rawInputFailed ? "raw-input" : "conflict" };
+}
+
 function describe(problem: NonNullable<Problem>): string {
   if (problem === "needs-modifier") return "Hold Ctrl, Alt, Shift or Win together with the key.";
   if (problem === "unsupported-key") return "That key cannot be used as a hotkey.";
@@ -142,6 +156,12 @@ function describe(problem: NonNullable<Problem>): string {
       "Accessibility > Keyboard first, then try again."
     );
   const name = formatCombo(problem.accelerator);
+  if (problem.reason === "raw-input")
+    return (
+      `The app could not watch the Print Screen key directly, and fell back to the standard hotkey registration, which ` +
+      `Windows may never deliver for Print Screen. Details are in capture.log (tray menu: Open log folder). ` +
+      `Another hotkey such as Ctrl+Print Screen works.`
+    );
   return problem.reason === "conflict"
     ? `${name} is already in use by another app. The previous hotkey stays in force; pick a different combination.`
     : `Could not save ${name}. The previous hotkey stays in force.`;

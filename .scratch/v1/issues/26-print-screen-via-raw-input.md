@@ -1,0 +1,26 @@
+# 26: Bare Print Screen via Raw Input
+
+**What to build:** Bare Print Screen as the capture hotkey starts a capture on Andrew's laptop, where `RegisterHotKey` never delivers it (`hotkey register PrintScreen ... ok`, but no `hotkey event` line, and Windows still copies the screen). While the hotkey is exactly bare `PrintScreen`, a passive Raw Input listener (hidden message-only window on its own thread, `RegisterRawInputDevices` for the keyboard with `RIDEV_INPUTSINK`, WM_INPUT, `VKey == VK_SNAPSHOT`) triggers the capture instead of `RegisterHotKey`; one physical press is one capture, whether Windows delivers the key-up only or key-down and key-up. Every raw Print Screen event and decision is logged to `capture.log`. No low-level hook, no `RIDEV_NOLEGACY`, nothing blocks the key, and the app never writes `PrintScreenKeyForSnippingEnabled`. Combinations with modifiers keep using `RegisterHotKey`. Settings keeps the Snipping Tool warning and says that Windows still copies the screen to the clipboard and the captured region replaces it. See ADR 0007.
+
+**Blocked by:** 08 (Hotkey settings and the Print Screen notice)
+
+**Status:** resolved
+
+- [x] One press = one capture, from make-only, break-only or make+break, with auto-repeat and duplicates ignored (pure `print_screen_key.rs`, unit tests with an injected clock, run on Linux)
+- [x] Changing the hotkey to bare Print Screen starts the listener, away from it stops it, with register-first and roll-back-on-failed-save ordering; modifier combinations never use the listener and bare Print Screen is never registered twice (`hotkey.rs` `Routed`, unit tests with fakes, run on Linux)
+- [x] A listener failure is logged, falls back to the normal registration and shows in Settings like other hotkey failures (unit tests on `Routed`; vitest on the Settings message with the fake bridge)
+- [x] Settings keeps the Snipping Tool warning (wording updated: Snipping Tool opens as well as the overlay) and shows the clipboard note next to a bare Print Screen hotkey only (vitest, Playwright e2e)
+- [x] The capture's automatic copy replaces Windows' own copy, and the overlay's frozen frame comes from the screen, not the clipboard (confirmed by reading the code: `deliver_capture` in `lib.rs` runs after the overlay selection; `capture.rs` reads the screen with GDI `BitBlt`; no test)
+- [x] No hooks and no network: Raw Input only, no `SetWindowsHookEx`, no `RIDEV_NOLEGACY`, no registry writes (by reading the code)
+- [ ] Bare Print Screen starts a capture on Andrew's laptop, with and without the Windows Snipping Tool setting (unverified: needs Windows; see `docs/release-checklist.md`)
+
+Spec: `.scratch/snagit-clone/spec.md`.
+
+## Comments
+
+- Diagnosis: `global-hotkey` 0.8.0 uses plain `RegisterHotKey(hwnd, id, MOD_NOREPEAT, VK_SNAPSHOT)` and emits Pressed from WM_HOTKEY, so on his machine Windows delivers no WM_HOTKEY for bare Print Screen. No Windows loop was available here, so the cause is the evidence from his `capture.log` plus reading the library, not a reproduction. Why Windows does not deliver it (the shell, or security software) is unknown, and Raw Input cannot get past security software that blocks the key.
+- Design: `src-tauri/src/raw_input.rs` (Windows thread, window, WM_INPUT), `print_screen_key.rs` (pure decisions, 400 ms debounce, 1.5 s stale-held guard, modifiers ignored), `hotkey.rs` `Routed` (listener for bare Print Screen, plugin for everything else, fallback), `lib.rs` wiring. `get_hotkey.registered` is the listener state; `rawInputFailed` tells Settings the fallback is in use.
+- Ordering with the clipboard: Windows copies all monitors at the key press; the app only observes. `deliver_capture` writes the selected region after the user finishes in the overlay (after the 150 ms editor hide, the screen freeze and the drag), so it replaces Windows' copy. After an Esc cancel Windows' full-screen copy stays. The race is only theoretical (a selection finished within a few milliseconds of the press).
+- Verified on Linux: vitest (121), Playwright (16), `tsc --noEmit`, the Rust unit tests for `print_screen_key.rs` and `hotkey.rs` (run in a scratch crate, 23 tests), and `cargo check --offline --target x86_64-pc-windows-gnu --tests` with a stub `x86_64-w64-mingw32-windres` (type-checks `raw_input.rs` against `windows` 0.62 with the added features Win32_UI_Input, Win32_UI_Input_KeyboardAndMouse, Win32_System_LibraryLoader).
+- Not verifiable here, all on Windows: (1) that Raw Input delivers Print Screen to a background listener on his laptop at all (managed laptop; security software could filter it); (2) whether Windows sends the make, the break or both, and with which flags (the log will show it, and the decision logic handles all three); (3) the message-only window, `RegisterRawInputDevices` and start/stop on hotkey change; (4) `GetAsyncKeyState` modifier detection; (5) that Windows' own copy and Snipping Tool behave as described, with the setting on and off; (6) the fallback path (could be forced by a failing setup only on Windows).
+- The first run on the laptop doubles as the diagnostic: the `raw input: PrintScreen ...` lines in `capture.log` show exactly what arrived. See the M1 item in `docs/release-checklist.md`.

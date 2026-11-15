@@ -8,11 +8,14 @@ mod library;
 mod overlay;
 mod png_guard;
 mod print_screen;
+mod print_screen_key;
+mod raw_input;
 mod settings;
 mod url_guard;
 mod watchdog;
 
-use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use tauri::{
@@ -78,11 +81,73 @@ impl hotkey::ShortcutRegistry for PluginRegistry<'_> {
     }
 }
 
+/// The Print Screen Raw Input listener (ticket 26, ADR 0007) and whether bare Print Screen is on
+/// the RegisterHotKey fallback because the listener could not start.
+#[derive(Default)]
+struct RawInput {
+    listener: Mutex<Option<raw_input::Listener>>,
+    degraded: AtomicBool,
+}
+
+/// `hotkey::ShortcutRegistry` for bare Print Screen over the Raw Input listener. Registering starts
+/// the listener (a capture per press, same entry as the other hotkeys, so the `busy` guard in
+/// `overlay::begin` applies); unregistering stops it.
+struct ListenerRegistry<'a>(&'a AppHandle);
+
+impl hotkey::ShortcutRegistry for ListenerRegistry<'_> {
+    fn register(&self, accelerator: &str) -> Result<(), hotkey::RegisterError> {
+        let state = self.0.state::<RawInput>();
+        let mut slot = state.listener.lock().unwrap_or_else(|p| p.into_inner());
+        if slot.is_some() {
+            return Ok(());
+        }
+        let app = self.0.clone();
+        let on_trigger: raw_input::OnTrigger = Arc::new(move || {
+            diag::log("hotkey event: PrintScreen (raw input) -> capture");
+            capture_async(app.clone(), "hotkey");
+        });
+        match raw_input::Listener::start(on_trigger) {
+            Ok(listener) => {
+                *slot = Some(listener);
+                diag::log(&format!("hotkey register {accelerator}: ok via the Raw Input listener (RegisterHotKey is not used for it)"));
+                Ok(())
+            }
+            Err(e) => {
+                diag::log(&format!("hotkey register {accelerator}: Raw Input listener failed: {e}"));
+                Err(hotkey::RegisterError::Taken)
+            }
+        }
+    }
+    fn unregister(&self, accelerator: &str) {
+        let listener = self.0.state::<RawInput>().listener.lock().unwrap_or_else(|p| p.into_inner()).take();
+        if let Some(listener) = listener {
+            listener.stop();
+            diag::log(&format!("hotkey unregister {accelerator}: Raw Input listener stopped"));
+        }
+    }
+    fn is_registered(&self, _accelerator: &str) -> bool {
+        self.0.state::<RawInput>().listener.lock().unwrap_or_else(|p| p.into_inner()).is_some()
+    }
+}
+
+/// Every hotkey operation goes through this: bare Print Screen to the listener, the rest to the plugin.
+fn registry(app: &AppHandle) -> hotkey::Routed<'_, PluginRegistry<'_>, ListenerRegistry<'_>> {
+    hotkey::Routed {
+        plugin: PluginRegistry(app),
+        listener: ListenerRegistry(app),
+        degraded: &app.state::<RawInput>().inner().degraded,
+        log: diag::log,
+    }
+}
+
 #[derive(serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 struct HotkeyState {
     accelerator: String,
     registered: bool,
+    /// Bare Print Screen only: the Raw Input listener could not start (see capture.log), so the
+    /// app fell back to RegisterHotKey, which may never fire for that key.
+    raw_input_failed: bool,
 }
 
 #[derive(serde::Serialize)]
@@ -115,9 +180,13 @@ fn open_url(url: String) -> Result<(), String> {
 fn get_hotkey(app: AppHandle, state: tauri::State<'_, AppSettings>) -> HotkeyState {
     use hotkey::ShortcutRegistry;
     let accelerator = state.data.lock().unwrap().hotkey.clone();
-    let registered = PluginRegistry(&app).is_registered(&accelerator);
-    diag::log(&format!("get_hotkey: {accelerator}, registered by this app: {registered}"));
-    HotkeyState { accelerator, registered }
+    let registered = registry(&app).is_registered(&accelerator);
+    let raw_input_failed =
+        print_screen_key::is_bare_print_screen(&accelerator) && app.state::<RawInput>().degraded.load(Ordering::SeqCst);
+    diag::log(&format!(
+        "get_hotkey: {accelerator}, registered by this app: {registered}, raw input listener failed: {raw_input_failed}"
+    ));
+    HotkeyState { accelerator, registered, raw_input_failed }
 }
 
 /// Re-registers the capture hotkey and saves it. Errors: "conflict" (another app owns it; the old
@@ -129,7 +198,7 @@ fn set_hotkey(app: AppHandle, state: tauri::State<'_, AppSettings>, accelerator:
     diag::log(&format!("set_hotkey: requested {accelerator} (current {old})"));
     let mut next = data.clone();
     next.hotkey = accelerator.clone();
-    let outcome = hotkey::change_hotkey(&PluginRegistry(&app), &old, &accelerator, || {
+    let outcome = hotkey::change_hotkey(&registry(&app), &old, &accelerator, || {
         settings::save(&state.dir, &next).inspect_err(|e| diag::log(&format!("set_hotkey: could not save settings.json: {e}")))
     });
     match outcome {
@@ -325,6 +394,14 @@ fn open_log_folder() {
 /// even if the editor window never loads and re-opening the editor never touches the clipboard
 /// again. A clipboard failure only goes to `capture.log` and the editor's status line; the Library
 /// save and the editor opening still happen.
+///
+/// Ordering with Windows' own Print Screen copy (ticket 26): the bare Print Screen hotkey is only
+/// watched, never blocked, so Windows copies all monitors to the clipboard at the key press. This
+/// function runs only after the user has made a selection in the overlay (seconds later, and after
+/// the 150 ms editor hide and the screen freeze), so the write below comes last and replaces
+/// Windows' copy. The frozen frames come from the screen (GDI BitBlt in capture.rs), never from
+/// the clipboard, so Windows' copy cannot leak into a Capture. If the user cancels with Esc,
+/// nothing is written and Windows' full-screen copy stays on the clipboard.
 fn deliver_capture(app: &AppHandle, width: u32, height: u32, captured_at_ms: f64, png: &[u8]) {
     let clipboard = match write_plain_png_to_clipboard(app, png) {
         Ok(()) => {
@@ -345,6 +422,7 @@ fn deliver_capture(app: &AppHandle, width: u32, height: u32, captured_at_ms: f64
 pub fn run() {
     tauri::Builder::default()
         .manage(PendingCapture::default())
+        .manage(RawInput::default())
         .manage(overlay::OverlayState::default())
         // A second launch focuses the running instance.
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| show_editor(app)))
@@ -390,7 +468,7 @@ pub fn run() {
             diag::log(&format!("started, version {}", app.package_info().version));
             let loaded = settings::load(&dir);
             // A taken hotkey must not stop the app from starting; Settings shows the conflict warning.
-            let _ = hotkey::ShortcutRegistry::register(&PluginRegistry(app.handle()), &loaded.hotkey);
+            let _ = hotkey::ShortcutRegistry::register(&registry(app.handle()), &loaded.hotkey);
             let reading = print_screen::read();
             diag::log(&format!(
                 "startup: hotkey {}, one-time notice answered: {}; {}",
