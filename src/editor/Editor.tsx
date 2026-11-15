@@ -10,6 +10,7 @@ import {
 import { type Annotation, emptyModel } from "../core/annotation";
 import { kindOf } from "../core/annotations";
 import { createEditSession, type EditSession } from "../core/editSession";
+import type { HistoryState } from "../core/history";
 import { readSize } from "../core/png";
 import type { GroupId, PropertyGroups, Style } from "../core/propertyGroups";
 import type { PlatformBridge } from "../platform/bridge";
@@ -17,7 +18,8 @@ import { capturedAtFromPath, formatStamp } from "../shared/stamp";
 import { formatCombo } from "../settings/hotkey";
 import "./editor.css";
 import { createPersister, type Persister } from "./persister";
-import { actionForKeyEvent, defaultBindings, isTypingTarget } from "./shortcuts";
+import { createHistoryStore } from "./historyStore";
+import { actionForKeyEvent, defaultBindings, isTypingTarget, keyLabel } from "./shortcuts";
 import { Stage } from "./Stage";
 import { StylePanel } from "./StylePanel";
 import { SELECT_TOOL, TOOLS } from "./tools";
@@ -66,6 +68,8 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
   const [toolStyles, setToolStyles] = useState<Record<string, Style>>({});
   const [canvas, setCanvas] = useState<AnnotationCanvas | null>(null);
   const stickyStyles = useStickyStyles(bridge, setToolStyles);
+  // Undo history of each Library image, kept in local app data between runs (ticket 13).
+  const historyStore = useMemo(() => createHistoryStore({ bridge }), [bridge]);
 
   useEffect(() => {
     let cancelled = false;
@@ -80,9 +84,13 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
 
   /** A new Entry for `decoded`, with its auto-save wired to the status line. */
   const createEntry = useCallback(
-    (decoded: AnnotatedImage, capturedAt: Date, options: { path?: string; readOnly?: boolean; note?: string } = {}): Entry => {
+    (
+      decoded: AnnotatedImage,
+      capturedAt: Date,
+      options: { path?: string; readOnly?: boolean; note?: string; history?: HistoryState } = {},
+    ): Entry => {
       const id = nextId.current++;
-      const session = createEditSession(decoded);
+      const session = createEditSession(decoded, { history: options.history });
       const note = options.note ?? "";
       const persister = createPersister({
         bridge,
@@ -91,6 +99,8 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
         render: kit.render,
         path: options.path,
         readOnly: options.readOnly,
+        // The history is stored against the exact PNG just written, so a PNG changed elsewhere voids it.
+        onSaved: ({ path, png, history }) => historyStore.save(path, png, history),
         onEvent: (event) =>
           setStatus(
             event.kind === "saved"
@@ -103,22 +113,27 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
       session.subscribe(() => persister.markDirty());
       return { id, session, persister, capturedAt, readOnly: options.readOnly === true };
     },
-    [bridge, kit],
+    [bridge, kit, historyStore],
   );
 
   useEffect(() => {
     let unsubscribe: (() => void) | undefined;
     let cancelled = false;
     void (async () => {
+      // Drop the undo history of images not opened for 60 days (before opening, which counts as use).
+      await historyStore.purgeExpired();
       // First reopen the last image, so edits survive a restart. Before subscribing to Captures: a
       // Capture that is saved later can then never be mistaken for it.
       try {
         const file = await bridge.openLatestLibraryImage();
         if (file && !cancelled) {
           const decoded = decodeLibraryPng(file.png);
+          const history = decoded.readOnly ? undefined : await historyStore.open(file.path, file.png);
+          if (cancelled) return;
           const entry = createEntry(decoded, capturedAtFromPath(file.path) ?? new Date(), {
             path: file.path,
             readOnly: decoded.readOnly,
+            history,
           });
           setEntries((all) => [entry, ...all]);
           if (decoded.readOnly) {
@@ -150,7 +165,7 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
       cancelled = true;
       unsubscribe?.();
     };
-  }, [bridge, createEntry]);
+  }, [bridge, createEntry, historyStore]);
 
   // Save pending edits when the window is hidden or closed, so nothing waits on the 1 s timer.
   const entriesRef = useRef(entries);
@@ -171,6 +186,11 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
     setTool(SELECT_TOOL.id);
     setSelectedId(null);
   }, [current?.id]);
+
+  // Undo can remove the selected Annotation (undoing its creation): nothing is selected then.
+  useEffect(() => {
+    if (selectedId !== null && image && !image.model.annotations.some((a) => a.id === selectedId)) setSelectedId(null);
+  }, [image, selectedId]);
 
   const captureBytes = image?.capture ?? null;
   const imageUrl = useMemo(
@@ -236,6 +256,22 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
 
   // --- actions ----------------------------------------------------------------------------------
 
+  // Undo, redo, delete and stacking order all go through the edit session (the one choke point),
+  // so they are recorded and saved like any other change. Each does nothing for a read-only image.
+  const undo = () => void (!readOnly && current?.session.undo());
+  const redo = () => void (!readOnly && current?.session.redo());
+  const selectedIndex = image?.model.annotations.findIndex((a) => a.id === selectedId) ?? -1;
+  const stackSize = image?.model.annotations.length ?? 0;
+  const deleteSelected = () => {
+    if (!current || readOnly || selectedIndex < 0) return;
+    current.session.apply({ kind: "delete", id: selectedId! });
+    setSelectedId(null);
+  };
+  const moveSelected = (by: 1 | -1) => {
+    if (!current || readOnly || selectedIndex < 0) return;
+    current.session.apply({ kind: "reorder", id: selectedId!, to: selectedIndex + by });
+  };
+
   const copy = async () => {
     if (!current) return;
     try {
@@ -264,7 +300,9 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
     discarding.current = true;
     try {
       // Waits for a save that is still in flight, then moves that very file to the Recycle Bin.
+      const path = current.persister.path;
       await current.persister.discard();
+      if (path) void historyStore.remove(path); // its undo history goes with it
       setEntries((all) => all.filter((e) => e.id !== current.id));
       setStatus("Discarded (moved to the Recycle Bin)");
     } catch (e) {
@@ -276,8 +314,8 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
 
   // --- keyboard: every key goes through the one shortcut table ------------------------------------
 
-  const latest = useRef({ chooseTool, copy, discard, view, selectedId, hasImage: image !== null });
-  latest.current = { chooseTool, copy, discard, view, selectedId, hasImage: image !== null };
+  const latest = useRef({ chooseTool, copy, discard, view, selectedId, hasImage: image !== null, undo, redo, deleteSelected, moveSelected });
+  latest.current = { chooseTool, copy, discard, view, selectedId, hasImage: image !== null, undo, redo, deleteSelected, moveSelected };
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (isTypingTarget(event.target as HTMLElement | null)) return;
@@ -301,6 +339,23 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
           break;
         case "editor.discard":
           void now.discard();
+          break;
+        case "editor.undo":
+          now.undo();
+          break;
+        case "editor.redo":
+        case "editor.redoAlt":
+          now.redo();
+          break;
+        case "editor.delete":
+        case "editor.deleteBackspace":
+          now.deleteSelected();
+          break;
+        case "editor.bringForward":
+          now.moveSelected(1);
+          break;
+        case "editor.sendBack":
+          now.moveSelected(-1);
           break;
         case "view.fit":
           now.view.fit();
@@ -328,6 +383,20 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
       <header className="topbar">
         <strong>Screenshot Annotation</strong>
         <button onClick={() => void bridge.startCapture()}>Capture</button>
+        <button
+          onClick={undo}
+          disabled={!current || readOnly || !current.session.canUndo}
+          title={`Undo (${keyLabel("editor.undo", BINDINGS)})`}
+        >
+          Undo
+        </button>
+        <button
+          onClick={redo}
+          disabled={!current || readOnly || !current.session.canRedo}
+          title={`Redo (${keyLabel("editor.redo", BINDINGS)})`}
+        >
+          Redo
+        </button>
         <span className="spacer" />
         <button onClick={() => void discard()} disabled={!image}>
           Discard
@@ -359,7 +428,27 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
           <p className="empty">Press {formatCombo(hotkey)} to capture</p>
         ) : null}
       </main>
-      <StylePanel kind={readOnly ? null : (styledKind ?? null)} style={panelStyle} onChange={restyle} />
+      <StylePanel
+        kind={readOnly ? null : (styledKind ?? null)}
+        style={panelStyle}
+        onChange={restyle}
+        arrange={
+          readOnly || selectedIndex < 0
+            ? null
+            : {
+                canForward: selectedIndex < stackSize - 1,
+                canBack: selectedIndex > 0,
+                onForward: () => moveSelected(1),
+                onBack: () => moveSelected(-1),
+                onDelete: deleteSelected,
+                titles: {
+                  forward: `Bring forward (${keyLabel("editor.bringForward", BINDINGS)})`,
+                  back: `Send back (${keyLabel("editor.sendBack", BINDINGS)})`,
+                  delete: `Delete (${keyLabel("editor.delete", BINDINGS)})`,
+                },
+              }
+        }
+      />
       <footer className="statusbar">
         <span role="status">{status}</span>
         {image && (

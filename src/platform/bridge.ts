@@ -96,6 +96,17 @@ export interface PlatformBridge {
    * on start so edits survive a restart. (The Library Strip, ticket 14, supersedes this with a list.)
    */
   openLatestLibraryImage(): Promise<LibraryFile | null>;
+  /**
+   * Undo history files (ticket 13), one per image, in the app's local data folder (never in the PNG).
+   * `key` is 64 lowercase hex characters (`contentHash` of the image's path); the text is opaque here.
+   * `readHistory` is null when there is no file. `writeHistory` is atomic (temp file, then replace).
+   * `deleteHistory` is a no-op when there is none. `purgeHistoryBefore` deletes every history file last
+   * written before `cutoffMs` (ms since the epoch) and returns how many it deleted.
+   */
+  readHistory(key: string): Promise<string | null>;
+  writeHistory(key: string, text: string): Promise<void>;
+  deleteHistory(key: string): Promise<void>;
+  purgeHistoryBefore(cutoffMs: number): Promise<number>;
   /** Open the Settings window (the editor's gear button). */
   openSettings(): Promise<void>;
 

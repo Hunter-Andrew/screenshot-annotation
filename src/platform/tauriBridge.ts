@@ -104,6 +104,10 @@ export function createTauriBridge(): PlatformBridge {
     updateLibraryFile: (path, png) =>
       invoke<void>("library_update", png, { headers: { "x-library-path": encodeURIComponent(path) } }),
     openLatestLibraryImage: async () => unpackLibraryFile(await invoke<ArrayBuffer>("library_open_latest")),
+    readHistory: (key) => invoke<string | null>("history_read", { key }),
+    writeHistory: (key, text) => invoke<void>("history_write", { key, text }),
+    deleteHistory: (key) => invoke<void>("history_delete", { key }),
+    purgeHistoryBefore: (cutoffMs) => invoke<number>("history_purge_before", { cutoffMs }),
     openSettings: () => invoke<void>("open_settings"),
     overlayFrame: async (monitor) => unpackFrame(await invoke<ArrayBuffer>("overlay_frame", { monitor })),
     overlayWindows: (monitor) => invoke<OverlayRect[]>("overlay_windows", { monitor }),

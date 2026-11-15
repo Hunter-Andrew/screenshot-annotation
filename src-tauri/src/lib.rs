@@ -3,6 +3,7 @@ mod capture_image;
 mod capture_wire;
 mod diag;
 mod geometry;
+mod history_store;
 mod hotkey;
 mod library;
 mod overlay;
@@ -384,6 +385,36 @@ fn library_open_latest(app: AppHandle) -> Result<Response, String> {
     Ok(Response::new(library::pack_library_file(&path, &png)))
 }
 
+/// The folder of the undo history files: `<app local data>/history` (never inside a PNG).
+fn history_dir(app: &AppHandle) -> Result<std::path::PathBuf, String> {
+    Ok(app.path().app_local_data_dir().map_err(|e| e.to_string())?.join(history_store::HISTORY_FOLDER))
+}
+
+/// The undo history text stored for `key` (64 hex characters), or null when there is none.
+#[tauri::command]
+fn history_read(app: AppHandle, key: String) -> Result<Option<String>, String> {
+    history_store::read(&history_dir(&app)?, &key)
+}
+
+/// Stores the undo history text for `key`, replacing any earlier one atomically.
+#[tauri::command]
+fn history_write(app: AppHandle, key: String, text: String) -> Result<(), String> {
+    history_store::write(&history_dir(&app)?, &key, &text)
+}
+
+/// Deletes the undo history for `key` (the image was discarded, or its history is stale).
+#[tauri::command]
+fn history_delete(app: AppHandle, key: String) -> Result<(), String> {
+    history_store::delete(&history_dir(&app)?, &key)
+}
+
+/// Deletes every undo history last written before `cutoff_ms` (ms since the epoch; the webview
+/// computes it as now minus 60 days). Returns how many were deleted.
+#[tauri::command]
+fn history_purge_before(app: AppHandle, cutoff_ms: f64) -> Result<usize, String> {
+    Ok(history_store::purge_before(&history_dir(&app)?, cutoff_ms.max(0.0) as u64))
+}
+
 /// Opens the Settings window (the editor's gear button).
 #[tauri::command]
 fn open_settings(app: AppHandle) {
@@ -515,6 +546,10 @@ pub fn run() {
             library_discard,
             library_update,
             library_open_latest,
+            history_read,
+            history_write,
+            history_delete,
+            history_purge_before,
             open_settings,
             save_png_as,
             get_hotkey,
