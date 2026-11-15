@@ -4,11 +4,11 @@
 
 **Blocked by:** 01 (Installable tray app with About)
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] A v* tag builds, tests and creates a Release with the installer; failing tests block it
-- [ ] docs/release-checklist.md covers the Testing strategy items, each marked with the milestone it applies from, including perceived speed
-- [ ] probes/ and its workflow are deleted; README updated
-- [ ] README links the checklist
+- [ ] A v* tag builds, tests and creates a Release with the installer; failing tests block it (unverified: workflow YAML parses and the release job has `needs: build-and-test`; the real run is only provable on GitHub with a tag, which was not pushed)
+- [x] docs/release-checklist.md covers the Testing strategy items, each marked with the milestone it applies from, including perceived speed
+- [x] probes/ and its workflow are deleted; README updated
+- [x] README links the checklist
 
 Spec: `.scratch/snagit-clone/spec.md`.

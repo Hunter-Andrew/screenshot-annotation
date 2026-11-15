@@ -27,7 +27,7 @@ A Windows desktop app for capturing and annotating screenshots, in the style of 
 
 ## Install and update
 
-Once released: download the latest `Setup.exe` from [Releases](https://github.com/Hunter-Andrew/screenshot-annotation/releases) and run it. No admin is needed. Windows SmartScreen may say "Windows protected your PC"; choose **More info → Run anyway**. To update, run the newer setup over the old one; your Library and settings are kept. The app never connects to the internet.
+Once released (see the [release checklist](docs/release-checklist.md) for how each version is checked): download the latest `Setup.exe` from [Releases](https://github.com/Hunter-Andrew/screenshot-annotation/releases) and run it. No admin is needed. Windows SmartScreen may say "Windows protected your PC"; choose **More info → Run anyway**. To update, run the newer setup over the old one; your Library and settings are kept. The app never connects to the internet.
 
 ## Architecture decisions
 
@@ -42,7 +42,11 @@ Once released: download the latest `Setup.exe` from [Releases](https://github.co
 
 ## Development
 
-Setup instructions will be added once implementation begins. The `probes/` folder and `.github/workflows/probes.yml` are throwaway install tests and will be removed.
+Setup instructions will be added once implementation begins.
+
+## Releasing
+
+Pushing a `vX.Y.Z` tag runs the same tests and build as every push, then publishes a GitHub Release with the setup `.exe` attached; a failing test blocks the Release. The tag must match the version in `package.json` and `src-tauri/tauri.conf.json`. Before tagging, run the manual [release checklist](docs/release-checklist.md) on the work laptop.
 
 ## License
 
