@@ -131,11 +131,16 @@ export function createFakeBridge(
   const discardedPaths: string[] = [];
   // With a persistent store (the browser build), Library files survive a page reload, like the real
   // Library survives a restart.
-  const persistLibrary = () =>
-    store.setItem(
-      "fake.library",
-      JSON.stringify(libraryFiles.map((f) => ({ path: f.path, b64: toBase64(f.bytes), at: writtenAt.get(f.path) ?? 0 }))),
-    );
+  const persistLibrary = () => {
+    try {
+      store.setItem(
+        "fake.library",
+        JSON.stringify(libraryFiles.map((f) => ({ path: f.path, b64: toBase64(f.bytes), at: writtenAt.get(f.path) ?? 0 }))),
+      );
+    } catch {
+      // Over the browser's storage quota (big test Captures): the Library then simply does not survive a reload.
+    }
+  };
   try {
     const saved = JSON.parse(store.getItem("fake.library") ?? "[]") as { path: string; b64: string; at: number }[];
     for (const f of saved) {

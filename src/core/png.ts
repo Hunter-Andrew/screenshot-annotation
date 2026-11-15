@@ -137,3 +137,39 @@ export function encodeRgbaPng(width: number, height: number, rgba: Uint8Array): 
     { type: "IEND", data: new Uint8Array(0) },
   ]);
 }
+
+/** zlib-compress `data` with the platform's CompressionStream (browsers and Node 18+). */
+async function zlibDeflate(data: Uint8Array): Promise<Uint8Array> {
+  const stream = new Blob([data as BlobPart]).stream().pipeThrough(new CompressionStream("deflate"));
+  return new Uint8Array(await new Response(stream).arrayBuffer());
+}
+
+/**
+ * Encode 8-bit RGBA pixels as a compressed PNG (each row filtered "Up", then zlib). This is what the
+ * editor writes for the finished image: the browser's own PNG encoder (`canvas.toBlob`) is deferred
+ * until the page is idle, which can add a second to every Copy and auto-save.
+ */
+export async function encodeRgbaPngCompressed(width: number, height: number, rgba: Uint8Array): Promise<Uint8Array> {
+  if (rgba.length !== width * height * 4) throw new Error("rgba length does not match size");
+  const rowBytes = width * 4;
+  const raw = new Uint8Array(height * (1 + rowBytes));
+  for (let y = 0; y < height; y++) {
+    const out = y * (1 + rowBytes);
+    const row = y * rowBytes;
+    raw[out] = y === 0 ? 0 : 2; // None for the first row, Up (difference from the row above) for the rest
+    for (let i = 0; i < rowBytes; i++) {
+      raw[out + 1 + i] = y === 0 ? rgba[row + i]! : (rgba[row + i]! - rgba[row - rowBytes + i]!) & 0xff;
+    }
+  }
+  const ihdr = new Uint8Array(13);
+  const view = new DataView(ihdr.buffer);
+  view.setUint32(0, width);
+  view.setUint32(4, height);
+  ihdr[8] = 8; // bit depth
+  ihdr[9] = 6; // RGBA
+  return assemble([
+    { type: "IHDR", data: ihdr },
+    { type: "IDAT", data: await zlibDeflate(raw) },
+    { type: "IEND", data: new Uint8Array(0) },
+  ]);
+}

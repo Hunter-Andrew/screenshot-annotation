@@ -12,8 +12,13 @@ import { adapterFor } from "./shapes";
 const SELECT = "select";
 
 export function createFabricCanvas(host: HTMLElement, { size, events }: MountOptions): AnnotationCanvas {
+  // Its own mount point, so that tearing one canvas down (React StrictMode mounts, unmounts and
+  // mounts again) never removes another canvas that was mounted into the same host meanwhile.
+  const mountPoint = document.createElement("div");
+  Object.assign(mountPoint.style, { position: "absolute", inset: "0" });
+  host.appendChild(mountPoint);
   const element = document.createElement("canvas");
-  host.replaceChildren(element);
+  mountPoint.appendChild(element);
   const canvas = new Canvas(element, {
     width: size.width,
     height: size.height,
@@ -162,7 +167,7 @@ export function createFabricCanvas(host: HTMLElement, { size, events }: MountOpt
     },
     dispose() {
       void canvas.dispose();
-      host.replaceChildren();
+      mountPoint.remove();
     },
   };
 }

@@ -7,7 +7,7 @@ import {
   decodeLibraryPng,
   exportPng,
 } from "../core/annotatedImage";
-import type { Annotation } from "../core/annotation";
+import { type Annotation, emptyModel } from "../core/annotation";
 import { kindOf } from "../core/annotations";
 import { createEditSession, type EditSession } from "../core/editSession";
 import { readSize } from "../core/png";
@@ -208,12 +208,11 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
     onSelect: setSelectedId,
   };
 
-  useEffect(() => canvas?.sync(image?.model ?? { formatVersion: 1, annotations: [], crop: null }), [canvas, image?.model]);
+  useEffect(() => canvas?.sync(image?.model ?? emptyModel()), [canvas, image?.model]);
   useEffect(() => canvas?.setTool(tool), [canvas, tool]);
   useEffect(() => canvas?.select(selectedId), [canvas, selectedId, image?.model]);
   useEffect(
     () => canvas?.setDrawStyle(tool === SELECT_TOOL.id ? {} : styleOf(tool, null)),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [canvas, tool, toolStyles],
   );
 

@@ -46,8 +46,12 @@ export class ArrowShape extends FabricObject {
     return new Control({
       cursorStyle: "crosshair",
       actionName: "modifyEndpoint",
+      // Fabric's matrix expects offsets in on-screen units (it divides the zoom back out), so scale ours.
       positionHandler: (_dim, finalMatrix, object) =>
-        (object as ArrowShape).endOffsetFromCenter(end).transform(finalMatrix),
+        (object as ArrowShape)
+          .endOffsetFromCenter(end)
+          .scalarMultiply(object.getViewportTransform()[0])
+          .transform(finalMatrix),
       actionHandler: (_event, transform, x, y) => {
         // x, y: the pointer in scene (Capture pixel) coordinates.
         (transform.target as ArrowShape).moveEnd(end, x, y);

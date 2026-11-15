@@ -13,7 +13,12 @@
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) 232px;
   grid-template-rows: auto minmax(0, 1fr) auto;
-  height: 100vh;
+  /* Pinned to the window, not `height: 100vh`: the body's default margin would push a 100vh box past
+     the bottom and make the whole page scroll a little (the M1 editor did exactly that). Only the
+     well scrolls. */
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
   font-family: system-ui, sans-serif;
   color: var(--fg);
   background: var(--chrome);

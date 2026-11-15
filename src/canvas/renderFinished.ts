@@ -3,16 +3,8 @@
 // It draws through the same shape adapters as the editor canvas, so what you see is what you copy.
 import { StaticCanvas } from "fabric";
 import type { FinishedRenderer } from "../core/annotatedImage";
+import { encodeRgbaPngCompressed } from "../core/png";
 import { adapterFor } from "./shapes";
-
-function toPng(canvas: HTMLCanvasElement): Promise<Uint8Array> {
-  return new Promise((resolve, reject) =>
-    canvas.toBlob(async (blob) => {
-      if (!blob) return reject(new Error("could not encode the image"));
-      resolve(new Uint8Array(await blob.arrayBuffer()));
-    }, "image/png"),
-  );
-}
 
 export const renderFinished: FinishedRenderer = async (image) => {
   // No colour conversion, so pixels the Annotations do not touch come out exactly as captured.
@@ -23,7 +15,8 @@ export const renderFinished: FinishedRenderer = async (image) => {
   const full = document.createElement("canvas");
   full.width = width;
   full.height = height;
-  const context = full.getContext("2d")!;
+  // The pixels are read back below, so keep them on the CPU side.
+  const context = full.getContext("2d", { willReadFrequently: true })!;
   context.drawImage(bitmap, 0, 0);
   bitmap.close();
 
@@ -42,11 +35,10 @@ export const renderFinished: FinishedRenderer = async (image) => {
   context.drawImage(overlay.lowerCanvasEl, 0, 0);
   void overlay.dispose();
 
-  const { crop } = image.model;
-  if (!crop) return toPng(full);
-  const cropped = document.createElement("canvas");
-  cropped.width = crop.width;
-  cropped.height = crop.height;
-  cropped.getContext("2d")!.drawImage(full, crop.x, crop.y, crop.width, crop.height, 0, 0, crop.width, crop.height);
-  return toPng(cropped);
+  // The Crop only narrows what is shown; the Capture itself is never altered (ADR 0002).
+  const area = image.model.crop ?? { x: 0, y: 0, width, height };
+  const pixels = context.getImageData(area.x, area.y, area.width, area.height);
+  // Encoded here, not with canvas.toBlob: Chromium defers that until the page is idle (about a second
+  // when the editor is busy), which would make every Copy and auto-save feel slow.
+  return encodeRgbaPngCompressed(pixels.width, pixels.height, new Uint8Array(pixels.data.buffer));
 };
