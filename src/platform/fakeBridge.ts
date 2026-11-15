@@ -16,6 +16,14 @@ export interface FakeBridge extends PlatformBridge {
   readonly copiedImages: Uint8Array[];
   /** Library files written, in order (`path` is relative to the Library folder). */
   readonly libraryFiles: { path: string; bytes: Uint8Array }[];
+  /** Files written by Save as PNG… in order. */
+  readonly savedAs: { suggestedName: string; path: string; bytes: Uint8Array }[];
+  /** Library paths moved to the Recycle Bin, in order (they leave `libraryFiles`). */
+  readonly discardedPaths: string[];
+  /** The next Save as PNG… behaves as if the user cancelled the dialog. */
+  cancelNextSaveAs(): void;
+  /** The next Discard rejects with this message. */
+  failNextDiscard(message: string): void;
   /** Deliver a Capture as if the hotkey had been pressed. */
   simulateCapture(shot: SimulatedShot): void;
   /** Monitor indexes whose overlay asked for its frozen frame, in order. */
@@ -24,7 +32,16 @@ export interface FakeBridge extends PlatformBridge {
   readonly readyOverlays: number[];
   /** What the overlay finished with, in order. */
   readonly overlayOutcomes: OverlayOutcome[];
+  /** The registered capture hotkey (accelerator). */
+  readonly hotkey: string;
+  /** Combinations "another app" owns; `setHotkey` reports a conflict for these. Mutable by tests. */
+  readonly takenHotkeys: Set<string>;
+  /** How many times the Accessibility > Keyboard deep link was opened. */
+  readonly keyboardSettingsOpened: number;
 }
+
+/** Fake setting storage; the browser build passes localStorage so e2e reloads keep it. */
+export type FakeStorage = Pick<Storage, "getItem" | "setItem">;
 
 /** What `startCapture` produces unless a test says otherwise: a small gradient. */
 function defaultShot(): SimulatedShot {
@@ -40,8 +57,22 @@ function defaultShot(): SimulatedShot {
 }
 
 export function createFakeBridge(
-  options: { version?: string; overlayFrames?: Record<number, { width: number; height: number }> } = {},
+  options: {
+    version?: string;
+    /** Windows' PrintScreenKeyForSnippingEnabled reads as on (the default) or explicitly 0. */
+    printScreenSnippingEnabled?: boolean;
+    storage?: FakeStorage;
+    overlayFrames?: Record<number, { width: number; height: number }>;
+  } = {},
 ): FakeBridge {
+  const memory = new Map<string, string>();
+  const store: FakeStorage = options.storage ?? {
+    getItem: (k) => memory.get(k) ?? null,
+    setItem: (k, v) => void memory.set(k, v),
+  };
+  let hotkey = store.getItem("fake.hotkey") ?? "ctrl+shift+s";
+  const takenHotkeys = new Set<string>();
+  let keyboardSettingsOpened = 0;
   const overlayFrameRequests: number[] = [];
   const readyOverlays: number[] = [];
   const overlayOutcomes: OverlayOutcome[] = [];
@@ -49,6 +80,10 @@ export function createFakeBridge(
   const openedUrls: string[] = [];
   const copiedImages: Uint8Array[] = [];
   const libraryFiles: { path: string; bytes: Uint8Array }[] = [];
+  const savedAs: FakeBridge["savedAs"] = [];
+  const discardedPaths: string[] = [];
+  let cancelSaveAs = false;
+  let discardFailure: string | null = null;
   const handlers = new Set<(capture: CaptureResult) => void>();
   const undelivered: CaptureResult[] = [];
 
@@ -69,10 +104,41 @@ export function createFakeBridge(
     openedUrls,
     copiedImages,
     libraryFiles,
+    savedAs,
+    discardedPaths,
+    cancelNextSaveAs: () => {
+      cancelSaveAs = true;
+    },
+    failNextDiscard: (message) => {
+      discardFailure = message;
+    },
     simulateCapture,
     overlayFrameRequests,
     readyOverlays,
     overlayOutcomes,
+    get hotkey() {
+      return hotkey;
+    },
+    takenHotkeys,
+    get keyboardSettingsOpened() {
+      return keyboardSettingsOpened;
+    },
+    getHotkey: async () => ({ accelerator: hotkey, registered: true }),
+    setHotkey: async (accelerator) => {
+      if (accelerator === hotkey) return { ok: true };
+      if (takenHotkeys.has(accelerator)) return { ok: false, reason: "conflict" };
+      hotkey = accelerator;
+      store.setItem("fake.hotkey", accelerator);
+      return { ok: true };
+    },
+    getPrintScreenNotice: async () => ({
+      snippingEnabled: options.printScreenSnippingEnabled ?? true,
+      dismissed: store.getItem("fake.printScreenNoticeDismissed") === "1",
+    }),
+    dismissPrintScreenNotice: async () => store.setItem("fake.printScreenNoticeDismissed", "1"),
+    openKeyboardAccessibilitySettings: async () => {
+      keyboardSettingsOpened++;
+    },
     getVersion: async () => options.version ?? "0.0.0-fake",
     openUrl: async (url) => {
       openedUrls.push(url);
@@ -116,6 +182,26 @@ export function createFakeBridge(
       return () => {
         magnifierHandlers.delete(handler);
       };
+    },
+    savePngAs: async (png, suggestedName) => {
+      if (cancelSaveAs) {
+        cancelSaveAs = false;
+        return null;
+      }
+      const path = `C:\\Users\\fake\\Pictures\\${suggestedName}`;
+      savedAs.push({ suggestedName, path, bytes: png });
+      return path;
+    },
+    discardLibraryFile: async (path) => {
+      if (discardFailure !== null) {
+        const message = discardFailure;
+        discardFailure = null;
+        throw new Error(message);
+      }
+      const index = libraryFiles.findIndex((f) => f.path === path);
+      if (index < 0) throw new Error("not in the Library");
+      libraryFiles.splice(index, 1);
+      discardedPaths.push(path);
     },
   };
 }

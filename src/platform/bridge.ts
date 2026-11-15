@@ -61,4 +61,44 @@ export interface PlatformBridge {
   /** Toggle the magnifier on every overlay (keys reach only the focused overlay window). */
   toggleOverlayMagnifier(): Promise<void>;
   onOverlayMagnifier(handler: () => void): Promise<() => void>;
+
+  /** The capture hotkey (an accelerator such as "ctrl+shift+s") and whether the OS accepted it. */
+  getHotkey(): Promise<HotkeyState>;
+  /**
+   * Re-register the capture hotkey and save it. If another app owns the combination the old hotkey
+   * stays in force and the result says `conflict`.
+   */
+  setHotkey(accelerator: string): Promise<SetHotkeyResult>;
+
+  /**
+   * Whether the Windows setting PrintScreenKeyForSnippingEnabled leaves Print Screen with Snipping
+   * Tool (anything but an explicit 0; read-only, the app never writes it), and whether the user
+   * already answered the one-time notice.
+   */
+  getPrintScreenNotice(): Promise<{ snippingEnabled: boolean; dismissed: boolean }>;
+  /** Record that the notice was answered so it is never shown again. */
+  dismissPrintScreenNotice(): Promise<void>;
+  /** Open Windows Settings at Accessibility > Keyboard. */
+  openKeyboardAccessibilitySettings(): Promise<void>;
+
+  /**
+   * Save as PNG…: open the Windows save dialog, suggesting `suggestedName`, and write `png` (a
+   * plain Export) where the user chooses. Returns the chosen path, or null if they cancelled.
+   */
+  savePngAs(png: Uint8Array, suggestedName: string): Promise<string | null>;
+  /**
+   * Discard: move a Library file (a path `saveToLibrary` returned) to the Windows Recycle Bin.
+   * Rejects, leaving the file alone, if it is not inside the Library or could not be moved.
+   */
+  discardLibraryFile(path: string): Promise<void>;
 }
+
+export interface HotkeyState {
+  accelerator: string;
+  /** False when the OS refused the combination at startup (another app has it). */
+  registered: boolean;
+}
+
+export type SetHotkeyResult =
+  | { ok: true }
+  | { ok: false; reason: "conflict" | "invalid" | "failed" };
