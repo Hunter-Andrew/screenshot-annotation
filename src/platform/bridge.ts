@@ -23,7 +23,7 @@ export interface OverlayFrame {
 
 /** What the user did in the capture overlay. Coordinates are native pixels, local to the monitor. */
 export type OverlayOutcome =
-  | { kind: "region"; monitor: number; region: { x: number; y: number; width: number; height: number } }
+  | { kind: "region"; monitor: number; region: OverlayRect }
   /** A click on a highlighted window: `window` indexes the list `overlayWindows(monitor)` returned. */
   | { kind: "window"; monitor: number; window: number }
   /** Space: the monitor under the mouse pointer (the platform knows where the pointer is). */
@@ -37,6 +37,16 @@ export interface OverlayRect {
   width: number;
   height: number;
 }
+
+export interface HotkeyState {
+  accelerator: string;
+  /** False when the OS refused the combination at startup (another app has it). */
+  registered: boolean;
+}
+
+export type SetHotkeyResult =
+  | { ok: true }
+  | { ok: false; reason: "conflict" | "invalid" | "failed" };
 
 export interface PlatformBridge {
   /** The installed app version, e.g. "0.1.0". */
@@ -108,13 +118,3 @@ export interface PlatformBridge {
    */
   discardLibraryFile(path: string): Promise<void>;
 }
-
-export interface HotkeyState {
-  accelerator: string;
-  /** False when the OS refused the combination at startup (another app has it). */
-  registered: boolean;
-}
-
-export type SetHotkeyResult =
-  | { ok: true }
-  | { ok: false; reason: "conflict" | "invalid" | "failed" };

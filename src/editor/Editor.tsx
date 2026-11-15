@@ -7,6 +7,7 @@ import {
 } from "../core/annotatedImage";
 import type { PlatformBridge } from "../platform/bridge";
 import { formatStamp } from "../shared/stamp";
+import { formatCombo } from "../settings/hotkey";
 
 /** An image opened in this session. `path` is its Library file once saved (null while saving, or if saving failed). */
 interface Entry {
@@ -26,6 +27,19 @@ export function Editor({ bridge }: { bridge: PlatformBridge }) {
   const image = current?.image ?? null;
   const nextId = useRef(0);
   const [status, setStatus] = useState<string | null>(null);
+  // The real capture hotkey, for the empty-state hint; null until the platform has answered.
+  const [hotkey, setHotkey] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    bridge.getHotkey().then(
+      (state) => !cancelled && setHotkey(state.accelerator),
+      () => {},
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [bridge]);
 
   useEffect(() => {
     let unsubscribe: (() => void) | undefined;
@@ -128,9 +142,9 @@ export function Editor({ bridge }: { bridge: PlatformBridge }) {
       <main style={{ flex: 1, overflow: "auto", background: "#e9e9ee", padding: 16 }}>
         {imageUrl ? (
           <img src={imageUrl} alt="Capture" style={{ display: "block", maxWidth: "100%", margin: "0 auto" }} />
-        ) : (
-          <p>Press Ctrl+Shift+S to capture</p>
-        )}
+        ) : hotkey ? (
+          <p>Press {formatCombo(hotkey)} to capture</p>
+        ) : null}
       </main>
       <footer style={{ padding: "4px 16px", fontSize: 12, borderTop: "1px solid #ccc" }} role="status">
         {status}

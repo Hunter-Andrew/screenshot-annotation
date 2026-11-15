@@ -31,6 +31,18 @@ const capture = async (bridge: FakeBridge, rgba: number[], capturedAt: Date) => 
 const FIRST = new Date(2026, 10, 15, 13, 45, 1);
 const SECOND = new Date(2026, 10, 15, 13, 46, 2);
 
+describe("empty state", () => {
+  it("names the capture hotkey the user actually has", async () => {
+    const bridge = createFakeBridge();
+    await bridge.setHotkey("ctrl+alt+x");
+
+    await openEditor(bridge);
+
+    expect(screen.getByText("Press Ctrl+Alt+X to capture")).toBeVisible();
+    expect(screen.queryByText(/Ctrl\+Shift\+S/)).toBeNull();
+  });
+});
+
 describe("Save as PNG…", () => {
   it("writes a plain Export: same pixels, no embedded chunk", async () => {
     const bridge = createFakeBridge();
