@@ -169,6 +169,31 @@ describe("restyling a selected Annotation", () => {
   });
 });
 
+describe("undo and delete (ticket 13) with the new tools", () => {
+  it("Ctrl+Z steps a Fill restyle back, Ctrl+Y redoes it, and Delete removes the rectangle", async () => {
+    const bridge = createFakeBridge();
+    const { kit } = await openEditor(bridge);
+    await capture(bridge);
+    await userDraws(kit, RECT);
+
+    await userEvent.click(screen.getByRole("button", { name: "Solid" }));
+    await autosave();
+    expect(savedModel(bridge).annotations[0]).toMatchObject({ fill: { mode: "solid" } });
+
+    await userEvent.keyboard("{Control>}z{/Control}");
+    await autosave();
+    expect(savedModel(bridge).annotations[0]).toMatchObject({ fill: { mode: "none" } });
+
+    await userEvent.keyboard("{Control>}y{/Control}");
+    await autosave();
+    expect(savedModel(bridge).annotations[0]).toMatchObject({ fill: { mode: "solid" } });
+
+    await userEvent.keyboard("{Delete}");
+    await autosave();
+    expect(savedModel(bridge).annotations).toEqual([]);
+  });
+});
+
 describe("sticky tool styles", () => {
   it("are stored in the settings as soon as a tool is restyled (after a short pause)", async () => {
     const bridge = createFakeBridge();
