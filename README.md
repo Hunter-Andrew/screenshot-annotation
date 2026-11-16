@@ -30,6 +30,8 @@ A Windows desktop app for capturing and annotating screenshots, in the style of 
 
 Once released (see the [release checklist](docs/release-checklist.md) for how each version is checked): download the latest `Setup.exe` from [Releases](https://github.com/Hunter-Andrew/screenshot-annotation/releases) and run it. No admin is needed. Windows SmartScreen may say "Windows protected your PC"; choose **More info → Run anyway**. To update, run the newer setup over the old one; your Library and settings are kept. The app never connects to the internet.
 
+The installer is not code-signed. To check a download is exactly what the release built, compare its SHA-256 with `SHA256SUMS.txt` on the Release (PowerShell: `Get-FileHash .\<file> -Algorithm SHA256`), or run `gh attestation verify <file> --repo Hunter-Andrew/screenshot-annotation` (GitHub's build provenance record).
+
 ## Architecture decisions
 
 | ADR | Title | Status |

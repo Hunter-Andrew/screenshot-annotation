@@ -18,3 +18,8 @@ Windows Smart App Control (unlike SmartScreen) blocks an unsigned installer with
 ## Update 2026-11-15 (later): unsigned releases are acceptable for now
 
 The unsigned CI installer installs and runs on Andrew's work laptop without being blocked by Smart App Control (observed on the M2 builds), so releases may be published unsigned. CI therefore signs when all six signing values are configured and otherwise builds unsigned with a warning (the artifact is named plainly, `Screenshot-Annotation-Setup`); a partly configured setup is still an error. The earlier block was not reproduced on these builds, and Smart App Control behavior can differ per machine and over time, so signing stays the upgrade path if IT ever blocks the installer.
+
+## Update 2026-11-16: no paid signing; verify the download instead
+
+A paid certificate or service is not wanted, and a self-signed certificate would not help: Smart App Control and SmartScreen treat it like no signature (only a certificate from a CA in Microsoft's Trusted Root Program counts). The free open-source route (SignPath Foundation) was considered and not pursued. Releases therefore stay unsigned, and the Azure Trusted Signing path in CI stays as the optional upgrade. To make an unsigned download checkable, the release job now attaches a `SHA256SUMS.txt` and records a GitHub build provenance attestation for the installer (free for public repositories), and the Release notes say how to check both. This proves the file is the one this workflow built from the tag; it does not make Windows trust it.
+
