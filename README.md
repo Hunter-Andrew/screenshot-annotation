@@ -12,7 +12,7 @@ A Windows desktop app for capturing and annotating screenshots, in the style of 
 | M1 · Capture → Copy | v0.2 | Built | Hotkey, capture overlay, editor view, Copy, Save as PNG; captures saved to the Library |
 | M2 · Annotate | v0.3 | Built | Arrow, Line, Pen, Rectangle, Ellipse, Text; select/edit; undo; sticky styles |
 | M3 · Library | v0.4 | Built; awaiting the release checklist | Library Strip, full-window grid, reopen and edit, delete with Undo, the folder as the source of truth |
-| M4 · Complete | v1.0 | Planned | Callout, Highlighter, Blur, Crop and canvas expansion, delay timer, startup and polish |
+| M4 · Complete | v1.0 | Planned | Callout, Highlighter, Blur, Crop and canvas expansion, paste images into the canvas, delay timer, startup and polish |
 | M5 · Shortcuts | v1.1 | Planned | After v1.0: Settings lists and remaps all keyboard shortcuts |
 
 ## Workflow

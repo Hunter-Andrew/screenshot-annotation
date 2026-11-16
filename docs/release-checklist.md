@@ -63,6 +63,7 @@ Already checked on earlier releases and only worth repeating if the installer or
 - [x] **M1** Save as PNG… opens the Windows save dialog (suggesting the capture time as the name), writes a plain image that opens in another viewer, and Cancel in the dialog writes nothing.
 - [x] **M1** Discard (button and Ctrl+Delete) moves the current image's file out of `Pictures\Screenshot Annotation` into the Recycle Bin (restorable from there), and the editor shows the previous image or the empty state.
 - [ ] **M4** Blur is pixelated in the pasted image, not smooth.
+- [ ] **M4** Paste image (ticket 38): copy a region with Snipping Tool, press Ctrl+V in the editor: it appears centred and selected. Move it, resize it from a corner (the shape stays) and from a side, set a border and 50% opacity, then Copy and paste into Teams and Outlook: the image is there with the border and fading burned in, as a plain image. Ctrl+V inside a text box still pastes text. A Blur drawn over the pasted image pixelates it in the pasted result.
 
 ## Annotate
 

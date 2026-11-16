@@ -57,6 +57,7 @@ Decided with Andrew on 2026-11-14. Each milestone is a release Andrew installs o
 
 **M4 · Complete v1 (v1.0.0)**
 - Callout, Highlighter, pixelate Blur and Crop.
+- Paste images into the canvas (ticket 38): Ctrl+V adds an image Annotation that can be moved, resized, given a border and opacity (added 2026-11-16).
 - The delay timer.
 - Launch at sign-in and reset tool styles.
 - Close-to-tray with its notice.
