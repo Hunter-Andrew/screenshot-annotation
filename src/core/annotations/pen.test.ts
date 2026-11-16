@@ -69,9 +69,24 @@ describe("Pen kind", () => {
     expect(pen.points.at(-1)).toEqual({ x: 19, y: 0 });
   });
 
-  it("drops a click or a tiny scribble (under 4 px of travel)", () => {
-    expect(penKind.fromPath!("p", [{ x: 5, y: 5 }], style)).toBeNull();
-    expect(penKind.fromPath!("p", [{ x: 5, y: 5 }, { x: 6, y: 6 }], style)).toBeNull();
+  it("makes a dot, at where it began, from a click or a tiny scribble (under 4 px of travel)", () => {
+    const dot = [{ x: 5, y: 5 }, { x: 5, y: 5 }];
+    expect(penKind.fromPath!("p", [{ x: 5, y: 5 }], style)?.points).toEqual(dot);
+    expect(penKind.fromPath!("p", [{ x: 5, y: 5 }, { x: 6, y: 6 }], style)?.points).toEqual(dot);
+    expect(penKind.fromPath!("p", [{ x: 5, y: 5 }, { x: 5, y: 5 }], style)).toMatchObject({ type: "pen", id: "p", stroke: style.stroke, points: dot });
+  });
+
+  it("a dot is as big as the stroke is thick, plus the usual padding", () => {
+    const dot = penKind.fromPath!("p", [{ x: 50, y: 40 }], { stroke: { color: "#e02424", width: 10 } })!;
+    const b = penBounds(dot);
+    expect(b.width).toBe(12);
+    expect(b.height).toBe(12);
+    expect(b.left).toBe(44);
+    expect(b.top).toBe(34);
+  });
+
+  it("has nothing to draw from no points at all", () => {
+    expect(penKind.fromPath!("p", [], style)).toBeNull();
   });
 
   it("makes a straight stroke from a plain drag too", () => {

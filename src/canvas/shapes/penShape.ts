@@ -60,6 +60,14 @@ export class PenShape extends FabricObject {
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
     ctx.beginPath();
+    const [first, ...rest] = this.annotation.points;
+    if (first && rest.every((p) => p.x === first.x && p.y === first.y)) {
+      // A dot (a click): a zero-length line is not reliably drawn by every canvas, so fill a disc.
+      ctx.fillStyle = color;
+      ctx.arc(first.x + ox, first.y + oy, width / 2, 0, Math.PI * 2);
+      ctx.fill();
+      return;
+    }
     for (const s of smoothPath(this.annotation.points)) {
       if (s.op === "M") ctx.moveTo(s.x + ox, s.y + oy);
       else if (s.op === "L") ctx.lineTo(s.x + ox, s.y + oy);

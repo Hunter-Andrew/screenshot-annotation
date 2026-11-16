@@ -20,6 +20,10 @@ export interface Arrowheads {
   ends: "end" | "both";
 }
 
+/** Where a text's lines sit inside its box. */
+export type TextAlign = "left" | "center" | "right";
+export const TEXT_ALIGNS: readonly TextAlign[] = ["left", "center", "right"];
+
 export interface Font {
   /** 8-200 px, in Capture pixels. */
   size: number;
@@ -27,6 +31,8 @@ export interface Font {
   italic: boolean;
   /** The text's own color (CSS hex). Segoe UI is the only family in v1, so there is no family field. */
   color: string;
+  /** Alignment of the lines in the box; absent in images and settings saved before it existed, which means left. */
+  align?: TextAlign;
 }
 
 export interface TextOutline {
@@ -100,7 +106,9 @@ const GROUP_READERS: { [K in GroupId]: (raw: unknown) => PropertyGroups[K] | und
     const { size, bold, italic } = stored;
     if (typeof bold !== "boolean" || typeof italic !== "boolean" || typeof size !== "number") return;
     const whole = Math.round(size);
-    return whole >= MIN_FONT_SIZE && whole <= MAX_FONT_SIZE ? { size: whole, bold, italic, color: stored.color } : undefined;
+    if (whole < MIN_FONT_SIZE || whole > MAX_FONT_SIZE) return undefined;
+    const align = (TEXT_ALIGNS as readonly unknown[]).includes(stored.align) ? (stored.align as TextAlign) : undefined;
+    return { size: whole, bold, italic, color: stored.color, ...(align ? { align } : {}) };
   },
   textOutline: (raw) => {
     const stored = readColor(raw);

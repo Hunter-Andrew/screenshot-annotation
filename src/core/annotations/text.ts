@@ -76,7 +76,7 @@ export const textKind: AnnotationKind<TextAnnotation> = {
   shortcutAction: "tool.text",
   groups: ["font", "textOutline"],
   defaultStyle: {
-    font: { size: 24, bold: false, italic: false, color: "#e02424" },
+    font: { size: 24, bold: false, italic: false, color: "#e02424", align: "left" },
     textOutline: { enabled: true, color: "#ffffff", width: 2 },
   },
   typedInPlace: true,

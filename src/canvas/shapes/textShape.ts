@@ -6,11 +6,24 @@
 // letter fill covers the inner half) with a DOUBLED stroke width (so the visible outline is the full
 // width the user chose, all of it outside the letters). Round joins keep sharp letters from growing spikes.
 //
-// Behavior: only the two horizontal handles exist and they change the wrap width, never the font size.
+// Behavior: all eight handles resize and move the BOX (wrap width, minimum height, and the left or top
+// edge), never the font size (src/core/annotations/textBox.ts).
 // A click selects, a double-click edits in place (Fabric's default of editing on the second click is
 // switched off), and leaving the box (a click elsewhere, Esc, another control) ends the edit.
 import { controlsUtils, Textbox } from "fabric";
 import { FONT_FAMILY, type TextAnnotation } from "../../core/annotations/text";
+import { dragTextBox, HANDLES, type HandleName } from "../../core/annotations/textBox";
+
+const CURSORS: Record<HandleName, string> = {
+  tl: "nwse-resize",
+  br: "nwse-resize",
+  tr: "nesw-resize",
+  bl: "nesw-resize",
+  ml: "ew-resize",
+  mr: "ew-resize",
+  mt: "ns-resize",
+  mb: "ns-resize",
+};
 
 export class TextShape extends Textbox {
   static override type = "TextShape";
@@ -45,20 +58,17 @@ export class TextShape extends Textbox {
       cornerStrokeColor: "#2f5bea",
       splitByGrapheme: false,
     });
-    // Horizontal handles only (they change `width`, leaving the font size alone).
-    const { ml, mr } = controlsUtils.createResizeControls();
-    for (const control of [ml, mr]) {
-      const resize = control.actionHandler;
-      // Fabric keeps the box's vertical middle fixed while it resizes; rewrapping changes the height,
-      // so that would make the box's top jump. Keep the top where it was.
-      control.actionHandler = (event, transform, x, y) => {
-        const top = transform.target.top;
-        const changed = resize(event, transform, x, y);
-        transform.target.set({ top });
-        return changed;
-      };
+    // All eight handles change the box, never the font size. (Fabric's own scaling handlers would scale the
+    // letters, so each handle gets its own action; there is no rotation handle.)
+    const defaults = controlsUtils.createObjectDefaultControls();
+    this.controls = {};
+    for (const name of Object.keys(HANDLES) as HandleName[]) {
+      const control = defaults[name];
+      control.actionHandler = (_event, transform, x, y) => (transform.target as TextShape).dragHandle(name, x, y);
+      control.cursorStyleHandler = () => CURSORS[name];
+      control.actionName = "resizing";
+      this.controls[name] = control;
     }
-    this.controls = { ml, mr };
     this.setModel(annotation);
     // A double-click starts editing (Fabric's own trigger, a second single click, is replaced below).
     this.on("mousedblclick", () => {
@@ -84,6 +94,7 @@ export class TextShape extends Textbox {
       fontWeight: font.bold ? "bold" : "normal",
       fontStyle: font.italic ? "italic" : "normal",
       fill: font.color,
+      textAlign: font.align ?? "left",
       stroke: outlined ? textOutline.color : null,
       // Doubled: the stroke is centred on the letter edge and the fill covers its inner half.
       strokeWidth: outlined ? textOutline.width * 2 : 0,
@@ -101,7 +112,29 @@ export class TextShape extends Textbox {
 
   /** The Annotation as it is on screen now: its box and its words. */
   toModel(): TextAnnotation {
-    return { ...this.annotation, x: this.left, y: this.top, width: this.width, text: this.text };
+    const { minHeight: _previous, ...rest } = this.annotation;
+    const minHeight = this.areaMinHeight ?? 0;
+    // Absent when there never was a minimum; an explicit 0 when there was one and the box was resized without it
+    // (a saved patch or an undo can then put the box back).
+    const keep = minHeight > 0 ? { minHeight } : _previous !== undefined ? { minHeight: 0 } : {};
+    return { ...rest, x: this.left, y: this.top, width: this.width, text: this.text, ...keep };
+  }
+
+  /**
+   * A handle is dragged to the scene point (x, y): move the edges that handle owns and re-wrap. The
+   * opposite edges stay put. Returns whether the box changed.
+   */
+  dragHandle(name: HandleName, x: number, y: number): boolean {
+    const pad = this.strokeWidth || 0;
+    const before = { left: this.left, top: this.top, width: this.width, height: this.height };
+    const drag = dragTextBox(before, pad, HANDLES[name], { x, y });
+    if (drag.minHeight !== undefined) this.areaMinHeight = drag.minHeight;
+    this.set({ left: drag.left, width: drag.width });
+    this.initDimensions(); // re-wrap at the new width; the height follows from the lines and the minimum
+    // Dragging the top edge keeps the bottom edge where it was, whatever height the lines now need.
+    if (drag.keepBottom) this.set({ top: before.top + before.height - this.height });
+    this.setCoords();
+    return before.left !== this.left || before.top !== this.top || before.width !== this.width || before.height !== this.height;
   }
 
   /** Start typing in place (select all of a new box's nothing, or put the caret at the end). */

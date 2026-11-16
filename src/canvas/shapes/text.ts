@@ -8,7 +8,7 @@ export const textAdapter: ShapeAdapter<TextAnnotation> = {
   update: (object, annotation) => (object as TextShape).setModel(annotation),
   beginEdit: (object) => (object as TextShape).beginEditing(),
   read: (object) => {
-    const { x, y, width, text } = (object as TextShape).toModel();
-    return { x, y, width, text };
+    const { x, y, width, text, minHeight } = (object as TextShape).toModel();
+    return { x, y, width, text, ...(minHeight !== undefined ? { minHeight } : {}) };
   },
 };

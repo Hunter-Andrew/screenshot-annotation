@@ -120,7 +120,7 @@ test.describe("a Pen stroke's life", () => {
     expect(await page.evaluate(() => (window as unknown as InPage).__fakeBridge.libraryFiles.length)).toBe(1);
   });
 
-  test("a click with the Pen draws nothing", async ({ page }) => {
+  test("a click with the Pen draws a dot, which is round, selectable and burned into the Export", async ({ page }) => {
     await page.goto("/");
     await capture(page, 400, 300);
     const view = await mapper(page, 400);
@@ -128,8 +128,47 @@ test.describe("a Pen stroke's life", () => {
     const p = view.at(100, 100);
     await page.mouse.click(p.x, p.y);
 
-    await page.waitForTimeout(1300);
-    expect(await savedAnnotations(page)).toEqual([]);
+    await expectSaved(page, ([pen]) => !!pen && pen.points.length === 2, "a dot was drawn");
+    const [dot] = await savedAnnotations(page);
+    expect(dot!.points[0]).toEqual(dot!.points[1]); // one point, twice
+    expect(close(dot!.points[0]!.x, 100, 2) && close(dot!.points[0]!.y, 100, 2)).toBe(true);
+
+    await page.getByRole("button", { name: "Copy", exact: true }).click();
+    await expect.poll(() => page.evaluate(() => (window as unknown as InPage).__fakeBridge.copiedImages.length)).toBe(1);
+    const png = Uint8Array.from(await page.evaluate(() => Array.from((window as unknown as InPage).__fakeBridge.copiedImages[0]!)));
+    const pixels = decodePixels(png);
+    const cx = Math.round(dot!.points[0]!.x);
+    const cy = Math.round(dot!.points[0]!.y);
+    // The default pen is 4 px thick: a disc about 4 px across, red in the middle and the Capture's grey outside it.
+    expect(pixelAt(pixels, cx, cy)).toEqual([224, 36, 36, 255]);
+    expect(pixelAt(pixels, cx + 6, cy)).toEqual([200, 200, 200, 255]);
+    expect(pixelAt(pixels, cx, cy - 6)).toEqual([200, 200, 200, 255]);
+    // Round, not a square: the corner of its 4 px box is not covered.
+    expect(pixelAt(pixels, cx + 2, cy + 2)).not.toEqual([224, 36, 36, 255]);
+
+    // It is a real stroke: it can be picked and moved like any other.
+    await page.keyboard.press("v");
+    await page.mouse.move(p.x, p.y);
+    await page.mouse.down();
+    await page.mouse.move(p.x + 50 * view.scale, p.y, { steps: 4 });
+    await page.mouse.up();
+    await expectSaved(page, ([pen]) => !!pen && close(pen.points[0]!.x, 150, 3), "the dot moved");
+  });
+
+  test("a tiny scribble is a dot too, but a real stroke is not", async ({ page }) => {
+    await page.goto("/");
+    await capture(page, 400, 300);
+    const view = await mapper(page, 400);
+    await page.keyboard.press("p");
+    const a = view.at(60, 60);
+    await stroke(page, [a, { x: a.x + 1, y: a.y + 1 }]); // a twitch under 4 px
+    await stroke(page, [view.at(100, 200), view.at(180, 200), view.at(260, 200)]);
+
+    await expectSaved(page, (pens) => pens.length === 2, "both saved");
+    const [dot, line] = await savedAnnotations(page);
+    expect(dot!.points).toHaveLength(2);
+    expect(dot!.points[0]).toEqual(dot!.points[1]);
+    expect(line!.points.length).toBeGreaterThanOrEqual(3);
   });
 
   test("Copy has the stroke burned in, and is still a plain PNG", async ({ page }) => {

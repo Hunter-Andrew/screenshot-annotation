@@ -8,6 +8,7 @@ import {
   MIN_FONT_SIZE,
   MIN_OUTLINE_WIDTH,
 } from "../../core/annotations/text";
+import { TEXT_ALIGNS, type TextAlign } from "../../core/propertyGroups";
 import { ColorField } from "./ColorField";
 import type { GroupEditorProps } from "./groups";
 
@@ -41,6 +42,19 @@ function NumberBox({
       }}
       onBlur={() => setText(String(value))}
     />
+  );
+}
+
+/** Four lines of different lengths, hugging the left, the middle or the right edge: the usual alignment icon. */
+function AlignIcon({ align }: { align: TextAlign }) {
+  const lines = [14, 9, 14, 6];
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+      {lines.map((length, i) => {
+        const x1 = align === "left" ? 1 : align === "right" ? 15 - length : 8 - length / 2;
+        return <path key={i} d={`M${x1} ${3 + i * 3.4}h${length}`} />;
+      })}
+    </svg>
   );
 }
 
@@ -90,6 +104,20 @@ export function FontEditor({ value, onChange }: GroupEditorProps<"font">) {
         >
           I
         </button>
+      </div>
+      <div className="presets" role="group" aria-label="Alignment">
+        {TEXT_ALIGNS.map((align) => (
+          <button
+            key={align}
+            type="button"
+            aria-pressed={(value.align ?? "left") === align}
+            aria-label={`Align ${align}`}
+            title={`Align ${align}`}
+            onClick={() => onChange({ ...value, align })}
+          >
+            <AlignIcon align={align} />
+          </button>
+        ))}
       </div>
       <ColorField label="Text color" swatchLabel="Color" color={value.color} onPick={(color) => onChange({ ...value, color })} />
     </>

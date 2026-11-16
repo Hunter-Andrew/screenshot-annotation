@@ -97,6 +97,9 @@ export function createFabricCanvas(host: HTMLElement, { size, events }: MountOpt
     else {
       gesture.ghost = new Rect({
         ...box,
+        // Fabric 7 positions by the centre unless told otherwise; the box runs from the press to the pointer.
+        originX: "left",
+        originY: "top",
         fill: "rgba(47, 91, 234, 0.06)",
         stroke: "#2f5bea",
         strokeWidth: 1.5 / zoom,
