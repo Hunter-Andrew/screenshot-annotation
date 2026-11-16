@@ -74,3 +74,11 @@ Runs #62 to #64 failed before building because `icons.test.ts` rejected Andrew's
 - Release profile: `lto = true`, `codegen-units = 1`, `strip = true`.
 - The local toolchain here can type-check the Windows target (`cargo check --target x86_64-pc-windows-gnu`, `x86_64-w64-mingw32` tools installed with apt) but cannot build the real NSIS installer; only CI can.
 - Tests: `npm run typecheck`, `npm test`, `npm run test:e2e`, `cargo test` in `src-tauri`.
+
+## Update 2026-11-16 (second session): the code is not the cause
+
+- Builds are **not reproducible**: the same commit gives a different file each run (#66 and #67, both `bd288ce`, are 2,703,340 and 2,706,288 bytes). So every CI build is a file SAC has never seen.
+- The #61 and #65 build logs are identical apart from the Vite bundle (about 1.3 KB more JS in #65). The icon is not a build input (nothing reads `assets/icon-source.png` except `npm run icons` and the icon test).
+- **Run #69** rebuilt `371711e` (the #61 commit, unchanged) on the throwaway branch `test/rebuild-61`. Artifact 14262459759, 2,701,645 bytes. Andrew ran it at 6:16 PM on 2026-11-16: **blocked** (3077 and 3033, same SAC policy `{0283ac0f-…}`).
+- Conclusion: the verdict flipped on Microsoft's side (or on Andrew's PC), not because of anything in the repo, some time between the first run of the #61 file (evening of 2026-11-15) and #65 (03:42 UTC 2026-11-16). The old #61 file still runs because that exact file already has a verdict. New unsigned builds are now blocked whatever they contain, so the web-code bisect is pointless.
+- What remains for a free fix: a trusted signature (SignPath Foundation), or Microsoft Store distribution as MSIX (individual registration is free since Sept 2025; Store MSIX packages are signed by Microsoft). Turning SAC off is the other option. Self-signing does not work.
