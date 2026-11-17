@@ -12,6 +12,16 @@ pub const BADGE_SIZE: u32 = 72;
 /// How far the badge sits from the pointer, in physical pixels, so it never covers what is pointed at.
 pub const POINTER_GAP: i32 = 24;
 
+/// Extra wait after the editor is hidden for a capture started from it (the Capture button), on top of the
+/// short settle `HIDE_SETTLE` every hide gets: Windows fades the window out, and a screen read taken during the
+/// fade would still show part of the editor. One place, so the wait can be tuned (and tested) in one go.
+pub const EDITOR_FADE_EXTRA: Duration = Duration::from_millis(500);
+
+/// How long to wait after hiding the editor before the screen is read: the settle plus `EDITOR_FADE_EXTRA`.
+pub fn wait_after_hiding_editor(settle: Duration) -> Duration {
+    settle + EDITOR_FADE_EXTRA
+}
+
 /// The delay for a number of seconds the page asked for; `None` for anything not in `CHOICES`
 /// (the page is not trusted to start a one-hour timer).
 pub fn delay_for(seconds: u32) -> Option<Duration> {
@@ -110,6 +120,12 @@ mod tests {
         for refused in [0, 1, 4, 11, 3600] {
             assert_eq!(delay_for(refused), None, "{refused}");
         }
+    }
+
+    #[test]
+    fn hiding_the_editor_waits_the_150_ms_settle_plus_500_ms_before_the_screen_is_read() {
+        assert_eq!(EDITOR_FADE_EXTRA, Duration::from_millis(500));
+        assert_eq!(wait_after_hiding_editor(Duration::from_millis(150)), Duration::from_millis(650));
     }
 
     #[test]

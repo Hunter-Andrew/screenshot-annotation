@@ -44,7 +44,8 @@ const EDITOR_LABEL: &str = "editor";
 const CAPTURE_READY_EVENT: &str = "capture-ready";
 /// Event telling every window that the sticky tool styles were reset.
 const TOOL_STYLES_RESET_EVENT: &str = "tool-styles-reset";
-/// How long the editor stays hidden before the screen is read, so it is not in the picture.
+/// The short settle after hiding a window (the editor, the countdown badge) before the screen is read. A hidden
+/// editor waits longer: `delay::wait_after_hiding_editor`.
 const HIDE_SETTLE: Duration = Duration::from_millis(150);
 
 /// The settings file's folder and its in-memory copy (see `settings.rs`).
