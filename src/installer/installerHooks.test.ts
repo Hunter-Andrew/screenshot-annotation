@@ -68,13 +68,28 @@ describe("data safety", () => {
     expect(hooks()).not.toMatch(/\$PICTURES|\$MYPICTURES|\$DOCUMENTS|\$PROFILE|\$DESKTOP|Screenshot Annotation\\/i);
   });
 
-  it("deletes nothing itself, leaving app-data removal to Tauri's checkbox-gated uninstaller", () => {
+  it("deletes no file or folder itself, leaving app-data removal to Tauri's checkbox-gated uninstaller", () => {
     // Tauri's template removes $APPDATA\<id> and $LOCALAPPDATA\<id> only when the
     // "Delete the application data" checkbox is ticked and it is not an update.
-    expect(hooks()).not.toMatch(/\b(RMDir|Delete|DeleteRegKey|DeleteRegValue)\b/i);
+    expect(hooks()).not.toMatch(/\b(RMDir|Delete|DeleteRegKey)\b/i);
   });
 
-  it("does not hook the post-uninstall step", () => {
-    expect(hooks()).not.toMatch(/!macro NSIS_HOOK_POSTUNINSTALL/);
+  it("deletes one registry value only: this app's launch-at-sign-in entry, not the Run key", () => {
+    const deletions = hooks().match(/^\s*DeleteRegValue\b.*$/gim) ?? [];
+    expect(deletions).toHaveLength(1);
+    expect(deletions[0]).toMatch(/DeleteRegValue\s+HKCU\s+"Software\\Microsoft\\Windows\\CurrentVersion\\Run"\s+"Screenshot Annotation"/);
+  });
+});
+
+describe("launch at sign-in (ticket 23)", () => {
+  it("uninstalling removes the Run value so Windows is not left starting a deleted app", () => {
+    expect(macroBody("NSIS_HOOK_POSTUNINSTALL")).toMatch(/DeleteRegValue\s+HKCU\b/);
+  });
+
+  it("names the same Run key and value as the app does when it registers itself", () => {
+    const rust = readFileSync(resolve(tauriDir, "src/autostart.rs"), "utf8");
+    const key = rust.match(/RUN_KEY_PATH: &str = r"([^"]+)"/)?.[1];
+    const value = rust.match(/VALUE_NAME: &str = "([^"]+)"/)?.[1];
+    expect(macroBody("NSIS_HOOK_POSTUNINSTALL")).toContain(`DeleteRegValue HKCU "${key}" "${value}"`);
   });
 });

@@ -38,6 +38,7 @@ import { StylePanel } from "./StylePanel";
 import { CROP_TOOL, SELECT_TOOL, TOOLS } from "./tools";
 import { returnsToSelect } from "./toolBehavior";
 import { ToolColumn } from "./ToolColumn";
+import { DelayCapture } from "./DelayCapture";
 import { useStickyStyles } from "./stickyStyles";
 import { useWellView } from "./useWellView";
 import { visibleCaptureArea } from "./view";
@@ -601,6 +602,7 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
         <header className="topbar">
           <strong>Screenshot Annotation</strong>
           <button onClick={() => void bridge.startCapture()}>Capture</button>
+          <DelayCapture bridge={bridge} />
           <button
             onClick={undo}
             disabled={!current || readOnly || !current.session.canUndo}

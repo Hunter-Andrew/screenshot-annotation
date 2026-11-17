@@ -1,7 +1,8 @@
 ; NSIS installer hooks for Screenshot Annotation (tauri.conf.json: bundle.windows.nsis.installerHooks).
 ; Tauri's template calls these macros; see docs/release-checklist.md for how to verify them by hand.
 ;
-; Data safety (ADR 0004, 0006): these hooks never delete anything. Tauri's own uninstaller removes
+; Data safety (ADR 0004, 0006): these hooks delete no file or folder (the one registry value they remove is
+; described at NSIS_HOOK_POSTUNINSTALL). Tauri's own uninstaller removes
 ; $APPDATA\<identifier> and $LOCALAPPDATA\<identifier> only when the "Delete the application data"
 ; checkbox is ticked and it is not an update, and it never touches the Pictures library folder.
 ; The app must keep settings, tool styles, history and the thumbnail cache under those two
@@ -34,4 +35,13 @@
       nsis_tauri_utils::RunAsUser "$INSTDIR\${MAINBINARYNAME}.exe" ""
     ${EndIf}
   ${EndIf}
+!macroend
+
+; Launch at sign-in (ticket 23) is a value in the per-user Run key that the app writes itself
+; (src-tauri/src/autostart.rs, same key and name). Remove just that value on uninstall, so Windows is
+; not left trying to start a deleted program. On an upgrade this runs too (the old version's
+; uninstaller), and the relaunched app writes the value again if the setting is still on. The key
+; itself and every other value in it are never touched.
+!macro NSIS_HOOK_POSTUNINSTALL
+  DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "Screenshot Annotation"
 !macroend
