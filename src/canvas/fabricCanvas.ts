@@ -8,6 +8,7 @@ import { kindOf } from "../core/annotations";
 import { cropFromDrag, MIN_CROP } from "../core/crop";
 import { newAnnotationId, type Annotation, type AnnotationModel, type Crop } from "../core/annotation";
 import type { Style } from "../core/propertyGroups";
+import { CALLOUT_TAIL_PERCENT } from "../shared/imageSettings";
 import { Backdrop } from "./backdrop";
 import { CropFrame, OutsideDim } from "./chrome";
 import type { AnnotationCanvas, CanvasLayout, MountOptions } from "./types";
@@ -63,6 +64,8 @@ export function createFabricCanvas(host: HTMLElement, { events, imageUrl, layout
 
   let tool = SELECT;
   let drawStyle: Style = {};
+  /** Settings > Callout tail length: how much of a callout's draw drag its tail takes. */
+  let calloutTailPercent: number = CALLOUT_TAIL_PERCENT.default;
   let interactive = true;
   const objectsById = new Map<string, FabricObject>();
   const idOf = new WeakMap<FabricObject, string>();
@@ -291,7 +294,7 @@ export function createFabricCanvas(host: HTMLElement, { events, imageUrl, layout
     // A freehand kind (Pen) gets every point the pointer passed; the others only the two ends.
     const preview = kind.fromPath
       ? kind.fromPath("preview", pathFor(kind, drag, to, (event.e as MouseEvent).shiftKey), drawStyle)
-      : kind.fromDrag("preview", drag.from, to, drawStyle);
+      : kind.fromDrag("preview", drag.from, to, drawStyle, layout.area, { tailPercent: calloutTailPercent });
     if (!preview) return dropGhost();
     if (drag.ghost) adapter.update(drag.ghost, preview);
     else {
@@ -319,7 +322,7 @@ export function createFabricCanvas(host: HTMLElement, { events, imageUrl, layout
     const to = clampToReach(canvas.getScenePoint(event.e));
     const annotation = kind.fromPath
       ? kind.fromPath(newAnnotationId(), pathFor(kind, { ...gesture, path: [...gesture.path, to] }, to, (event.e as MouseEvent).shiftKey), drawStyle)
-      : kind.fromDrag(newAnnotationId(), gesture.from, to, drawStyle, layout.area);
+      : kind.fromDrag(newAnnotationId(), gesture.from, to, drawStyle, layout.area, { tailPercent: calloutTailPercent });
     canvas.requestRenderAll();
     if (!annotation) return;
     if (kind.typedInPlace) startTyping(annotation);
@@ -384,6 +387,9 @@ export function createFabricCanvas(host: HTMLElement, { events, imageUrl, layout
     },
     setDrawStyle(style) {
       drawStyle = style;
+    },
+    setCalloutTailPercent(percent) {
+      calloutTailPercent = percent;
     },
     select(id) {
       const object = id === null ? undefined : objectsById.get(id);

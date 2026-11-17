@@ -29,7 +29,7 @@ An Annotation that pixelates whatever lies beneath its box, in the editor, in th
 _Avoid_: Redact, mosaic, soft blur
 
 **Callout**:
-An Annotation of boxed text with an optional pointer tail that can be dragged to point anywhere.
+An Annotation of boxed text with an optional pointer tail that can be dragged to point anywhere. Resizing the box never moves where the tail points.
 _Avoid_: Speech bubble, note
 
 **Pasted image**:

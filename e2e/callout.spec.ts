@@ -111,7 +111,24 @@ test("O draws a callout: text in a speech box, a tail you can drag and switch of
   expect(pixels.at(tailX, Math.round(made!.y) + 40)).toEqual([200, 200, 200, 255]);
 });
 
-test("dragging a callout with the tail on: the press is the tip, the release the box corner, and the preview shows the box", async ({ page }) => {
+/** The red outline of a callout on the live canvas: the box and tail's extent (the text inside is within it). */
+async function redExtent(page: Page) {
+  const { data, width } = (await liveArea(page))!;
+  let minX = Infinity, maxX = -1, minY = Infinity, maxY = -1;
+  for (let i = 0; i < data.length; i += 4) {
+    if (data[i]! > 200 && data[i + 1]! < 90 && data[i + 2]! < 90) {
+      const x = (i / 4) % width;
+      const y = Math.floor(i / 4 / width);
+      minX = Math.min(minX, x);
+      maxX = Math.max(maxX, x);
+      minY = Math.min(minY, y);
+      maxY = Math.max(maxY, y);
+    }
+  }
+  return { minX, maxX, minY, maxY };
+}
+
+test("dragging a callout with the tail on: the press is the tip, the release the far corner, the tail takes 20% of the drag, and the preview shows it", async ({ page }) => {
   await page.goto("/");
   await capture(page, 600, 400);
   await page.getByRole("button", { name: "100%" }).click();
@@ -121,28 +138,17 @@ test("dragging a callout with the tail on: the press is the tip, the release the
 
   await page.keyboard.press("o");
   const press = at(100, 100);
-  const release = at(260, 160);
+  const release = at(300, 180);
   await page.mouse.move(press.x, press.y);
   await page.mouse.down();
   await page.mouse.move(release.x, release.y, { steps: 6 });
-  // Live preview: the red outline of the speech box and its tail, from the press point (100, 100) to the
-  // box's far corner (the dashed blue area of the plain Text preview has no red).
-  const live = (await liveArea(page))!;
-  const red = (() => {
-    const { data, width } = live;
-    let minX = Infinity, maxX = -1, maxY = -1;
-    for (let i = 0; i < data.length; i += 4) {
-      if (data[i]! > 200 && data[i + 1]! < 90) {
-        minX = Math.min(minX, (i / 4) % width);
-        maxX = Math.max(maxX, (i / 4) % width);
-        maxY = Math.max(maxY, Math.floor(i / 4 / width));
-      }
-    }
-    return { minX, maxX, maxY };
-  })();
-  expect(red.minX).toBeLessThanOrEqual(105);
-  expect(red.maxX).toBeGreaterThanOrEqual(420);
-  expect(red.maxY).toBeGreaterThanOrEqual(215);
+  // Live preview: the red outline of the speech box and its tail runs from the press point (100, 100) to the release
+  // (300, 180): the tail is 20% of the 200 px drag, 40 px, so the speech box starts at x 140 (the dashed blue area of
+  // the plain Text preview has no red).
+  const preview = await redExtent(page);
+  expect(Math.abs(preview.minX - 100)).toBeLessThanOrEqual(3); // the tip
+  expect(Math.abs(preview.maxX - 300)).toBeLessThanOrEqual(3); // the far corner
+  expect(Math.abs(preview.maxY - 180)).toBeLessThanOrEqual(3);
   await page.mouse.up();
   await expect(page.locator("textarea")).toBeFocused();
   await page.keyboard.type("Here");
@@ -150,9 +156,41 @@ test("dragging a callout with the tail on: the press is the tip, the release the
 
   await expectSaved(page, ([c]) => c?.text === "Here", "the callout is saved");
   const [made] = await saved(page);
-  // The box starts at the release; the tip is the press point, relative to the box (Fabric may shift by half a pixel).
-  expect(Math.abs(made!.x - 260)).toBeLessThanOrEqual(1);
-  expect(made!.width).toBe(160);
-  expect(Math.abs(made!.tip!.x - -160)).toBeLessThanOrEqual(1);
-  expect(Math.abs(made!.tip!.y - -60)).toBeLessThanOrEqual(1);
+  // The speech box is x 140 to 300 and y 100 to 180, so the text box is padded 10 inside it; the tip is the press
+  // point, relative to the text box (Fabric may shift by half a pixel).
+  expect(Math.abs(made!.x - 150)).toBeLessThanOrEqual(1);
+  expect(Math.abs(made!.width - 140)).toBeLessThanOrEqual(1);
+  expect(Math.abs(made!.tip!.x - -50)).toBeLessThanOrEqual(1);
+  expect(Math.abs(made!.tip!.y - -10)).toBeLessThanOrEqual(1);
+  // What the preview showed is what was made (the tip is hidden under the tail handle once selected, so only the far side is compared).
+  const final = await redExtent(page);
+  expect(Math.abs(final.maxX - preview.maxX)).toBeLessThanOrEqual(2);
+  expect(Math.abs(final.maxY - preview.maxY)).toBeLessThanOrEqual(2);
+});
+
+test("the callout tail length setting changes the drag: at 40% the speech box is shorter, and the preview matches", async ({ page }) => {
+  await page.goto("/");
+  await page.evaluate(() => (window as unknown as { __fakeBridge: { setCalloutTailPercent(p: number): Promise<void> } }).__fakeBridge.setCalloutTailPercent(40));
+  await capture(page, 600, 400);
+  await page.getByRole("button", { name: "100%" }).click();
+  await expect(page.getByLabel("Zoom level")).toHaveText("100%");
+  const box = (await page.locator(".stage").boundingBox())!;
+  const at = (x: number, y: number) => ({ x: box.x + x, y: box.y + y });
+
+  await page.keyboard.press("o");
+  await page.mouse.move(at(100, 100).x, at(100, 100).y);
+  await page.mouse.down();
+  await page.mouse.move(at(300, 180).x, at(300, 180).y, { steps: 6 });
+  const preview = await redExtent(page);
+  await page.mouse.up();
+  await page.keyboard.type("Here");
+  await page.keyboard.press("Escape");
+  await expectSaved(page, ([c]) => c?.text === "Here", "the callout is saved");
+  const [made] = await saved(page);
+  // 40% of 200 = 80 px of tail: the speech box is x 180 to 300, the text box x 190 to 290.
+  expect(Math.abs(made!.x - 190)).toBeLessThanOrEqual(1);
+  expect(Math.abs(made!.width - 100)).toBeLessThanOrEqual(1);
+  expect(Math.abs(made!.tip!.x - -90)).toBeLessThanOrEqual(1);
+  const final = await redExtent(page);
+  expect(Math.abs(final.maxX - preview.maxX)).toBeLessThanOrEqual(2);
 });

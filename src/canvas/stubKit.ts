@@ -14,6 +14,8 @@ export interface StubCanvas extends AnnotationCanvas {
   images: Readonly<Record<string, Uint8Array>> | undefined;
   tool: string;
   drawStyle: Style;
+  /** The callout tail percentage the editor last told the canvas. */
+  calloutTailPercent: number | null;
   selected: string | null;
   scale: number;
   /** The visible area, background and margin the editor last told the canvas. */
@@ -55,6 +57,7 @@ export function createStubKit(): StubKit {
         images: undefined,
         tool: "select",
         drawStyle: {},
+        calloutTailPercent: null,
         selected: null,
         scale: 1,
         layout,
@@ -70,6 +73,9 @@ export function createStubKit(): StubKit {
         },
         setDrawStyle(style) {
           canvas.drawStyle = style;
+        },
+        setCalloutTailPercent(percent) {
+          canvas.calloutTailPercent = percent;
         },
         select(id) {
           canvas.selected = id;
