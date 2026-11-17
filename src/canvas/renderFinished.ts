@@ -4,9 +4,9 @@
 // The Capture is the canvas's first drawn layer (its background image), so a Blur, which pixelates
 // what has been drawn beneath it, sees the Capture and every Annotation below it.
 import { FabricImage, StaticCanvas } from "fabric";
-import type { FinishedRenderer } from "../core/annotatedImage";
+import { type FinishedRenderer, usedImageIds } from "../core/annotatedImage";
 import { encodeRgbaPngCompressed } from "../core/png";
-import { adapterFor } from "./shapes";
+import { adapterFor, type ShapeAssets } from "./shapes";
 
 export const renderFinished: FinishedRenderer = async (image) => {
   // No colour conversion, so pixels the Annotations do not touch come out exactly as captured.
@@ -31,12 +31,26 @@ export const renderFinished: FinishedRenderer = async (image) => {
     renderOnAddRemove: false,
   });
   canvas.backgroundImage = new FabricImage(base, { originX: "left", originY: "top" });
+  // Pasted pictures are decoded first: the canvas renders once, synchronously, and an image that is not
+  // decoded yet would draw nothing.
+  const pictures = new Map<string, ImageBitmap>();
+  for (const id of usedImageIds(image.model)) {
+    const bytes = image.images?.[id];
+    if (!bytes) continue;
+    try {
+      pictures.set(id, await createImageBitmap(new Blob([bytes as BlobPart], { type: "image/png" }), { colorSpaceConversion: "none" }));
+    } catch {
+      // A picture that cannot be decoded is left out; the rest of the image still exports.
+    }
+  }
+  const assets: ShapeAssets = { image: (id) => pictures.get(id) };
   for (const annotation of image.model.annotations) {
     // A type this build cannot draw is skipped, as on the editor canvas.
     const adapter = adapterFor(annotation.type);
-    if (adapter) canvas.add(adapter.create(annotation));
+    if (adapter) canvas.add(adapter.create(annotation, assets));
   }
   canvas.renderAll();
+  for (const picture of pictures.values()) picture.close();
 
   // The Crop only narrows what is shown; the Capture itself is never altered (ADR 0002).
   const area = image.model.crop ?? { x: 0, y: 0, width, height };

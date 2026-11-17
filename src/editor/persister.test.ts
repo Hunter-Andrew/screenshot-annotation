@@ -218,6 +218,37 @@ describe("onSaved (undo history is stored against each written PNG)", () => {
     expect(saved.map((s) => s.undoSteps)).toEqual([1, 2]);
   });
 
+  it("also hands over the pasted images the session holds and which of them the PNG carries (ticket 38)", async () => {
+    const seen: { images: string[]; embedded: string[] }[] = [];
+    const session = newSession();
+    session.registerImage("kept", new Uint8Array([1]));
+    session.registerImage("deleted", new Uint8Array([2]));
+    const imageAnnotation = (id: string, imageId: string) => ({
+      id,
+      type: "image" as const,
+      x: 0,
+      y: 0,
+      width: 1,
+      height: 1,
+      imageId,
+      border: { enabled: false, color: "#e02424", width: 4 },
+      opacity: { value: 1 },
+    });
+    session.apply({ kind: "add", annotation: imageAnnotation("i1", "kept") });
+    session.apply({ kind: "add", annotation: imageAnnotation("i2", "deleted") });
+    session.apply({ kind: "delete", id: "i2" });
+    const persister = createPersister({
+      bridge: createFakeBridge(),
+      session,
+      capturedAt: CAPTURED_AT,
+      render,
+      onSaved: ({ images, embedded }) => void seen.push({ images: Object.keys(images).sort(), embedded: [...embedded] }),
+    });
+    await persister.start();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(seen).toEqual([{ images: ["deleted", "kept"], embedded: ["kept"] }]);
+  });
+
   it("a failing onSaved never fails the save", async () => {
     const fake = createFakeBridge();
     const events: PersisterEvent[] = [];

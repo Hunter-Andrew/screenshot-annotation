@@ -5,14 +5,17 @@ import {
   type AnnotatedImage,
   createFromCapture,
   decodeLibraryPng,
-  EMBED_CHUNK,
   exportPng,
+  imageIdFor,
+  stripEmbedded,
 } from "../core/annotatedImage";
-import { type Annotation, emptyModel } from "../core/annotation";
+import { type Annotation, emptyModel, newAnnotationId } from "../core/annotation";
 import { kindOf } from "../core/annotations";
+import { DEFAULT_IMAGE_STYLE } from "../core/annotations/image";
+import { checkPastedImage, placeImage } from "../core/pasteImage";
 import { createEditSession, type EditSession } from "../core/editSession";
 import type { HistoryState } from "../core/history";
-import { readSize, removeChunks } from "../core/png";
+import { readSize } from "../core/png";
 import type { GroupId, PropertyGroups, Style } from "../core/propertyGroups";
 import type { PlatformBridge } from "../platform/bridge";
 import { LibraryGrid } from "../library/LibraryGrid";
@@ -28,6 +31,7 @@ import { formatCombo } from "../settings/hotkey";
 import "./editor.css";
 import { createPersister, type Persister } from "./persister";
 import { createHistoryStore } from "./historyStore";
+import { imageOnClipboard, pictureAsPng } from "./clipboardImage";
 import { actionForKeyEvent, allowedWhileTyping, defaultBindings, isTypingTarget, keyLabel } from "./shortcuts";
 import { Stage } from "./Stage";
 import { StylePanel } from "./StylePanel";
@@ -36,6 +40,7 @@ import { returnsToSelect } from "./toolBehavior";
 import { ToolColumn } from "./ToolColumn";
 import { useStickyStyles } from "./stickyStyles";
 import { useWellView } from "./useWellView";
+import { visibleCaptureArea } from "./view";
 
 /** An image opened in this session: its edit session (the model), and the persister that keeps its Library file current. */
 interface Entry {
@@ -46,6 +51,10 @@ interface Entry {
   /** Saved by a newer version of the app: shown, never edited or written. */
   readOnly: boolean;
 }
+
+/** The status line when a read-only image (saved by a newer version) is opened, and when a paste is refused on it. */
+const READ_ONLY_NOTICE = "Opened read-only: it was saved by a newer version of Screenshot Annotation";
+const NOTHING_OPEN_NOTICE = "Take or open a capture before pasting an image";
 
 const BINDINGS = defaultBindings(); // ticket 28 will read the user's remapping here
 
@@ -124,7 +133,7 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
         path: options.path,
         readOnly: options.readOnly,
         // The history is stored against the exact PNG just written, so a PNG changed elsewhere voids it.
-        onSaved: ({ path, png, history }) => historyStore.save(path, png, history),
+        onSaved: ({ path, png, history, images, embedded }) => historyStore.save(path, png, history, { images, embedded }),
         onEvent: (event) => {
           // The Library Strip shows the new file, or the edited image's new thumbnail, right away.
           if (event.kind === "saved") void refreshLibrary();
@@ -159,9 +168,12 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
       if (token !== openToken.current) return; // a newer open (or a new Capture) won
       try {
         const file = await bridge.readLibraryFile(path);
-        const decoded = decodeLibraryPng(file.png);
-        const history = decoded.readOnly ? undefined : await historyStore.open(file.path, file.png);
+        const fromFile = decodeLibraryPng(file.png);
+        const restored = fromFile.readOnly ? undefined : await historyStore.openWithImages(file.path, file.png);
         if (token !== openToken.current) return;
+        // The pixels of pasted images that were deleted come back with the history, for Undo.
+        const decoded = restored ? { ...fromFile, images: { ...restored.images, ...fromFile.images } } : fromFile;
+        const history = restored?.history;
         const entry = createEntry(decoded, capturedAtFromPath(file.path) ?? new Date(), {
           path: file.path,
           readOnly: decoded.readOnly,
@@ -169,7 +181,7 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
         });
         setCurrent(entry);
         setScreen("editor");
-        setStatus(decoded.readOnly ? "Opened read-only: it was saved by a newer version of Screenshot Annotation" : null);
+        setStatus(decoded.readOnly ? READ_ONLY_NOTICE : null);
         // An edit made while the file was being read is saved too (the file is only ever read again after this).
         void previous?.persister.flush();
       } catch (e) {
@@ -292,7 +304,7 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
     },
   };
 
-  useEffect(() => canvas?.sync(image?.model ?? emptyModel()), [canvas, image?.model]);
+  useEffect(() => canvas?.sync(image?.model ?? emptyModel(), image?.images), [canvas, image?.model, image?.images]);
   useEffect(() => canvas?.setTool(tool), [canvas, tool]);
   useEffect(() => canvas?.select(selectedId), [canvas, selectedId, image?.model]);
   useEffect(
@@ -303,8 +315,11 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
   const restyle = <K extends GroupId>(group: K, value: PropertyGroups[K]) => {
     const type = styledKind?.type;
     if (!type) return;
-    setToolStyles((all) => ({ ...all, [type]: { ...all[type], [group]: value } }));
-    stickyStyles.remember(type, { ...toolStyles[type], [group]: value });
+    // A pasted image has no sticky style: every paste starts plain (ticket 38).
+    if (!styledKind.pasted) {
+      setToolStyles((all) => ({ ...all, [type]: { ...all[type], [group]: value } }));
+      stickyStyles.remember(type, { ...toolStyles[type], [group]: value });
+    }
     if (selected && !readOnly) {
       current?.session.apply({ kind: "update", id: selected.id, patch: { [group]: value } as Partial<Annotation> });
     }
@@ -444,7 +459,7 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
       // The open image may have an edit not saved yet.
       if (currentRef.current?.persister.path === image.path) await currentRef.current.persister.flush();
       const file = await bridge.readLibraryFile(image.path);
-      await bridge.copyImage(removeChunks(file.png, EMBED_CHUNK));
+      await bridge.copyImage(stripEmbedded(file.png));
       setStatus("Copied");
     } catch (e) {
       setStatus(`Could not copy: ${String(e)}`);
@@ -453,6 +468,53 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
   const deleteSelection = () => void del.deletePaths([...selection.selected]);
 
   // --- keyboard: every key goes through the one shortcut table ------------------------------------
+
+  // --- paste: Ctrl+V with a picture on the clipboard (ticket 38) ------------------------------------
+
+  /** Make `file` an image Annotation on the open image: refused, with a plain message, when it does not fit the limits. */
+  const pasteImage = async (file: Blob) => {
+    const entry = currentRef.current;
+    if (!entry) return setStatus(NOTHING_OPEN_NOTICE);
+    if (entry.readOnly) return setStatus(READ_ONLY_NOTICE);
+    try {
+      const bytes = await pictureAsPng(file);
+      const existing = entry.session.image.model.annotations.filter((a) => a.type === "image").length;
+      const checked = checkPastedImage(bytes, existing);
+      if (!checked.ok) return setStatus(checked.message);
+      const imageId = await imageIdFor(bytes);
+      if (currentRef.current !== entry) return; // another image was shown while this was read
+      const captureSize = readSize(entry.session.image.capture);
+      // The part of the Capture on screen; with nothing laid out (or none visible) the whole Capture counts.
+      const well = view.wellRef.current;
+      const stage = well?.querySelector(".stage");
+      const visible =
+        well && stage ? visibleCaptureArea(well.getBoundingClientRect(), stage.getBoundingClientRect(), view.scale) : null;
+      const box = placeImage(checked, captureSize, visible ?? { x: 0, y: 0, ...captureSize });
+      entry.session.registerImage(imageId, bytes);
+      const annotation: Annotation = { id: newAnnotationId(), type: "image", ...box, imageId, ...DEFAULT_IMAGE_STYLE };
+      entry.session.apply({ kind: "add", annotation });
+      // Selected, and a drawing tool that was active goes back to Select.
+      setTool(SELECT_TOOL.id);
+      setSelectedId(annotation.id);
+    } catch (e) {
+      setStatus("The clipboard picture could not be read as an image");
+    }
+  };
+  const pasteRef = useRef(pasteImage);
+  pasteRef.current = pasteImage;
+  useEffect(() => {
+    const onPaste = (event: ClipboardEvent) => {
+      // The full-window grid is not an editor; typing in a field or in a text box is a text paste.
+      if (screenRef.current === "grid") return;
+      if (isTypingTarget(event.target as HTMLElement | null) || isTypingTarget(document.activeElement as HTMLElement | null)) return;
+      const file = imageOnClipboard(event.clipboardData);
+      if (!file) return; // text (or nothing): not ours; the image wins only when there is one
+      event.preventDefault();
+      void pasteRef.current(file);
+    };
+    window.addEventListener("paste", onPaste);
+    return () => window.removeEventListener("paste", onPaste);
+  }, []);
 
   const selectionSize = selection.selected.size;
   const keys = { chooseTool, copy, discard, view, selectedId, hasImage: image !== null, undo, redo, deleteSelected, moveSelected, selectionSize, deleteSelection, clearSelection };

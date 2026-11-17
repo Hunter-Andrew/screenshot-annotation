@@ -10,6 +10,8 @@ export interface StubCanvas extends AnnotationCanvas {
   readonly size: MountOptions["size"];
   /** What the editor last told the canvas. */
   model: AnnotationModel | null;
+  /** The pasted images' bytes the editor last handed the canvas. */
+  images: Readonly<Record<string, Uint8Array>> | undefined;
   tool: string;
   drawStyle: Style;
   selected: string | null;
@@ -48,14 +50,16 @@ export function createStubKit(): StubKit {
         events,
         size,
         model: null,
+        images: undefined,
         tool: "select",
         drawStyle: {},
         selected: null,
         scale: 1,
         interactive: true,
         disposed: false,
-        sync(model) {
+        sync(model, images) {
           canvas.model = model;
+          canvas.images = images;
         },
         setTool(tool) {
           canvas.tool = tool;

@@ -8,7 +8,7 @@
 //  - Discard waits for whatever is in flight, then moves that very file to the Recycle Bin, and from
 //    then on nothing is written for this image (the Rust side also refuses to create a missing file).
 // Pure TypeScript apart from the timers, so it is tested with fake timers and the fake bridge.
-import { encodeLibraryPng, type FinishedRenderer } from "../core/annotatedImage";
+import { encodeLibraryPng, type FinishedRenderer, usedImageIds } from "../core/annotatedImage";
 import type { EditSession } from "../core/editSession";
 import type { HistoryState } from "../core/history";
 import type { PlatformBridge } from "../platform/bridge";
@@ -34,7 +34,15 @@ export interface PersisterOptions {
    * when they were encoded (so the two always belong together). Not awaited; a
    * failure is ignored: it never fails the save.
    */
-  onSaved?: (saved: { path: string; png: Uint8Array; history: HistoryState }) => void | Promise<void>;
+  onSaved?: (saved: {
+    path: string;
+    png: Uint8Array;
+    history: HistoryState;
+    /** Every pasted image the session held then, by `imageId` (ticket 38). */
+    images: Readonly<Record<string, Uint8Array>>;
+    /** The ids of the pasted images the PNG itself carries. */
+    embedded: string[];
+  }) => void | Promise<void>;
   onEvent?: (event: PersisterEvent) => void;
 }
 
@@ -85,8 +93,9 @@ export function createPersister(options: PersisterOptions): Persister {
     // Cleared before encoding, so an edit made while this writes marks the image dirty again.
     dirty = false;
     try {
-      const { history } = session; // as of the image encoded next, whatever is edited while it renders
-      const png = await encodeLibraryPng(session.image, render);
+      // As of the image encoded next, whatever is edited while it renders.
+      const { history, image } = session;
+      const png = await encodeLibraryPng(image, render);
       if (discarding) return;
       if (path === null) path = await bridge.saveToLibrary(png, capturedAt);
       else await bridge.updateLibraryFile(path, png);
@@ -94,7 +103,7 @@ export function createPersister(options: PersisterOptions): Persister {
       // Not awaited: the next save must not wait for the history file (the history store keeps its own
       // order). Undo history is best-effort; a failure never touches the saved image.
       try {
-        void Promise.resolve(options.onSaved?.({ path, png, history })).catch(() => {});
+        void Promise.resolve(options.onSaved?.({ path, png, history, images: image.images ?? {}, embedded: usedImageIds(image.model) })).catch(() => {});
       } catch {
         // A synchronous throw, likewise ignored.
       }

@@ -67,3 +67,23 @@ export function scrollAfterZoom({ image, view, scroll, from, to }: ScrollRequest
     top: axis(image.height, view.height, scroll.top),
   };
 }
+
+interface ScreenRect {
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+}
+
+/**
+ * The part of the Capture that is on screen, in Capture pixels: the well's rectangle intersected with
+ * the stage's (both in the same screen coordinates), divided by the zoom. Null when none of it shows.
+ */
+export function visibleCaptureArea(well: ScreenRect, stage: ScreenRect, scale: number): { x: number; y: number; width: number; height: number } | null {
+  const left = Math.max(well.left, stage.left);
+  const top = Math.max(well.top, stage.top);
+  const right = Math.min(well.right, stage.right);
+  const bottom = Math.min(well.bottom, stage.bottom);
+  if (right <= left || bottom <= top || scale <= 0) return null;
+  return { x: (left - stage.left) / scale, y: (top - stage.top) / scale, width: (right - left) / scale, height: (bottom - top) / scale };
+}

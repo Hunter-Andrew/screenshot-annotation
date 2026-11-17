@@ -24,8 +24,12 @@ export interface CanvasEvents {
 }
 
 export interface AnnotationCanvas {
-  /** Make the canvas show exactly `model.annotations` (adds, updates and removes objects). */
-  sync(model: AnnotationModel): void;
+  /**
+   * Make the canvas show exactly `model.annotations` (adds, updates and removes objects), in the model's
+   * stacking order. `images` holds the PNG bytes of pasted images by `imageId` (ticket 38); the canvas
+   * decodes them and draws each image once its bitmap is ready.
+   */
+  sync(model: AnnotationModel, images?: Readonly<Record<string, Uint8Array>>): void;
   /** The active tool: "select", "crop", or an Annotation type to draw. Choosing a tool clears the selection. */
   setTool(tool: string): void;
   /** The style new Annotations are drawn in. */

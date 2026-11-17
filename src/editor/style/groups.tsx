@@ -66,6 +66,59 @@ function StrokeEditor({ value, onChange }: GroupEditorProps<"stroke">) {
   );
 }
 
+function BorderEditor({ value, onChange }: GroupEditorProps<"border">) {
+  // Off by default; the color and width are kept while it is off. Width 1-30 like a Stroke (presets 2, 4, 8).
+  const [text, setText] = useState(String(value.width));
+  useEffect(() => setText(String(value.width)), [value.width]);
+  return (
+    <>
+      <div className="presets" role="group" aria-label="Border mode">
+        <button type="button" aria-pressed={!value.enabled} onClick={() => onChange({ ...value, enabled: false })}>
+          Off
+        </button>
+        <button type="button" aria-pressed={value.enabled} onClick={() => onChange({ ...value, enabled: true })}>
+          On
+        </button>
+      </div>
+      {value.enabled && (
+        <>
+          <ColorField label="Border color" color={value.color} onPick={(color) => onChange({ ...value, color })} />
+          <label className="row">
+            Width
+            <input
+              type="number"
+              min={MIN_STROKE_WIDTH}
+              max={MAX_STROKE_WIDTH}
+              aria-label="Border width"
+              value={text}
+              onChange={(e) => {
+                setText(e.target.value);
+                const width = Math.round(Number(e.target.value));
+                if (e.target.value !== "" && width >= MIN_STROKE_WIDTH && width <= MAX_STROKE_WIDTH) onChange({ ...value, width });
+              }}
+              onBlur={() => setText(String(value.width))}
+            />
+            px
+          </label>
+          <div className="presets" role="group" aria-label="Border width presets">
+            {THICKNESS_PRESETS.map((width) => (
+              <button
+                key={width}
+                type="button"
+                aria-pressed={value.width === width}
+                aria-label={`Border width ${width}`}
+                onClick={() => onChange({ ...value, width })}
+              >
+                {width}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </>
+  );
+}
+
 function ArrowheadsEditor({ value, onChange }: GroupEditorProps<"arrowheads">) {
   return (
     <div className="presets" role="group" aria-label="Arrowheads">
@@ -199,6 +252,7 @@ function StrengthEditor({ value, onChange }: GroupEditorProps<"strength">) {
 export const GROUP_EDITORS: { [K in GroupId]: GroupEditor<K> } = {
   strength: { title: "Strength", Editor: StrengthEditor },
   stroke: { title: "Stroke", Editor: StrokeEditor },
+  border: { title: "Border", Editor: BorderEditor },
   tail: { title: "Tail", Editor: TailEditor },
   opacity: { title: "Opacity", Editor: OpacityEditor },
   arrowheads: { title: "Arrowheads", Editor: ArrowheadsEditor },

@@ -8,7 +8,7 @@ import { cropFromDrag } from "../core/crop";
 import { newAnnotationId, type Annotation, type AnnotationModel } from "../core/annotation";
 import type { Style } from "../core/propertyGroups";
 import type { AnnotationCanvas, MountOptions } from "./types";
-import { adapterFor } from "./shapes";
+import { adapterFor, ImageShape, type ShapeAssets } from "./shapes";
 
 const SELECT = "select";
 const CROP = "crop";
@@ -60,6 +60,32 @@ export function createFabricCanvas(host: HTMLElement, { size, events, imageUrl }
   const objectsById = new Map<string, FabricObject>();
   const idOf = new WeakMap<FabricObject, string>();
   const applied = new Map<string, Annotation>();
+
+  // Pasted pictures (ticket 38): decoded from their PNG bytes once, shown by every image object that
+  // uses them. An image object draws nothing until its bitmap is there, then the canvas redraws.
+  let knownImages: Readonly<Record<string, Uint8Array>> = {};
+  const bitmaps = new Map<string, ImageBitmap>();
+  const decoding = new Set<string>();
+  const assets: ShapeAssets = { image: (id) => bitmaps.get(id) };
+  const decode = (id: string) => {
+    const bytes = knownImages[id];
+    if (!bytes || bitmaps.has(id) || decoding.has(id)) return;
+    decoding.add(id); // kept after a failure too: a picture that does not decode is not retried on every sync
+    createImageBitmap(new Blob([bytes as BlobPart], { type: "image/png" }), { colorSpaceConversion: "none" }).then(
+      (bitmap) => {
+        if (disposed) return bitmap.close();
+        bitmaps.set(id, bitmap);
+        for (const object of objectsById.values()) {
+          if (object instanceof ImageShape && object.imageId === id) {
+            object.bitmap = bitmap;
+            object.dirty = true;
+          }
+        }
+        canvas.requestRenderAll();
+      },
+      () => undefined,
+    );
+  };
 
   const clampToImage = (p: { x: number; y: number }) => ({
     x: Math.min(Math.max(p.x, 0), size.width),
@@ -215,7 +241,8 @@ export function createFabricCanvas(host: HTMLElement, { size, events, imageUrl }
   });
 
   return {
-    sync(model: AnnotationModel) {
+    sync(model: AnnotationModel, images) {
+      knownImages = images ?? knownImages;
       const wanted = new Set<string>();
       for (const annotation of model.annotations) {
         const adapter = adapterFor(annotation.type);
@@ -224,7 +251,7 @@ export function createFabricCanvas(host: HTMLElement, { size, events, imageUrl }
         wanted.add(annotation.id);
         let object = objectsById.get(annotation.id);
         if (!object) {
-          object = adapter.create(annotation);
+          object = adapter.create(annotation, assets);
           objectsById.set(annotation.id, object);
           idOf.set(object, annotation.id);
           canvas.add(object);
@@ -232,6 +259,7 @@ export function createFabricCanvas(host: HTMLElement, { size, events, imageUrl }
           adapter.update(object, annotation);
         }
         applied.set(annotation.id, annotation);
+        if (object instanceof ImageShape && !object.bitmap) decode(object.imageId);
       }
       for (const [id, object] of [...objectsById]) {
         if (wanted.has(id)) continue;
@@ -239,6 +267,12 @@ export function createFabricCanvas(host: HTMLElement, { size, events, imageUrl }
         objectsById.delete(id);
         applied.delete(id);
       }
+      // Stacking order is the model's order (bring forward, send back, Undo of a delete): the model's
+      // objects fill the bottom of the canvas back to front.
+      model.annotations.forEach((annotation, index) => {
+        const object = objectsById.get(annotation.id);
+        if (object && canvas.getObjects()[index] !== object) canvas.moveObjectTo(object, index);
+      });
       canvas.requestRenderAll();
     },
     setTool(next) {
@@ -269,6 +303,8 @@ export function createFabricCanvas(host: HTMLElement, { size, events, imageUrl }
     },
     dispose() {
       disposed = true;
+      for (const bitmap of bitmaps.values()) bitmap.close();
+      bitmaps.clear();
       void canvas.dispose();
       mountPoint.remove();
     },

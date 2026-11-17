@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
-import { FIT, effectiveScale, fitScale, scrollAfterZoom, zoomStep } from "./view";
+import { FIT, effectiveScale, fitScale, scrollAfterZoom, visibleCaptureArea, zoomStep } from "./view";
 
 // The well is the grey area around the canvas; it keeps 16 px of padding on every side.
 describe("fitScale: whole image visible, never enlarged", () => {
@@ -109,5 +109,23 @@ describe("scrollAfterZoom: the point in the middle of the view stays in the midd
     });
 
     expect(next).toEqual({ left: 0, top: 0 });
+  });
+});
+
+describe("visibleCaptureArea: the part of the Capture the well shows, in Capture pixels", () => {
+  const rect = (left: number, top: number, width: number, height: number) => ({ left, top, right: left + width, bottom: top + height });
+
+  it("is the whole Capture when it fits in the well", () => {
+    expect(visibleCaptureArea(rect(0, 0, 800, 600), rect(100, 50, 300, 200), 1)).toEqual({ x: 0, y: 0, width: 300, height: 200 });
+  });
+
+  it("is the scrolled-to part when the Capture is bigger than the well, at the zoom shown", () => {
+    // A 2000 x 1000 Capture at 200%: 4000 x 2000 on screen, scrolled 600 px right and 100 down, in an 800 x 600 well.
+    expect(visibleCaptureArea(rect(0, 0, 800, 600), rect(-600, -100, 4000, 2000), 2)).toEqual({ x: 300, y: 50, width: 400, height: 300 });
+  });
+
+  it("is null when none of the Capture is in view (or nothing is laid out)", () => {
+    expect(visibleCaptureArea(rect(0, 0, 800, 600), rect(900, 0, 100, 100), 1)).toBeNull();
+    expect(visibleCaptureArea(rect(0, 0, 0, 0), rect(0, 0, 0, 0), 1)).toBeNull();
   });
 });

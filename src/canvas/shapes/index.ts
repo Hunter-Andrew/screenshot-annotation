@@ -5,6 +5,7 @@ import { blurAdapter } from "./blur";
 import { calloutAdapter } from "./callout";
 import { ellipseAdapter } from "./ellipse";
 import { highlightAdapter } from "./highlight";
+import { imageAdapter } from "./image";
 import { lineAdapter } from "./line";
 import { penAdapter } from "./pen";
 import { rectAdapter } from "./rect";
@@ -21,10 +22,12 @@ const ADAPTERS: readonly ShapeAdapter<any>[] = [
   penAdapter,
   highlightAdapter,
   blurAdapter,
+  imageAdapter,
 ];
 
 export function adapterFor(type: Annotation["type"] | string): ShapeAdapter | undefined {
   return ADAPTERS.find((a) => a.type === type);
 }
 
-export type { ShapeAdapter } from "./shape";
+export type { ShapeAdapter, ShapeAssets } from "./shape";
+export { ImageShape } from "./imageShape";

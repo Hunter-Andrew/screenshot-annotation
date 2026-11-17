@@ -58,7 +58,22 @@ function dragEdge(moves: Edge, anchor: number, pointer: number, current: [number
   return [Math.min(anchor, far), Math.max(anchor, far)];
 }
 
-function controls(): Record<string, Control> {
+/**
+ * How the handles resize an object. Default: the box follows the pointer, and dragging past the
+ * opposite edge flips it (Rectangle, Ellipse, Blur). `fixed` (a pasted image, ticket 38): no flipping,
+ * and the corners keep the aspect ratio unless Shift is held.
+ */
+export interface ResizeRules {
+  fixed?: boolean;
+}
+
+/** The edges after dragging a handle that may not flip: the dragged edge stops one pixel short of the fixed one. */
+function dragEdgeNoFlip(moves: Edge, anchor: number, pointer: number, current: [number, number]): [number, number] {
+  if (moves === 0) return current;
+  return moves === -1 ? [Math.min(pointer, anchor - MIN_SIDE), anchor] : [anchor, Math.max(pointer, anchor + MIN_SIDE)];
+}
+
+function controls(rules: ResizeRules): Record<string, Control> {
   const result: Record<string, Control> = {};
   for (const handle of HANDLES) {
     result[handle.key] = new Control({
@@ -74,7 +89,7 @@ function controls(): Record<string, Control> {
           .scalarMultiply(object.getViewportTransform()[0])
           .transform(finalMatrix);
       },
-      actionHandler: (_event, transform, px, py) => {
+      actionHandler: (event, transform, px, py) => {
         const object = transform.target as FabricObject;
         const box = shown.get(object)!;
         const left = object.left + box.stroke.width / 2;
@@ -85,6 +100,24 @@ function controls(): Record<string, Control> {
           x: handle.x === -1 ? left + box.width : left,
           y: handle.y === -1 ? top + box.height : top,
         };
+        if (rules.fixed) {
+          let [x1, x2] = dragEdgeNoFlip(handle.x, t.anchor.x, px, [left, left + box.width]);
+          let [y1, y2] = dragEdgeNoFlip(handle.y, t.anchor.y, py, [top, top + box.height]);
+          const corner = handle.x !== 0 && handle.y !== 0;
+          if (corner && !(event as MouseEvent).shiftKey) {
+            // The shape the gesture started with: the larger of what the pointer asks for on each axis wins.
+            const t2 = transform as unknown as { ratio?: number };
+            t2.ratio ??= box.width / box.height;
+            const width = Math.max(x2 - x1, (y2 - y1) * t2.ratio);
+            const height = width / t2.ratio;
+            if (handle.x === -1) x1 = x2 - width;
+            else x2 = x1 + width;
+            if (handle.y === -1) y1 = y2 - height;
+            else y2 = y1 + height;
+          }
+          showBox(object, { ...box, x: x1, y: y1, width: x2 - x1, height: y2 - y1 });
+          return true;
+        }
         const [x1, x2] = dragEdge(handle.x, t.anchor.x, px, [left, left + box.width]);
         const [y1, y2] = dragEdge(handle.y, t.anchor.y, py, [top, top + box.height]);
         showBox(object, { ...box, x: x1, y: y1, width: x2 - x1, height: y2 - y1 });
@@ -105,9 +138,9 @@ export function paint(box: BoxGeometry) {
   };
 }
 
-export function finish<T extends FabricObject>(object: T, box: BoxGeometry): T {
+export function finish<T extends FabricObject>(object: T, box: BoxGeometry, rules: ResizeRules = {}): T {
   shown.set(object, box);
-  object.controls = controls();
+  object.controls = controls(rules);
   return object;
 }
 
