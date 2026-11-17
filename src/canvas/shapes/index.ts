@@ -2,6 +2,7 @@
 import type { Annotation } from "../../core/annotation";
 import { arrowAdapter } from "./arrow";
 import { ellipseAdapter } from "./ellipse";
+import { highlightAdapter } from "./highlight";
 import { lineAdapter } from "./line";
 import { penAdapter } from "./pen";
 import { rectAdapter } from "./rect";
@@ -15,6 +16,7 @@ const ADAPTERS: readonly ShapeAdapter<any>[] = [
   ellipseAdapter,
   textAdapter,
   penAdapter,
+  highlightAdapter,
 ];
 
 export function adapterFor(type: Annotation["type"] | string): ShapeAdapter | undefined {

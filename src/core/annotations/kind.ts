@@ -26,6 +26,8 @@ export interface AnnotationKind<A extends Annotation = Annotation> {
   fromDrag(id: string, from: Point, to: Point, style: Style, area?: { width: number; height: number }): A | null;
   /** Freehand tools only (Pen): the Annotation for all the points a drag passed through; the canvas prefers it to `fromDrag`. */
   fromPath?(id: string, points: readonly Point[], style: Style): A | null;
+  /** Freehand tools only: holding Shift while drawing makes a straight horizontal stroke (Highlighter). */
+  readonly horizontalWithShift?: boolean;
   /**
    * True for a tool the user types into (Text): a click makes the box and starts editing it in place;
    * it becomes an Annotation only once something has been typed.

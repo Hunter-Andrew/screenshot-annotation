@@ -2,7 +2,7 @@
 // for the selected Annotation or the active tool, the groups its kind opts into, each through its
 // editor here. A new group (Fill: ticket 10; Font and Text outline: ticket 11) adds one entry.
 import { type ComponentType, useEffect, useState } from "react";
-import { MAX_STROKE_WIDTH, MIN_STROKE_WIDTH, type GroupId, type PropertyGroups } from "../../core/propertyGroups";
+import { MAX_OPACITY, MAX_STROKE_WIDTH, MIN_OPACITY, MIN_STROKE_WIDTH, type GroupId, type PropertyGroups } from "../../core/propertyGroups";
 import { ColorField, PALETTE } from "./ColorField";
 import { FontEditor, TextOutlineEditor } from "./textGroups";
 
@@ -110,8 +110,44 @@ function FillEditor({ value, onChange }: GroupEditorProps<"fill">) {
   );
 }
 
+function OpacityEditor({ value, onChange }: GroupEditorProps<"opacity">) {
+  const percent = Math.round(value.value * 100);
+  const [text, setText] = useState(String(percent));
+  useEffect(() => setText(String(percent)), [percent]);
+  const lo = Math.round(MIN_OPACITY * 100);
+  const hi = Math.round(MAX_OPACITY * 100);
+  return (
+    <label className="row">
+      Opacity
+      <input
+        type="range"
+        min={lo}
+        max={hi}
+        aria-label="Opacity"
+        value={percent}
+        onChange={(e) => onChange({ value: Number(e.target.value) / 100 })}
+      />
+      <input
+        type="number"
+        min={lo}
+        max={hi}
+        aria-label="Opacity percent"
+        value={text}
+        onChange={(e) => {
+          setText(e.target.value);
+          const n = Math.round(Number(e.target.value));
+          if (e.target.value !== "" && n >= lo && n <= hi) onChange({ value: n / 100 });
+        }}
+        onBlur={() => setText(String(percent))}
+      />
+      %
+    </label>
+  );
+}
+
 export const GROUP_EDITORS: { [K in GroupId]: GroupEditor<K> } = {
   stroke: { title: "Stroke", Editor: StrokeEditor },
+  opacity: { title: "Opacity", Editor: OpacityEditor },
   arrowheads: { title: "Arrowheads", Editor: ArrowheadsEditor },
   fill: { title: "Fill", Editor: FillEditor },
   font: { title: "Font", Editor: FontEditor },

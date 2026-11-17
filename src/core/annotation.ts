@@ -7,6 +7,7 @@
 // describe it in `src/core/annotations/<type>.ts` and list that in `annotations/index.ts`.
 import type { ArrowAnnotation } from "./annotations/arrow";
 import type { EllipseAnnotation } from "./annotations/ellipse";
+import type { HighlightAnnotation } from "./annotations/highlight";
 import type { LineAnnotation } from "./annotations/line";
 import type { PenAnnotation } from "./annotations/pen";
 import type { RectAnnotation } from "./annotations/rect";
@@ -17,7 +18,7 @@ import type { TextAnnotation } from "./annotations/text";
 export const FORMAT_VERSION = 1;
 
 export type { ArrowAnnotation, EllipseAnnotation, LineAnnotation, RectAnnotation };
-export type { PenAnnotation };
+export type { HighlightAnnotation, PenAnnotation };
 export type { TextAnnotation };
 
 export type Annotation =
@@ -26,9 +27,10 @@ export type Annotation =
   | RectAnnotation
   | EllipseAnnotation
   | PenAnnotation
+  | HighlightAnnotation
   | TextAnnotation;
   // | CalloutAnnotation (18)
-  // | HighlightAnnotation (19) | BlurAnnotation (20)
+  // | BlurAnnotation (20)
 
 export type AnnotationType = Annotation["type"];
 

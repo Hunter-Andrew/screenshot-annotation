@@ -78,6 +78,13 @@ export function createFabricCanvas(host: HTMLElement, { size, events }: MountOpt
   });
 
   // Drawing: press, drag (a live preview built from the same adapter), release.
+  /** The points a freehand drag turns into a stroke: with Shift on a Highlighter, a straight horizontal run from the press. */
+  const pathFor = (
+    kind: { horizontalWithShift?: boolean },
+    gesture: { from: { x: number; y: number }; path: { x: number; y: number }[] },
+    to: { x: number; y: number },
+    shift: boolean,
+  ) => (kind.horizontalWithShift && shift ? [gesture.from, { x: to.x, y: gesture.from.y }] : gesture.path);
   let drag: { from: { x: number; y: number }; path: { x: number; y: number }[]; ghost: FabricObject | null } | null = null;
   const dropGhost = () => {
     if (drag?.ghost) canvas.remove(drag.ghost);
@@ -149,7 +156,7 @@ export function createFabricCanvas(host: HTMLElement, { size, events }: MountOpt
     drag.path.push(to);
     // A freehand kind (Pen) gets every point the pointer passed; the others only the two ends.
     const preview = kind.fromPath
-      ? kind.fromPath("preview", drag.path, drawStyle)
+      ? kind.fromPath("preview", pathFor(kind, drag, to, (event.e as MouseEvent).shiftKey), drawStyle)
       : kind.fromDrag("preview", drag.from, to, drawStyle);
     if (!preview) return dropGhost();
     if (drag.ghost) adapter.update(drag.ghost, preview);
@@ -168,7 +175,7 @@ export function createFabricCanvas(host: HTMLElement, { size, events }: MountOpt
     if (gesture.ghost) canvas.remove(gesture.ghost);
     const to = clampToImage(canvas.getScenePoint(event.e));
     const annotation = kind.fromPath
-      ? kind.fromPath(newAnnotationId(), [...gesture.path, to], drawStyle)
+      ? kind.fromPath(newAnnotationId(), pathFor(kind, { ...gesture, path: [...gesture.path, to] }, to, (event.e as MouseEvent).shiftKey), drawStyle)
       : kind.fromDrag(newAnnotationId(), gesture.from, to, drawStyle, size);
     canvas.requestRenderAll();
     if (!annotation) return;

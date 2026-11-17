@@ -82,6 +82,6 @@ export const penKind: AnnotationKind<PenAnnotation> = {
 };
 
 /** The box around the stroke, thickness included. */
-export function penBounds(pen: PenAnnotation): Bounds {
+export function penBounds(pen: Pick<PenAnnotation, "points" | "stroke">): Bounds {
   return strokeBounds(pen.points, pen.stroke.width);
 }

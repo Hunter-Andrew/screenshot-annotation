@@ -52,8 +52,18 @@ export interface Fill {
   opacity: number;
 }
 
+/** Whole-object see-through-ness (the Highlighter now, pasted images in ticket 38): 10-100%, stored as a fraction. */
+export const MIN_OPACITY = 0.1;
+export const MAX_OPACITY = 1;
+
+export interface Opacity {
+  /** MIN_OPACITY-1; 1 is fully opaque. */
+  value: number;
+}
+
 export interface PropertyGroups {
   stroke: Stroke;
+  opacity: Opacity;
   arrowheads: Arrowheads;
   fill: Fill;
   font: Font;
@@ -92,6 +102,10 @@ const GROUP_READERS: { [K in GroupId]: (raw: unknown) => PropertyGroups[K] | und
     const width = Math.round(stored.width);
     return width >= MIN_STROKE_WIDTH && width <= MAX_STROKE_WIDTH ? { color: stored.color, width } : undefined;
   },
+  opacity: (raw) =>
+    isRecord(raw) && typeof raw.value === "number" && raw.value >= MIN_OPACITY && raw.value <= MAX_OPACITY
+      ? { value: raw.value }
+      : undefined,
   arrowheads: (raw) => (isRecord(raw) && (raw.ends === "end" || raw.ends === "both") ? { ends: raw.ends } : undefined),
   fill: (raw) => {
     const stored = readColor(raw);
