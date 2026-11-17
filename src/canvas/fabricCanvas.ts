@@ -5,9 +5,11 @@
 import { Canvas, type FabricObject, FabricImage, Rect } from "fabric";
 import { backgroundFill } from "../core/area";
 import { kindOf } from "../core/annotations";
+import { erasePieces } from "../core/annotations/erase";
+import type { Point } from "../core/annotations";
 import { cropFromDrag, MIN_CROP } from "../core/crop";
 import { newAnnotationId, type Annotation, type AnnotationModel, type Crop } from "../core/annotation";
-import type { Style } from "../core/propertyGroups";
+import { DEFAULT_ERASER_SIZE, type Style } from "../core/propertyGroups";
 import { CALLOUT_TAIL_PERCENT } from "../shared/imageSettings";
 import { Backdrop } from "./backdrop";
 import { CropFrame, OutsideDim } from "./chrome";
@@ -146,6 +148,81 @@ export function createFabricCanvas(host: HTMLElement, { events, imageUrl, layout
   /** A new text box being typed into: not an Annotation until it has words (see `startTyping`). */
   let pending: FabricObject | null = null;
 
+  // --- the Pen's Eraser mode ---------------------------------------------------------------------
+  /** Eraser mode is on: the Pen tool is active and its Mode group says Eraser. */
+  const erasing = () => tool === "pen" && drawStyle.eraser?.mode === "eraser";
+  /** The eraser circle's radius in Capture pixels (the Style panel's size is its diameter). */
+  const eraserRadius = () => (drawStyle.eraser?.size ?? DEFAULT_ERASER_SIZE) / 2;
+  /** Where the pointer is over the canvas (scene pixels, not clamped), for the outline circle; null when it is off the canvas. */
+  let pointer: Point | null = null;
+  /**
+   * An erase drag in progress. Nothing reaches the model until release; meanwhile the canvas previews: each Pen
+   * stroke the eraser touched is hidden and drawn in its pieces instead (same adapter, so what you see is what is saved).
+   */
+  let erase: { path: Point[]; pieces: Map<string, Point[][]>; previews: Map<string, FabricObject[]>; hidden: Set<string> } | null = null;
+  /** Put every stroke back as the model has it: the preview ends (a cancel, or the model's own redraw after release). */
+  const clearErase = () => {
+    if (!erase) return;
+    for (const objects of erase.previews.values()) for (const object of objects) canvas.remove(object);
+    for (const id of erase.hidden) {
+      const object = objectsById.get(id);
+      if (object) object.visible = true;
+    }
+    erase = null;
+    canvas.requestRenderAll();
+  };
+  /** The eraser passed from `from` to `to`: cut the pieces further and redraw the strokes it touched. */
+  const eraseSegment = (gesture: NonNullable<typeof erase>, from: Point, to: Point) => {
+    const penAdapter = adapterFor("pen")!;
+    for (const [id, annotation] of applied) {
+      if (annotation.type !== "pen") continue;
+      const before = gesture.pieces.get(id) ?? [annotation.points];
+      let touched = false;
+      const after = before.flatMap((piece) => {
+        const cut = erasePieces(piece, [from, to], eraserRadius());
+        touched ||= cut !== null;
+        return cut ?? [piece];
+      });
+      if (!touched) continue;
+      gesture.pieces.set(id, after);
+      const original = objectsById.get(id);
+      if (!original) continue;
+      original.visible = false;
+      gesture.hidden.add(id);
+      const index = Math.max(0, canvas.getObjects().indexOf(original));
+      for (const object of gesture.previews.get(id) ?? []) canvas.remove(object);
+      const previews = after.map((points) => {
+        const object = penAdapter.create({ ...annotation, points } as typeof annotation);
+        object.set({ selectable: false, evented: false });
+        return object;
+      });
+      gesture.previews.set(id, previews);
+      canvas.insertAt(index + 1, ...previews);
+    }
+    canvas.requestRenderAll();
+  };
+  // The outline circle: a dark ring with a white one inside it, readable on any Capture, in the eraser's size at the current zoom.
+  canvas.on("after:render", ({ ctx }) => {
+    if (!pointer || !interactive || !erasing()) return;
+    const scene = canvas.viewportTransform;
+    ctx.save();
+    ctx.transform(scene[0], scene[1], scene[2], scene[3], scene[4], scene[5]);
+    const pixel = 1 / (canvas.getZoom() || 1);
+    ctx.beginPath();
+    ctx.arc(pointer.x, pointer.y, eraserRadius(), 0, Math.PI * 2);
+    ctx.lineWidth = 3 * pixel;
+    ctx.strokeStyle = "rgba(17, 24, 39, 0.9)";
+    ctx.stroke();
+    ctx.lineWidth = 1.5 * pixel;
+    ctx.strokeStyle = "#ffffff";
+    ctx.stroke();
+    ctx.restore();
+  });
+  canvas.upperCanvasEl.addEventListener("mouseleave", () => {
+    pointer = null;
+    canvas.requestRenderAll();
+  });
+
   const refreshMode = () => {
     const drawing = interactive && tool !== SELECT;
     // While typing into a new box the pointer must reach it (to place the caret, to click away).
@@ -153,8 +230,10 @@ export function createFabricCanvas(host: HTMLElement, { events, imageUrl, layout
     // The Crop tool needs its handles to take the pointer; the Annotations then stay out of the way.
     canvas.skipTargetFind = !interactive || (drawing && !cropping && pending === null);
     for (const object of objectsById.values()) object.evented = !cropping;
-    canvas.defaultCursor = drawing ? "crosshair" : "default";
-    canvas.hoverCursor = drawing ? "crosshair" : "move";
+    // The Pen's Eraser mode draws its own outline circle (below) instead of a cursor.
+    const cursor = drawing ? (erasing() ? "none" : "crosshair") : null;
+    canvas.defaultCursor = cursor ?? "default";
+    canvas.hoverCursor = cursor ?? "move";
   };
 
   // Only the user's own gestures are reported: what the editor itself asked for (tool change, select)
@@ -281,9 +360,21 @@ export function createFabricCanvas(host: HTMLElement, { events, imageUrl, layout
     // A press on one of the Crop frame's handles is Fabric's to resize, not the start of a new rectangle.
     if (event.target) return;
     const from = clampToReach(canvas.getScenePoint(event.e));
+    if (erasing()) {
+      erase = { path: [from], pieces: new Map(), previews: new Map(), hidden: new Set() };
+      return eraseSegment(erase, from, from); // a click cuts a hole
+    }
     drag = { from, path: [from], ghost: null };
   });
   canvas.on("mouse:move", (event) => {
+    if (erasing() && interactive) {
+      pointer = canvas.getScenePoint(event.e);
+      if (!erase) return canvas.requestRenderAll();
+      const to = clampToReach(pointer);
+      const last = erase.path.at(-1)!;
+      erase.path.push(to);
+      return eraseSegment(erase, last, to);
+    }
     // The Crop tool previews its rectangle like Text's box (same dashed preview).
     if (drag && tool === CROP) return previewArea(drag, clampToReach(canvas.getScenePoint(event.e)));
     const kind = kindOf(tool);
@@ -308,6 +399,16 @@ export function createFabricCanvas(host: HTMLElement, { events, imageUrl, layout
     canvas.requestRenderAll();
   });
   canvas.on("mouse:up", (event) => {
+    if (erase) {
+      const gesture = erase;
+      const to = clampToReach(canvas.getScenePoint(event.e));
+      const last = gesture.path.at(-1)!;
+      if (to.x !== last.x || to.y !== last.y) gesture.path.push(to);
+      // The preview stays until the editor has applied the edit and the model is synced (no flash of the whole stroke).
+      events.onErase(gesture.path, eraserRadius());
+      if (gesture.hidden.size === 0) clearErase();
+      return;
+    }
     const gesture = drag;
     drag = null;
     if (gesture && tool === CROP) {
@@ -346,6 +447,7 @@ export function createFabricCanvas(host: HTMLElement, { events, imageUrl, layout
   return {
     sync(model: AnnotationModel, images) {
       knownImages = images ?? knownImages;
+      clearErase();
       const wanted = new Set<string>();
       for (const annotation of model.annotations) {
         const adapter = adapterFor(annotation.type);
@@ -383,6 +485,7 @@ export function createFabricCanvas(host: HTMLElement, { events, imageUrl, layout
       tool = next;
       dropGhost(); // Esc (or any tool change) during a drag cancels it
       drag = null;
+      clearErase(); // an erase drag too: the strokes come back, nothing is recorded
       silently(() => canvas.discardActiveObject());
       showFrame(interactive && tool === CROP);
       refreshMode();
@@ -390,6 +493,10 @@ export function createFabricCanvas(host: HTMLElement, { events, imageUrl, layout
     },
     setDrawStyle(style) {
       drawStyle = style;
+      // Changing the mode (or the size) mid-gesture cancels an erase drag; the circle follows the new size.
+      if (!erasing()) clearErase();
+      refreshMode();
+      canvas.requestRenderAll();
     },
     setCalloutTailPercent(percent) {
       calloutTailPercent = percent;
@@ -426,6 +533,7 @@ export function createFabricCanvas(host: HTMLElement, { events, imageUrl, layout
     },
     dispose() {
       disposed = true;
+      erase = null;
       for (const bitmap of bitmaps.values()) bitmap.close();
       bitmaps.clear();
       void canvas.dispose();

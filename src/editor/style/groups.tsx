@@ -3,6 +3,8 @@
 // editor here. A new group (Fill: ticket 10; Font and Text outline: ticket 11) adds one entry.
 import { type ComponentType, useEffect, useState } from "react";
 import {
+  MAX_ERASER_SIZE,
+  MIN_ERASER_SIZE,
   MAX_OPACITY,
   MAX_STRENGTH,
   MAX_STROKE_WIDTH,
@@ -249,7 +251,51 @@ function StrengthEditor({ value, onChange }: GroupEditorProps<"strength">) {
   );
 }
 
+/** The Pen tool's Mode: draw, or erase parts of Pen strokes; and how big the eraser is. Only while the tool is active. */
+function EraserEditor({ value, onChange }: GroupEditorProps<"eraser">) {
+  const [text, setText] = useState(String(value.size));
+  useEffect(() => setText(String(value.size)), [value.size]);
+  return (
+    <>
+      <div className="presets" role="group" aria-label="Pen mode">
+        <button type="button" aria-pressed={value.mode === "pen"} onClick={() => onChange({ ...value, mode: "pen" })}>
+          Pen
+        </button>
+        <button type="button" aria-pressed={value.mode === "eraser"} onClick={() => onChange({ ...value, mode: "eraser" })}>
+          Eraser
+        </button>
+      </div>
+      <label className="row">
+        Eraser size
+        <input
+          type="range"
+          min={MIN_ERASER_SIZE}
+          max={MAX_ERASER_SIZE}
+          aria-label="Eraser size"
+          value={value.size}
+          onChange={(e) => onChange({ ...value, size: Number(e.target.value) })}
+        />
+        <input
+          type="number"
+          min={MIN_ERASER_SIZE}
+          max={MAX_ERASER_SIZE}
+          aria-label="Eraser size number"
+          value={text}
+          onChange={(e) => {
+            setText(e.target.value);
+            const size = Math.round(Number(e.target.value));
+            if (e.target.value !== "" && size >= MIN_ERASER_SIZE && size <= MAX_ERASER_SIZE) onChange({ ...value, size });
+          }}
+          onBlur={() => setText(String(value.size))}
+        />
+        px
+      </label>
+    </>
+  );
+}
+
 export const GROUP_EDITORS: { [K in GroupId]: GroupEditor<K> } = {
+  eraser: { title: "Mode", Editor: EraserEditor },
   strength: { title: "Strength", Editor: StrengthEditor },
   stroke: { title: "Stroke", Editor: StrokeEditor },
   border: { title: "Border", Editor: BorderEditor },

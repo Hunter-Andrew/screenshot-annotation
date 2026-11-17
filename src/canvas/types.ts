@@ -4,6 +4,7 @@
 // app-owned model (ADR 0005); the model is the source of truth and the canvas follows it.
 import type { FinishedRenderer } from "../core/annotatedImage";
 import type { Annotation, AnnotationModel, Background, Crop } from "../core/annotation";
+import type { Point } from "../core/annotations";
 import type { Style } from "../core/propertyGroups";
 
 export interface Size {
@@ -34,6 +35,11 @@ export interface CanvasEvents {
   onCreate(annotation: Annotation, bounds?: Crop): void;
   /** A selected Annotation was moved or resized: `patch` holds its new geometry, `bounds` what it now covers. */
   onUpdate(id: string, patch: Partial<Annotation>, bounds?: Crop): void;
+  /**
+   * An erase drag finished (the Pen in Eraser mode): the pointer's path (Capture pixels; one point for a click) and
+   * the eraser's radius. The editor cuts the Pen strokes it touched, as one edit. While dragging the canvas only previews.
+   */
+  onErase(path: Point[], radius: number): void;
   /** The selection changed (null: nothing selected). */
   onSelect(id: string | null): void;
   /**

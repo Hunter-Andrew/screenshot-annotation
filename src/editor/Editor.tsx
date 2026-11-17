@@ -10,6 +10,7 @@ import {
   stripEmbedded,
 } from "../core/annotatedImage";
 import { type Annotation, type Background, type Crop, emptyModel, newAnnotationId } from "../core/annotation";
+import { eraseEdit } from "../core/annotations/erase";
 import { AREA_LIMIT_MESSAGE, followAreaEdit, setAreaEdit } from "../core/area";
 import type { Edit } from "../core/editSession";
 import { DEFAULT_IMAGE_SETTINGS, type ImageSettings } from "../shared/imageSettings";
@@ -349,6 +350,14 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
       setTool(SELECT_TOOL.id);
       setSelectedId(annotation.id);
     },
+    onErase: (path, radius) => {
+      if (!current || readOnly) return;
+      limitNotice.current = null;
+      // Every Pen stroke the drag cut, with the area following them, is ONE undo step (a batch).
+      const { edit, limited } = eraseEdit(current.session.image, path, radius, imageSettings.background, newAnnotationId);
+      if (edit) current.session.apply(edit);
+      if (limited) report(AREA_LIMIT_MESSAGE);
+    },
     onUpdate: (id, patch, bounds) => commit({ kind: "update", id, patch }, bounds),
     onCrop: (next, how) => {
       if (!current) return;
@@ -382,7 +391,8 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
       setToolStyles((all) => ({ ...all, [type]: { ...all[type], [group]: value } }));
       stickyStyles.remember(type, { ...toolStyles[type], [group]: value });
     }
-    if (selected && !readOnly) {
+    // A tool-only group (the Pen's Mode) is never part of a stroke.
+    if (selected && !readOnly && !styledKind.toolGroups?.includes(group)) {
       current?.session.apply({ kind: "update", id: selected.id, patch: { [group]: value } as Partial<Annotation> });
     }
   };
@@ -732,6 +742,7 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
           kind={readOnly ? null : (styledKind ?? null)}
           style={panelStyle}
           onChange={restyle}
+          toolGroups={!selected && tool !== SELECT_TOOL.id ? styledKind?.toolGroups : undefined}
           image={
             // With the Select tool and nothing selected, and while the Crop tool is on: the image's own settings.
             image && !readOnly && ((tool === SELECT_TOOL.id && selectedId === null) || tool === CROP_TOOL.id)

@@ -32,6 +32,10 @@ _Avoid_: Margin (means only the space around the area), workspace
 An Annotation that pixelates whatever lies beneath its box, in the editor, in the Library file's visible pixels and in every Export. Pixelate-only; the Capture underneath is never altered.
 _Avoid_: Redact, mosaic, soft blur
 
+**Eraser**:
+A mode of the Pen tool (chosen in its Style panel's Mode group, with a size of 4 to 100 px) that cuts away the part of a Pen stroke the pointer passes over. The stroke becomes two or more Pen strokes, a shorter one, or nothing; one drag is one Undo step. It only ever touches Pen strokes (never a Highlighter stroke, shape, text, Callout, Blur or Pasted image). It removes ink from the Annotated Image, not from the Capture.
+_Avoid_: Rubber, undo brush
+
 **Callout**:
 An Annotation of boxed text with an optional pointer tail that can be dragged to point anywhere. Resizing the box never moves where the tail points.
 _Avoid_: Speech bubble, note

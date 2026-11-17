@@ -2,6 +2,7 @@
 // Fabric needs one). It records what the editor tells the canvas, and lets a test play the part of
 // the user's gestures. The real canvas is exercised by the Playwright tests in e2e/.
 import type { Annotation, AnnotationModel, Crop } from "../core/annotation";
+import type { Point } from "../core/annotations";
 import type { Style } from "../core/propertyGroups";
 import type { AnnotationCanvas, CanvasEvents, CanvasKit, CanvasLayout, MountOptions } from "./types";
 
@@ -28,6 +29,8 @@ export interface StubCanvas extends AnnotationCanvas {
   edit(id: string, patch: Partial<Annotation>, bounds?: Crop): void;
   /** The user finishes a Crop drag (a fresh rectangle) or, with "handle", drags one of the frame's handles. */
   dragCrop(crop: Crop, how?: "handle"): void;
+  /** The user finishes an erase drag (the Pen in Eraser mode): the pointer path and the eraser's radius, in Capture pixels. */
+  erase(path: Point[], radius: number): void;
   /** The user clicks an Annotation (or empty space, with null). */
   click(id: string | null): void;
 }
@@ -95,6 +98,7 @@ export function createStubKit(): StubKit {
         draw: (annotation, bounds) => events.onCreate(annotation, bounds),
         dragCrop: (crop, how) => events.onCrop(crop, how),
         edit: (id, patch, bounds) => events.onUpdate(id, patch, bounds),
+        erase: (path, radius) => events.onErase(path, radius),
         click(id) {
           canvas.selected = id;
           events.onSelect(id);

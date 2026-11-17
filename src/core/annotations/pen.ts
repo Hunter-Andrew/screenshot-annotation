@@ -1,7 +1,7 @@
 // The Pen Annotation: a freehand stroke. The model keeps the captured points (thinned out), never a
 // Fabric path (ADR 0005). Smoothing happens when drawing, by `smoothPath`, which the canvas view and
 // the Export renderer both use, so what you see is what you copy.
-import type { PropertyGroups, Style } from "../propertyGroups";
+import { DEFAULT_ERASER_SIZE, type PropertyGroups, type Style } from "../propertyGroups";
 import { type Bounds, strokeBounds } from "./bounds";
 import type { AnnotationKind, Point } from "./kind";
 
@@ -66,7 +66,9 @@ export const penKind: AnnotationKind<PenAnnotation> = {
   label: "Pen",
   shortcutAction: "tool.pen",
   groups: ["stroke"],
-  defaultStyle: { stroke: { color: "#e02424", width: 4 } },
+  // Pen or Eraser mode and the eraser's size: remembered with the tool's style, but not part of a stroke (ADR 0005 is unchanged).
+  toolGroups: ["eraser"],
+  defaultStyle: { stroke: { color: "#e02424", width: 4 }, eraser: { mode: "pen", size: DEFAULT_ERASER_SIZE } },
   fromPath(id, points, style: Style) {
     const first = points[0];
     if (!first) return null;

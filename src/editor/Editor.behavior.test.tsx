@@ -55,11 +55,11 @@ describe("return to Select after drawing", () => {
     await userEvent.keyboard("p");
 
     await act(async () => kit.latest.draw(pen("p1")));
-    expect(toolButton(/^Pen/)).toHaveAttribute("aria-pressed", "true");
+    expect(toolButton(/^Pen \(P\)/)).toHaveAttribute("aria-pressed", "true");
     expect(kit.latest.tool).toBe("pen");
     await act(async () => kit.latest.draw(pen("p2")));
 
-    expect(toolButton(/^Pen/)).toHaveAttribute("aria-pressed", "true");
+    expect(toolButton(/^Pen \(P\)/)).toHaveAttribute("aria-pressed", "true");
     expect(kit.latest.selected).toBeNull();
     expect(option()).not.toBeChecked();
   });

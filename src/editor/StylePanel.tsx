@@ -21,6 +21,8 @@ interface Props {
   /** Current values: the selected Annotation's, or the tool's default style. */
   style: Style;
   onChange<K extends GroupId>(group: K, value: PropertyGroups[K]): void;
+  /** Groups of the active TOOL only (the Pen's Mode), shown above the kind's own groups; never passed for a selected Annotation. */
+  toolGroups?: readonly GroupId[];
   /** Stacking order and Delete for the selected Annotation; null when nothing is selected (or read-only). */
   arrange?: Arrange | null;
   /** The active drawing tool's own behavior option (not a property of any Annotation); null when no drawing tool is active. */
@@ -32,7 +34,7 @@ interface Props {
 }
 
 /** The Style panel (right column): one section per property group the kind opts into. */
-export function StylePanel({ kind, style, onChange, arrange = null, crop = null, toolOption = null, image = null }: Props) {
+export function StylePanel({ kind, style, onChange, toolGroups = [], arrange = null, crop = null, toolOption = null, image = null }: Props) {
   return (
     <aside className="style-panel" aria-label="Style">
       <h2>Style</h2>
@@ -86,7 +88,7 @@ export function StylePanel({ kind, style, onChange, arrange = null, crop = null,
       {kind === null ? (
         crop?.active ? null : <p className="hint">Select an Annotation, or pick a tool, to change its style.</p>
       ) : (
-        kind.groups.map((group) => {
+        [...toolGroups, ...kind.groups].map((group) => {
           const value = style[group];
           if (!value) return null;
           const editor = GROUP_EDITORS[group] as GroupEditor<typeof group>;

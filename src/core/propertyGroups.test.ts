@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
-import { MAX_STROKE_WIDTH, MIN_STROKE_WIDTH, fillPaint, isUnderlined, sanitizeStyle, valignOf } from "./propertyGroups";
+import { MAX_ERASER_SIZE, MIN_ERASER_SIZE, MAX_STROKE_WIDTH, MIN_STROKE_WIDTH, fillPaint, isUnderlined, sanitizeStyle, valignOf } from "./propertyGroups";
 
 describe("Stroke thickness limits", () => {
   it("are 1 to 30 and are the exact edges sanitizeStyle accepts", () => {
@@ -84,5 +84,25 @@ describe("sanitizeStyle (what a settings.json from anywhere may hold)", () => {
     expect(sanitizeStyle(null)).toEqual({});
     expect(sanitizeStyle("x")).toEqual({});
     expect(sanitizeStyle([1])).toEqual({});
+  });
+});
+
+describe("the Pen's Eraser group", () => {
+  it("is 4 to 100 px, and those are the exact edges sanitizeStyle accepts", () => {
+    expect([MIN_ERASER_SIZE, MAX_ERASER_SIZE]).toEqual([4, 100]);
+    const read = (size: number) => sanitizeStyle({ eraser: { mode: "eraser", size } });
+    expect(read(4)).toEqual({ eraser: { mode: "eraser", size: 4 } });
+    expect(read(100)).toEqual({ eraser: { mode: "eraser", size: 100 } });
+    expect(read(3)).toEqual({});
+    expect(read(101)).toEqual({});
+    expect(read(20.4)).toEqual({ eraser: { mode: "eraser", size: 20 } });
+  });
+
+  it("keeps both modes and drops an unknown mode or a malformed value", () => {
+    expect(sanitizeStyle({ eraser: { mode: "pen", size: 20 } })).toEqual({ eraser: { mode: "pen", size: 20 } });
+    expect(sanitizeStyle({ eraser: { mode: "smudge", size: 20 } })).toEqual({});
+    expect(sanitizeStyle({ eraser: { mode: "eraser", size: "20" } })).toEqual({});
+    expect(sanitizeStyle({ eraser: "eraser" })).toEqual({});
+    expect(sanitizeStyle({ eraser: null })).toEqual({});
   });
 });

@@ -101,7 +101,20 @@ export interface Strength {
   blockSize: number;
 }
 
+/** The Pen's Eraser size (the circle's diameter) in Capture pixels: the Style panel and the stored-style reader share the limits. */
+export const MIN_ERASER_SIZE = 4;
+export const MAX_ERASER_SIZE = 100;
+export const DEFAULT_ERASER_SIZE = 20;
+
+export interface Eraser {
+  /** What the Pen tool does while it is active: draw ("pen") or erase parts of Pen strokes ("eraser"). */
+  mode: "pen" | "eraser";
+  /** MIN_ERASER_SIZE-MAX_ERASER_SIZE (4-100) px: the eraser circle's diameter, in Capture pixels. */
+  size: number;
+}
+
 export interface PropertyGroups {
+  eraser: Eraser;
   strength: Strength;
   tail: Tail;
   stroke: Stroke;
@@ -144,6 +157,11 @@ const GROUP_READERS: { [K in GroupId]: (raw: unknown) => PropertyGroups[K] | und
     if (!stored || typeof stored.width !== "number") return;
     const width = Math.round(stored.width);
     return width >= MIN_STROKE_WIDTH && width <= MAX_STROKE_WIDTH ? { color: stored.color, width } : undefined;
+  },
+  eraser: (raw) => {
+    if (!isRecord(raw) || (raw.mode !== "pen" && raw.mode !== "eraser") || typeof raw.size !== "number") return;
+    const size = Math.round(raw.size);
+    return size >= MIN_ERASER_SIZE && size <= MAX_ERASER_SIZE ? { mode: raw.mode, size } : undefined;
   },
   strength: (raw) => {
     if (!isRecord(raw) || typeof raw.blockSize !== "number") return;
