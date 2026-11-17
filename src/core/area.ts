@@ -5,18 +5,20 @@
 // filled with the image's `background`. One field, one render path. Everything that turns a gesture
 // into a change of area goes through here, so the limit, the default background and the "one undo
 // step" rule live in one place.
+//
+// Auto-grown area (M4 polish B): an Annotation drawn or moved past the edge grows the area; the model records
+// the base area and which Annotations reach past it (`areaBase`, `grownBy`), and the area is always the base plus
+// their extents. So it follows them back in (resized, moved inside, deleted) but never below the base. Setting
+// the area explicitly (the Crop tool) makes it the final base and clears the record.
 import type { AnnotatedImage } from "./annotatedImage";
-import type { Background, Crop } from "./annotation";
+import type { Background, Crop, GrowCause } from "./annotation";
 import { sameCrop } from "./crop";
-import type { Edit } from "./editSession";
+import { type Edit, type Growth, growthOf, sameGrowth } from "./editSession";
 import { readSize } from "./png";
 
 /** The most pixels the visible area may have along one side (the same limit as a pasted image). */
 export const MAX_AREA_SIDE = 8192;
 export const AREA_LIMIT_MESSAGE = `The image can be at most ${MAX_AREA_SIDE} pixels on a side`;
-
-/** The dark margin around the area, as a fraction of the area's size on each side. */
-export const MARGIN_FRACTION = 0.25;
 
 export const BACKGROUNDS: readonly Background[] = ["white", "dark", "transparent"];
 export const BACKGROUND_LABELS: Record<Background, string> = { white: "White", dark: "Dark", transparent: "Transparent" };
@@ -40,13 +42,6 @@ export function extendsPastCapture(area: Crop, capture: { width: number; height:
   return area.x < 0 || area.y < 0 || area.x + area.width > capture.width || area.y + area.height > capture.height;
 }
 
-/** How far gestures may reach: the area plus a quarter of its size on each side. */
-export function reachOf(area: Crop): Crop {
-  const mx = area.width * MARGIN_FRACTION;
-  const my = area.height * MARGIN_FRACTION;
-  return { x: area.x - mx, y: area.y - my, width: area.width + 2 * mx, height: area.height + 2 * my };
-}
-
 function limitAxis(start: number, end: number, prevStart: number, prevEnd: number): [number, number] {
   // An image that was already past the limit (a very wide Capture) is not shrunk, only stopped from growing.
   const max = Math.max(MAX_AREA_SIDE, prevEnd - prevStart);
@@ -68,48 +63,83 @@ export function limitArea(area: Crop, previous: Crop): { area: Crop; limited: bo
   return { area: limited, limited: !sameCrop(limited, area) };
 }
 
+/** The edits that make `area` the visible area (limited to 8192 px); none when nothing would change. */
+function placeArea(image: AnnotatedImage, area: Crop, defaultBackground: Background): { edits: Edit[]; limited: boolean } {
+  const capture = readSize(image.capture);
+  const previous = visibleAreaOf(image);
+  const { area: limited, limited: wasLimited } = limitArea(area, previous);
+  const crop = sameCrop(limited, { x: 0, y: 0, ...capture }) ? null : limited;
+  if (sameCrop(crop, image.model.crop)) return { edits: [], limited: wasLimited };
+  const edits: Edit[] = [{ kind: "setCrop", crop }];
+  // The first time the area reaches past the Capture the image has no background yet: the default is stored with it.
+  if (crop && extendsPastCapture(crop, capture) && image.model.background === undefined) {
+    edits.push({ kind: "setBackground", background: defaultBackground });
+  }
+  return { edits, limited: wasLimited };
+}
+
+const asEdit = (edits: Edit[]): Edit | null => (edits.length === 0 ? null : edits.length === 1 ? edits[0]! : { kind: "batch", edits });
+
 /**
  * The edit that makes `area` the visible area (limited to 8192 px), or null when nothing would change.
- * An area that is exactly the Capture is no crop at all. The first time the area reaches past the
- * Capture the image has no background yet: the settings default is stored with it, in the same undo step.
+ * An area that is exactly the Capture is no crop at all. This is the user setting the area explicitly (the
+ * Crop tool, Remove crop): it becomes the final base, so the record of what grew it is cleared, in the same step.
  */
 export function setAreaEdit(
   image: AnnotatedImage,
   area: Crop,
   defaultBackground: Background,
 ): { edit: Edit | null; limited: boolean } {
-  const capture = readSize(image.capture);
-  const previous = visibleAreaOf(image);
-  const { area: limited, limited: wasLimited } = limitArea(area, previous);
-  const crop = sameCrop(limited, { x: 0, y: 0, ...capture }) ? null : limited;
-  if (sameCrop(crop, image.model.crop)) return { edit: null, limited: wasLimited };
-  const setCrop: Edit = { kind: "setCrop", crop };
-  if (crop && extendsPastCapture(crop, capture) && image.model.background === undefined) {
-    return { edit: { kind: "batch", edits: [setCrop, { kind: "setBackground", background: defaultBackground }] }, limited: wasLimited };
-  }
-  return { edit: setCrop, limited: wasLimited };
+  const { edits, limited } = placeArea(image, area, defaultBackground);
+  if (growthOf(image.model)) edits.push({ kind: "setGrowth", growth: null });
+  return { edit: asEdit(edits), limited };
 }
 
+const unionOf = (base: Crop, causes: GrowCause[]): Crop => {
+  let x1 = base.x;
+  let y1 = base.y;
+  let x2 = base.x + base.width;
+  let y2 = base.y + base.height;
+  for (const { bounds } of causes) {
+    x1 = Math.min(x1, bounds.x);
+    y1 = Math.min(y1, bounds.y);
+    x2 = Math.max(x2, bounds.x + bounds.width);
+    y2 = Math.max(y2, bounds.y + bounds.height);
+  }
+  return { x: x1, y: y1, width: x2 - x1, height: y2 - y1 };
+};
+
+const containedIn = (inner: Crop, outer: Crop) =>
+  inner.x >= outer.x && inner.y >= outer.y && inner.x + inner.width <= outer.x + outer.width && inner.y + inner.height <= outer.y + outer.height;
+
 /**
- * `edit` (an Annotation added or changed) together with the growth of the area that includes it, as one
- * edit: one undo step takes both back. `bounds` is what the Annotation covers in Capture pixels; without
- * it (a paste, a style change) nothing grows. The area only ever grows here: shrinking is Crop.
+ * `edit` (an Annotation added, changed or deleted) together with what it does to the visible area, as one
+ * edit: one undo step takes both back. `bounds` is what the Annotation covers in Capture pixels; without it
+ * (a paste, a style change) the area does not follow. An Annotation that reaches outside the base area is a
+ * cause of growth and the area includes it; one that moves back inside, shrinks or is deleted stops being one,
+ * and the area shrinks to what the remaining causes need (never below the base).
  */
-export function growEdit(
+export function followAreaEdit(
   image: AnnotatedImage,
   edit: Edit,
   bounds: Crop | undefined,
   defaultBackground: Background,
 ): { edit: Edit; limited: boolean } {
-  if (!bounds) return { edit, limited: false };
-  const area = visibleAreaOf(image);
-  const x1 = Math.min(area.x, Math.floor(bounds.x));
-  const y1 = Math.min(area.y, Math.floor(bounds.y));
-  const x2 = Math.max(area.x + area.width, Math.ceil(bounds.x + bounds.width));
-  const y2 = Math.max(area.y + area.height, Math.ceil(bounds.y + bounds.height));
-  const grown = { x: x1, y: y1, width: x2 - x1, height: y2 - y1 };
-  if (sameCrop(grown, area)) return { edit, limited: false };
-  const { edit: areaEdit, limited } = setAreaEdit(image, grown, defaultBackground);
-  if (!areaEdit) return { edit, limited };
-  return { edit: { kind: "batch", edits: [edit, ...(areaEdit.kind === "batch" ? areaEdit.edits : [areaEdit])] }, limited };
+  const id = edit.kind === "add" ? edit.annotation.id : edit.kind === "update" || edit.kind === "delete" ? edit.id : null;
+  if (id === null || (edit.kind !== "delete" && !bounds)) return { edit, limited: false };
+  const before = growthOf(image.model);
+  const base = before?.base ?? visibleAreaOf(image);
+  const causes = (before?.causes ?? []).filter((cause) => cause.id !== id);
+  if (bounds && edit.kind !== "delete") {
+    const x1 = Math.floor(bounds.x);
+    const y1 = Math.floor(bounds.y);
+    const whole = { x: x1, y: y1, width: Math.ceil(bounds.x + bounds.width) - x1, height: Math.ceil(bounds.y + bounds.height) - y1 };
+    if (!containedIn(whole, base)) causes.push({ id, bounds: whole });
+  }
+  const after: Growth | null = causes.length > 0 ? { base, causes } : null;
+  if (!before && !after) return { edit, limited: false };
+  const { edits, limited } = placeArea(image, unionOf(base, causes), defaultBackground);
+  if (!sameGrowth(before, after)) edits.push({ kind: "setGrowth", growth: after });
+  if (edits.length === 0) return { edit, limited };
+  return { edit: { kind: "batch", edits: [edit, ...edits] }, limited };
 }

@@ -19,6 +19,10 @@ export interface CanvasLayout {
   workspace: Crop;
   /** What fills the area outside the Capture. */
   background: Background;
+  /** How dark everything outside the visible area is drawn, 0 to 95 percent (Settings). */
+  darkness: number;
+  /** False: nothing of the cropped-out Capture or of Annotations outside the area is drawn (the outside is only the dark fill). */
+  showOutside: boolean;
 }
 
 /** What the canvas tells the editor. The editor applies the change to the model through the edit session. */

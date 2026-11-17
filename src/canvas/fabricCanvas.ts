@@ -3,7 +3,7 @@
 // ./shapes, and follows the model (`sync`). User gestures leave through `CanvasEvents` as model edits;
 // the canvas never keeps state of its own that the model does not have.
 import { Canvas, type FabricObject, FabricImage, Rect } from "fabric";
-import { backgroundFill, reachOf } from "../core/area";
+import { backgroundFill } from "../core/area";
 import { kindOf } from "../core/annotations";
 import { cropFromDrag, MIN_CROP } from "../core/crop";
 import { newAnnotationId, type Annotation, type AnnotationModel, type Crop } from "../core/annotation";
@@ -101,12 +101,15 @@ export function createFabricCanvas(host: HTMLElement, { events, imageUrl, layout
   const dim = new OutsideDim();
   dim.area = layout.area;
   dim.workspace = layout.workspace;
+  dim.darkness = layout.darkness;
+  dim.showOutside = layout.showOutside;
   canvas.overlayImage = dim;
   canvas.controlsAboveOverlay = true;
 
-  /** Gestures may reach into the margin around the visible area, not further. */
+  /** Gestures may reach into the margin around the visible area (the whole workspace), not further. */
+  const reachOf = () => layout.workspace;
   const clampToReach = (p: { x: number; y: number }) => {
-    const reach = reachOf(layout.area);
+    const reach = reachOf();
     return {
       x: Math.min(Math.max(p.x, reach.x), reach.x + reach.width),
       y: Math.min(Math.max(p.y, reach.y), reach.y + reach.height),
@@ -179,7 +182,7 @@ export function createFabricCanvas(host: HTMLElement, { events, imageUrl, layout
   // An Annotation may be moved into the margin around the visible area (growing it), but not off into nowhere.
   canvas.on("object:moving", ({ target }) => {
     if (!target || target === frame || !idOf.has(target)) return;
-    const reach = reachOf(layout.area);
+    const reach = reachOf();
     const box = boundsOf(target);
     const shift = (start: number, length: number, from: number, extent: number) =>
       length >= extent ? 0 : start < from ? from - start : start + length > from + extent ? from + extent - (start + length) : 0;
@@ -193,7 +196,7 @@ export function createFabricCanvas(host: HTMLElement, { events, imageUrl, layout
 
   /** A handle of the Crop tool's frame was released: the dragged rectangle is the new area (a step of its own). */
   const finishHandleDrag = (dragged: CropFrame) => {
-    const reach = reachOf(layout.area);
+    const reach = reachOf();
     const next = dragged.dragged();
     // The pointer may have gone further than a gesture may reach.
     const x1 = Math.max(next.x, Math.round(reach.x));
@@ -410,6 +413,8 @@ export function createFabricCanvas(host: HTMLElement, { events, imageUrl, layout
       }
       dim.area = next.area;
       dim.workspace = next.workspace;
+      dim.darkness = next.darkness;
+      dim.showOutside = next.showOutside;
       applyView();
       if (frame) frame.place(next.area);
     },

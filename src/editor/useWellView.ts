@@ -2,7 +2,7 @@
 // applies Fit/zoom, keeps the middle of the view fixed across a zoom, and starts every newly shown
 // image at Fit with the scroll at the top-left (the part of Andrew's M1 note about switching images).
 import { type RefObject, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { effectiveScale, FIT, marginPx, scrollAfterZoom, type Size, type ViewMode, zoomStep } from "./view";
+import { effectiveScale, FIT, marginPx, scrollAfterZoom, type Size, type ViewMode, WELL_PADDING, zoomStep } from "./view";
 
 export interface WellView {
   wellRef: RefObject<HTMLElement | null>;
@@ -25,15 +25,20 @@ function scrollWellTo(el: HTMLElement | null, left: number, top: number) {
 
 /**
  * `image` is the size of the visible area (what Fit fits); `origin` is its top-left corner in Capture pixels.
- * `resetKey`: changes when a different image is shown.
+ * `canvasMargin` is the Canvas margin setting (px). `resetKey`: changes when a different image is shown.
  */
-export function useWellView(image: Size | null, resetKey: unknown, origin: { x: number; y: number } = { x: 0, y: 0 }): WellView {
+export function useWellView(
+  image: Size | null,
+  resetKey: unknown,
+  origin: { x: number; y: number } = { x: 0, y: 0 },
+  canvasMargin: number = WELL_PADDING,
+): WellView {
   const wellRef = useRef<HTMLElement | null>(null);
   const [well, setWell] = useState<Size>({ width: 0, height: 0 });
   const [mode, setMode] = useState<ViewMode>(FIT);
   const pendingScroll = useRef<{ left: number; top: number } | null>(null);
-  const scale = image ? effectiveScale(mode, image, well) : 1;
-  const margin = image ? marginPx(image, scale, well, mode) : { x: 0, y: 0 };
+  const scale = image ? effectiveScale(mode, image, well, canvasMargin) : 1;
+  const margin = image ? marginPx(image, scale, well, mode, canvasMargin) : { x: 0, y: 0 };
   // Where the content sat before the last change of area, to keep what is on screen where it is after a manual zoom.
   const placed = useRef<{ origin: { x: number; y: number }; margin: { x: number; y: number }; scale: number } | null>(null);
 
@@ -90,11 +95,11 @@ export function useWellView(image: Size | null, resetKey: unknown, origin: { x: 
         scroll: { left: el.scrollLeft, top: el.scrollTop },
         from: scale,
         to: next,
-        padding: { from: margin, to: marginPx(image, next, well, { kind: "zoom", scale: next }) },
+        padding: { from: margin, to: marginPx(image, next, well, { kind: "zoom", scale: next }, canvasMargin) },
       });
       setMode({ kind: "zoom", scale: next });
     },
-    [image, scale, margin, well],
+    [image, scale, margin, well, canvasMargin],
   );
 
   const zoomInRef = useRef<() => void>(() => {});

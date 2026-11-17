@@ -1,19 +1,26 @@
 // Two helper objects of the editor canvas (ticket 37) that are not Annotations and never reach the Export:
-//  - OutsideDim: draws everything outside the visible area very dark (the margin, and any cropped-out part
-//    of the Capture with the Annotations on it), so it clearly is not part of the image. It is the canvas's
-//    overlay, so the selection handles (drawn after it) stay bright.
+//  - OutsideDim: dims everything the canvas draws outside the visible area (any cropped-out part of the Capture
+//    with the Annotations on it) by the Outside-canvas darkness setting, or, when the image does not show its
+//    outside, erases it so only the dark fill of the well shows there. It is the canvas's overlay, so the
+//    selection handles (drawn after it) stay bright. The margin itself is the well's own dark fill (editor.css),
+//    which this never paints over: it only touches pixels the canvas has drawn.
 //  - CropFrame: the Crop tool's eight handles on the visible area. Dragging one inward crops, outward expands.
+//    It has no outline of its own: nothing is drawn around the area at rest.
 import { FabricObject, Rect } from "fabric";
 import type { Crop } from "../core/annotation";
 
-/** Very dark, but not fully opaque: the outside is still dimly there, as the Crop's dimmed part always was. */
-export const OUTSIDE_DIM = "rgba(6, 8, 12, 0.9)";
+/** The dark that the outside is dimmed with (also the tint of the well's own fill, see editor.css). */
+export const OUTSIDE_DIM_RGB = "6, 8, 12";
 
 export class OutsideDim extends FabricObject {
   static override type = "OutsideDim";
   area: Crop = { x: 0, y: 0, width: 0, height: 0 };
   /** The part the canvas shows, in Capture pixels. */
   workspace: Crop = { x: 0, y: 0, width: 0, height: 0 };
+  /** How dark the outside is, 0 to 95 percent. */
+  darkness = 60;
+  /** False: what the canvas drew outside the area is erased instead of dimmed. */
+  showOutside = true;
 
   constructor() {
     super({ selectable: false, evented: false, objectCaching: false });
@@ -24,7 +31,14 @@ export class OutsideDim extends FabricObject {
   override render(ctx: CanvasRenderingContext2D): void {
     const { x, y, width, height } = this.workspace;
     ctx.save();
-    ctx.fillStyle = OUTSIDE_DIM;
+    if (this.showOutside) {
+      // Only over pixels that are there (the Capture and Annotations), so the margin stays the well's fill.
+      ctx.globalCompositeOperation = "source-atop";
+      ctx.fillStyle = `rgba(${OUTSIDE_DIM_RGB}, ${this.darkness / 100})`;
+    } else {
+      ctx.globalCompositeOperation = "destination-out";
+      ctx.fillStyle = "#000";
+    }
     ctx.beginPath();
     ctx.rect(x - 2, y - 2, width + 4, height + 4);
     ctx.rect(this.area.x, this.area.y, this.area.width, this.area.height);
@@ -42,9 +56,9 @@ export class CropFrame extends Rect {
       originX: "left",
       originY: "top",
       fill: "transparent",
-      stroke: "#ffffff",
-      strokeWidth: 2,
-      strokeUniform: true,
+      // No outline: only the eight handles show.
+      stroke: null,
+      strokeWidth: 0,
       lockMovementX: true,
       lockMovementY: true,
       lockRotation: true,
@@ -57,7 +71,7 @@ export class CropFrame extends Rect {
       cornerSize: 10,
       touchCornerSize: 20,
       objectCaching: false,
-      // Only the handles and the thin outline take the pointer (the fill is transparent): a press inside the
+      // Only the handles take the pointer (the fill is transparent and there is no outline): a press inside the
       // frame is not on it, and draws a fresh rectangle instead.
       perPixelTargetFind: true,
     });

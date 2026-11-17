@@ -2,7 +2,7 @@
 import { describe, expect, it } from "vitest";
 import { createFromCapture, decodeLibraryPng, encodeLibraryPng, exportPng } from "./annotatedImage";
 import type { RectAnnotation } from "./annotation";
-import { AREA_LIMIT_MESSAGE, growEdit, limitArea, MAX_AREA_SIDE, reachOf, setAreaEdit, visibleAreaOf } from "./area";
+import { AREA_LIMIT_MESSAGE, followAreaEdit, limitArea, MAX_AREA_SIDE, setAreaEdit, visibleAreaOf } from "./area";
 import { createEditSession } from "./editSession";
 import { parseHistory, serializeHistory } from "./historyFile";
 import { encodeRgbaPng } from "./png";
@@ -111,16 +111,10 @@ describe("the 8192 px limit", () => {
   });
 });
 
-describe("the dark margin around the area", () => {
-  it("reaches a quarter of the area's size beyond each side", () => {
-    expect(reachOf({ x: 10, y: 20, width: 200, height: 100 })).toEqual({ x: -40, y: -5, width: 300, height: 150 });
-  });
-});
-
 describe("auto-grow", () => {
   it("an Annotation inside the area is added as it is", () => {
     const session = make();
-    const grown = growEdit(session.image, { kind: "add", annotation: rect("a", 10, 10) }, { x: 8, y: 8, width: 14, height: 14 }, "white");
+    const grown = followAreaEdit(session.image, { kind: "add", annotation: rect("a", 10, 10) }, { x: 8, y: 8, width: 14, height: 14 }, "white");
     expect(grown.edit.kind).toBe("add");
     expect(grown.limited).toBe(false);
   });
@@ -128,7 +122,7 @@ describe("auto-grow", () => {
   it("an Annotation past the edge grows the area to include it, and the edit and growth are one undo step", () => {
     const session = make();
     const a = rect("a", 90, 70, 40, 30);
-    const grown = growEdit(session.image, { kind: "add", annotation: a }, { x: 88, y: 68, width: 44, height: 34 }, "dark");
+    const grown = followAreaEdit(session.image, { kind: "add", annotation: a }, { x: 88, y: 68, width: 44, height: 34 }, "dark");
     session.apply(grown.edit);
 
     expect(session.image.model.annotations.map((x) => x.id)).toEqual(["a"]);
@@ -149,7 +143,7 @@ describe("auto-grow", () => {
   it("moving an Annotation out grows to the left and top, in whole pixels", () => {
     const session = make();
     session.apply({ kind: "add", annotation: rect("a", 10, 10) });
-    const grown = growEdit(session.image, { kind: "update", id: "a", patch: { x: -20.4, y: -7.2 } }, { x: -22.4, y: -9.2, width: 14, height: 14 }, "white");
+    const grown = followAreaEdit(session.image, { kind: "update", id: "a", patch: { x: -20.4, y: -7.2 } }, { x: -22.4, y: -9.2, width: 14, height: 14 }, "white");
     session.apply(grown.edit);
     expect(session.image.model.crop).toEqual({ x: -23, y: -10, width: 123, height: 90 });
     session.undo();
@@ -157,20 +151,18 @@ describe("auto-grow", () => {
     expect((session.image.model.annotations[0] as RectAnnotation).x).toBe(10);
   });
 
-  it("only grows: moving the Annotation back inside leaves the area as it is", () => {
+  it("moving the Annotation back inside no longer holds the area open (shrink-back: see areaShrink.test.ts)", () => {
     const session = make();
     session.apply({ kind: "add", annotation: rect("a", 10, 10) });
-    session.apply(growEdit(session.image, { kind: "update", id: "a", patch: { x: 150 } }, { x: 148, y: 8, width: 14, height: 14 }, "white").edit);
-    const area = session.image.model.crop;
-    const back = growEdit(session.image, { kind: "update", id: "a", patch: { x: 20 } }, { x: 18, y: 8, width: 14, height: 14 }, "white");
-    expect(back.edit.kind).toBe("update");
-    session.apply(back.edit);
-    expect(session.image.model.crop).toEqual(area);
+    session.apply(followAreaEdit(session.image, { kind: "update", id: "a", patch: { x: 150 } }, { x: 148, y: 8, width: 14, height: 14 }, "white").edit);
+    expect(session.image.model.crop).not.toBeNull();
+    session.apply(followAreaEdit(session.image, { kind: "update", id: "a", patch: { x: 20 } }, { x: 18, y: 8, width: 14, height: 14 }, "white").edit);
+    expect(session.image.model.crop).toBeNull();
   });
 
   it("growth stops at the 8192 limit and says so; the edit itself still happens", () => {
     const session = make();
-    const grown = growEdit(session.image, { kind: "add", annotation: rect("a", 0, 0) }, { x: 0, y: 0, width: 9000, height: 10 }, "white");
+    const grown = followAreaEdit(session.image, { kind: "add", annotation: rect("a", 0, 0) }, { x: 0, y: 0, width: 9000, height: 10 }, "white");
     expect(grown.limited).toBe(true);
     session.apply(grown.edit);
     expect(session.image.model.crop!.width).toBe(8192);
@@ -179,13 +171,13 @@ describe("auto-grow", () => {
 
   it("with no bounds (a paste, a style change) it never grows", () => {
     const session = make();
-    const grown = growEdit(session.image, { kind: "add", annotation: rect("a", 500, 500) }, undefined, "white");
+    const grown = followAreaEdit(session.image, { kind: "add", annotation: rect("a", 500, 500) }, undefined, "white");
     expect(grown.edit.kind).toBe("add");
   });
 
   it("a grown step survives the history file", () => {
     const first = make();
-    first.apply(growEdit(first.image, { kind: "add", annotation: rect("a", 90, 0, 40, 10) }, { x: 90, y: 0, width: 40, height: 10 }, "white").edit);
+    first.apply(followAreaEdit(first.image, { kind: "add", annotation: rect("a", 90, 0, 40, 10) }, { x: 90, y: 0, width: 40, height: 10 }, "white").edit);
     const file = parseHistory(serializeHistory({ hash: "h", touchedAt: 1, history: first.history }))!;
     expect(file).not.toBeNull();
     const second = createEditSession(first.image, { history: file.history });

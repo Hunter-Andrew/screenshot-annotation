@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { type CSSProperties, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { fabricKit } from "../canvas/kit";
 import type { AnnotationCanvas, CanvasEvents, CanvasKit } from "../canvas/types";
 import {
@@ -10,7 +10,7 @@ import {
   stripEmbedded,
 } from "../core/annotatedImage";
 import { type Annotation, type Background, type Crop, emptyModel, newAnnotationId } from "../core/annotation";
-import { AREA_LIMIT_MESSAGE, growEdit, setAreaEdit } from "../core/area";
+import { AREA_LIMIT_MESSAGE, followAreaEdit, setAreaEdit } from "../core/area";
 import type { Edit } from "../core/editSession";
 import { DEFAULT_IMAGE_SETTINGS, type ImageSettings } from "../shared/imageSettings";
 import { kindOf } from "../core/annotations";
@@ -241,7 +241,7 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
             : capture.clipboard === "failed"
               ? "Could not copy to the clipboard (see capture.log). "
               : "";
-        const entry = createEntry(createFromCapture(capture.png), capture.capturedAt, { note });
+        const entry = createEntry(createFromCapture(capture.png, { showOutside: imageSettingsRef.current.showOutsideDefault }), capture.capturedAt, { note });
         openToken.current++; // an open that is still reading loses to the new Capture
         void currentRef.current?.persister.flush();
         setCurrent(entry);
@@ -296,9 +296,11 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
     () => (crop ? crop : size ? { x: 0, y: 0, ...size } : null),
     [crop?.x, crop?.y, crop?.width, crop?.height, size], // eslint-disable-line react-hooks/exhaustive-deps
   );
-  const view = useWellView(area, current?.id ?? null, area ?? undefined);
+  const view = useWellView(area, current?.id ?? null, area ?? undefined, imageSettings.canvasMargin);
   /** What fills the area outside the Capture: the image's own choice, else the Settings default. */
   const background: Background = image?.model.background ?? imageSettings.background;
+  /** Whether the editor shows what lies outside the visible area: the image's own choice; a file without one shows it. */
+  const showOutside = image?.model.showOutside ?? true;
   const readOnly = current?.readOnly ?? false;
 
   // --- model <-> canvas -------------------------------------------------------------------------
@@ -325,13 +327,14 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
     setStatus(message);
   };
   /**
-   * An Annotation added or changed on the canvas, with the visible area grown to include it (what it covers is
-   * `bounds`) as one undo step. The growth stops at the 8192 px limit, with a message.
+   * An Annotation added, changed or deleted, with the visible area following it (what it covers is `bounds`: it
+   * grows to include it, and shrinks back when the Annotation that grew it shrinks, moves inside or goes) as one
+   * undo step. The growth stops at the 8192 px limit, with a message.
    */
   const commit = (edit: Edit, bounds?: Crop) => {
     if (!current) return;
     limitNotice.current = null;
-    const grown = growEdit(current.session.image, edit, bounds, imageSettings.background);
+    const grown = followAreaEdit(current.session.image, edit, bounds, imageSettings.background);
     current.session.apply(grown.edit);
     if (grown.limited) report(AREA_LIMIT_MESSAGE);
   };
@@ -406,7 +409,7 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
   const stackSize = image?.model.annotations.length ?? 0;
   const deleteSelected = () => {
     if (!current || readOnly || selectedIndex < 0) return;
-    current.session.apply({ kind: "delete", id: selectedId! });
+    commit({ kind: "delete", id: selectedId! });
     setSelectedId(null);
   };
   const moveSelected = (by: 1 | -1) => {
@@ -416,8 +419,16 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
 
   /** Widen back to the whole Capture. A step of its own, so Undo brings the crop back. */
   const removeCrop = () => {
+    if (!current || readOnly || !size) return;
+    // Setting the area explicitly (here: the whole Capture), so what grew it is forgotten in the same step.
+    const { edit } = setAreaEdit(current.session.image, { x: 0, y: 0, ...size }, imageSettings.background);
+    if (edit) current.session.apply(edit);
+  };
+
+  /** The Image section's "Show outside the canvas": one undo step, kept with the image. */
+  const chooseShowOutside = (next: boolean) => {
     if (!current || readOnly) return;
-    current.session.apply({ kind: "setCrop", crop: null });
+    current.session.apply({ kind: "setShowOutside", showOutside: next });
   };
 
   /** The Image section's Background: one undo step, kept with the image. */
@@ -696,7 +707,7 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
           </button>
         </header>
         <ToolColumn tools={TOOLS} active={tool} disabled={!image || readOnly} bindings={BINDINGS} onPick={chooseTool} />
-        <main className="well" ref={view.wellRef}>
+        <main className="well" ref={view.wellRef} style={{ "--outside-darkness": imageSettings.outsideDarkness / 100 } as CSSProperties}>
           {image && imageUrl && size && area ? (
             <Stage
               key={current!.id}
@@ -704,8 +715,9 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
               imageUrl={imageUrl}
               size={size}
               area={area}
-              cropped={crop !== null}
               background={background}
+              darkness={imageSettings.outsideDarkness}
+              showOutside={showOutside}
               margin={view.margin}
               scale={view.scale}
               interactive={!readOnly}
@@ -723,7 +735,7 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
           image={
             // With the Select tool and nothing selected, and while the Crop tool is on: the image's own settings.
             image && !readOnly && ((tool === SELECT_TOOL.id && selectedId === null) || tool === CROP_TOOL.id)
-              ? { background, onChange: chooseBackground }
+              ? { background, onChange: chooseBackground, showOutside, onShowOutside: chooseShowOutside }
               : null
           }
           crop={

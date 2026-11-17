@@ -49,6 +49,8 @@ const isObject = (value: unknown): value is Record<string, unknown> =>
 const isString = (value: unknown): value is string => typeof value === "string";
 const isNumber = (value: unknown): value is number => typeof value === "number" && Number.isFinite(value);
 
+const isCrop = (value: unknown): boolean => isObject(value) && ["x", "y", "width", "height"].every((k) => isNumber(value[k]));
+
 /** Shallow check that is enough for `applyEdit` to never throw: kind and ids, not Annotation contents. */
 function isEdit(value: unknown, depth = 0): value is Edit {
   if (!isObject(value)) return false;
@@ -70,6 +72,13 @@ function isEdit(value: unknown, depth = 0): value is Edit {
       return value.crop === null || (isObject(value.crop) && ["x", "y", "width", "height"].every((k) => isNumber((value.crop as Record<string, unknown>)[k])));
     case "setBackground":
       return value.background === null || value.background === "white" || value.background === "dark" || value.background === "transparent";
+    case "setShowOutside":
+      return value.showOutside === null || typeof value.showOutside === "boolean";
+    case "setGrowth":
+      return (
+        value.growth === null ||
+        (isObject(value.growth) && isCrop(value.growth.base) && Array.isArray(value.growth.causes) && value.growth.causes.every((c) => isObject(c) && isString(c.id) && isCrop(c.bounds)))
+      );
     case "batch":
       // One level only: a batch holds plain edits.
       return depth === 0 && Array.isArray(value.edits) && value.edits.every((part) => isEdit(part, 1));

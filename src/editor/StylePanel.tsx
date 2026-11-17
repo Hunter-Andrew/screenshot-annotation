@@ -27,8 +27,8 @@ interface Props {
   /** The Crop section: shown while the Crop tool is active or the image has a crop. Null: not shown. */
   crop?: { active: boolean; hasCrop: boolean; onRemove(): void } | null;
   toolOption?: { label: string; checked: boolean; onChange(value: boolean): void; hidden?: boolean } | null;
-  /** The Image section (ticket 37): the background outside the Capture. Null: not shown. */
-  image?: { background: Background; onChange(background: Background): void } | null;
+  /** The Image section (ticket 37 and M4 polish B): the background outside the Capture, and whether the editor shows what is outside the canvas. Null: not shown. */
+  image?: { background: Background; onChange(background: Background): void; showOutside: boolean; onShowOutside(show: boolean): void } | null;
 }
 
 /** The Style panel (right column): one section per property group the kind opts into. */
@@ -77,6 +77,10 @@ export function StylePanel({ kind, style, onChange, arrange = null, crop = null,
               </label>
             ))}
           </div>
+          <label className="tool-option">
+            <input type="checkbox" checked={image.showOutside} onChange={(e) => image.onShowOutside(e.target.checked)} />
+            Show outside the canvas
+          </label>
         </section>
       )}
       {kind === null ? (

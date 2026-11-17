@@ -127,7 +127,12 @@
   overflow: auto;
   min-width: 0;
   min-height: 0;
-  background: var(--well);
+  /* The margin and everything outside the visible area: the well colour darkened by the Outside-canvas darkness
+     setting (set on this element as 0 to 0.95). The canvas dims what it draws outside the area by the same amount,
+     and draws nothing at all there when "Show outside the canvas" is off, so this shows through as one flat fill. */
+  background:
+    linear-gradient(rgba(6, 8, 12, var(--outside-darkness, 0.6)), rgba(6, 8, 12, var(--outside-darkness, 0.6))),
+    var(--well);
 }
 .well .empty {
   margin: auto;
@@ -136,13 +141,12 @@
 .stage-pad {
   margin: auto;
   flex: none;
-  /* Set inline: the dark margin around the visible area (at least the 16 px WELL_PADDING in view.ts). */
-  padding: 16px;
+  /* Set inline: the dark margin around the visible area (the Canvas margin setting, see view.ts). */
+  padding: 48px;
 }
 /* The visible area: what Copy and Export produce. The Capture, the background and the canvas sit in it. */
 .area {
   position: relative;
-  box-shadow: 0 2px 14px rgba(0, 0, 0, 0.25);
 }
 /* The Capture's own box (what its pixels map to); it may be bigger or smaller than the area. */
 .stage {
@@ -182,15 +186,6 @@
   inset: 0;
   pointer-events: none;
 }
-/* The outline of a Crop or an expansion (the dimming outside it is drawn on the canvas). */
-.crop-frame {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  outline: 2px solid #fff;
-  outline-offset: -1px;
-}
-
 .presets[role="radiogroup"] {
   display: flex;
   flex-wrap: wrap;

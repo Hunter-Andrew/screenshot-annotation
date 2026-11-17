@@ -58,9 +58,11 @@ export function stripEmbedded(png: Uint8Array): Uint8Array {
   return removeChunks(removeChunks(png, EMBED_CHUNK), IMAGE_CHUNK);
 }
 
-export function createFromCapture(capturePng: Uint8Array): AnnotatedImage {
+/** `showOutside`: the Settings default for "show outside the canvas", stored with a new image (left out: not stored, so it counts as true). */
+export function createFromCapture(capturePng: Uint8Array, options: { showOutside?: boolean } = {}): AnnotatedImage {
   if (!isPng(capturePng)) throw new Error("A Capture must be a PNG");
-  return { capture: capturePng, model: emptyModel() };
+  const model = emptyModel();
+  return { capture: capturePng, model: options.showOutside === undefined ? model : { ...model, showOutside: options.showOutside } };
 }
 
 /**

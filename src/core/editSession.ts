@@ -3,9 +3,15 @@
 // (ticket 13) hooks in here: `apply` records each edit's inverse (src/core/history.ts) and
 // undo/redo replay those through the same `applyEdit`.
 import type { AnnotatedImage } from "./annotatedImage";
-import type { Annotation, Background, Crop } from "./annotation";
+import type { Annotation, AnnotationModel, Background, Crop, GrowCause } from "./annotation";
 import { sameCrop } from "./crop";
 import { emptyHistory, invert, popRedo, popUndo, record, type HistoryState } from "./history";
+
+/** What the model records about an auto-grown area: the base it grew from and the Annotations that reach past it. */
+export interface Growth {
+  base: Crop;
+  causes: GrowCause[];
+}
 
 export type Edit =
   /** `index` (back-to-front position) is how undoing a delete puts the Annotation back where it was; default: on top. */
@@ -19,6 +25,10 @@ export type Edit =
   | { kind: "setCrop"; crop: Crop | null }
   /** What fills the area outside the Capture (ticket 37); null is "not chosen yet" (the Settings default applies). */
   | { kind: "setBackground"; background: Background | null }
+  /** Whether the editor shows what lies outside the visible area; null is "not stored" (counts as true). */
+  | { kind: "setShowOutside"; showOutside: boolean | null }
+  /** The base area and the Annotations that grew the area past it (M4 polish B); null: nothing grew it (or the user set the area). */
+  | { kind: "setGrowth"; growth: Growth | null }
   /** Several edits applied in order as one step: an Annotation and the growth of the area that includes it. */
   | { kind: "batch"; edits: Edit[] };
 
@@ -59,6 +69,16 @@ export function applyEdit(image: AnnotatedImage, edit: Edit): AnnotatedImage {
       const { background: _old, ...rest } = model;
       return { ...image, model: edit.background === null ? rest : { ...rest, background: edit.background } };
     }
+    case "setShowOutside": {
+      if ((model.showOutside ?? null) === edit.showOutside) return image;
+      const { showOutside: _old, ...rest } = model;
+      return { ...image, model: edit.showOutside === null ? rest : { ...rest, showOutside: edit.showOutside } };
+    }
+    case "setGrowth": {
+      if (sameGrowth(growthOf(model), edit.growth)) return image;
+      const { areaBase: _base, grownBy: _causes, ...rest } = model;
+      return { ...image, model: edit.growth ? { ...rest, areaBase: edit.growth.base, grownBy: edit.growth.causes } : rest };
+    }
     case "batch": {
       const result = edit.edits.reduce(applyEdit, image);
       return result;
@@ -66,6 +86,20 @@ export function applyEdit(image: AnnotatedImage, edit: Edit): AnnotatedImage {
     default:
       return image;
   }
+}
+
+/** The growth record of a model, or null when the area was not grown by Annotations. */
+export function growthOf(model: AnnotationModel): Growth | null {
+  return model.areaBase && model.grownBy?.length ? { base: model.areaBase, causes: model.grownBy } : null;
+}
+
+export function sameGrowth(a: Growth | null, b: Growth | null): boolean {
+  if (!a || !b) return a === b;
+  return (
+    sameCrop(a.base, b.base) &&
+    a.causes.length === b.causes.length &&
+    a.causes.every((cause, i) => cause.id === b.causes[i]!.id && sameCrop(cause.bounds, b.causes[i]!.bounds))
+  );
 }
 
 export interface EditChange {

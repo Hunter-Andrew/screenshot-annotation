@@ -19,23 +19,23 @@ export type ViewMode = { kind: "fit" } | { kind: "zoom"; scale: number };
 
 export const FIT: ViewMode = { kind: "fit" };
 
-/** Space kept free around the image inside the well, in screen pixels. */
+/** Space kept free around the image inside the well when no margin setting is given, in screen pixels. */
 export const WELL_PADDING = 16;
 
 const MIN_SCALE = 0.05;
 const ZOOM_LADDER = [0.1, 0.25, 0.33, 0.5, 0.67, 0.75, 1, 1.5, 2, 3, 4, 6, 8] as const;
 
-/** The scale that shows the whole image in the well: shrinks to fit, never enlarges. */
-export function fitScale(image: Size, well: Size): number {
-  const availableWidth = well.width - 2 * WELL_PADDING;
-  const availableHeight = well.height - 2 * WELL_PADDING;
+/** The scale that shows the whole image in the well with `margin` px free on every side: shrinks to fit, never enlarges. */
+export function fitScale(image: Size, well: Size, margin: number = WELL_PADDING): number {
+  const availableWidth = well.width - 2 * margin;
+  const availableHeight = well.height - 2 * margin;
   // The well has not been laid out yet (or is collapsed): show the image as it is.
   if (availableWidth <= 0 || availableHeight <= 0 || image.width <= 0 || image.height <= 0) return 1;
   return Math.max(MIN_SCALE, Math.min(1, availableWidth / image.width, availableHeight / image.height));
 }
 
-export function effectiveScale(mode: ViewMode, image: Size, well: Size): number {
-  return mode.kind === "fit" ? fitScale(image, well) : mode.scale;
+export function effectiveScale(mode: ViewMode, image: Size, well: Size, margin: number = WELL_PADDING): number {
+  return mode.kind === "fit" ? fitScale(image, well, margin) : mode.scale;
 }
 
 /** The next zoom level up (1) or down (-1) from `scale`, which need not be on the ladder (e.g. a fitted 56.8%). */
@@ -45,23 +45,19 @@ export function zoomStep(scale: number, direction: 1 | -1): number {
   return [...ZOOM_LADDER].reverse().find((z) => z < scale - epsilon) ?? ZOOM_LADDER[0]!;
 }
 
-/** Share of the visible area shown as dark margin around it on each side (ticket 37). */
-const MARGIN_FRACTION = 0.25;
+/** Share of the visible area shown as dark margin on each side after a manual zoom, so gestures reach a quarter past it. */
+const ZOOM_MARGIN_FRACTION = 0.25;
 
 /**
- * The dark margin around the visible area, in whole screen pixels on each side. In Fit it is as much as the
- * well has room for (up to a quarter of the area, never under the padding), so the margin never makes the
- * well scroll; after a manual zoom it is the quarter (at most half the well), which the well scrolls to.
+ * The dark margin around the visible area, in whole screen pixels on each side. In Fit it is exactly `margin`
+ * (the Canvas margin setting) on all four sides, which `fitScale` left room for, so the margin never makes the
+ * well scroll. After a manual zoom it is a quarter of the area when that is more (the well scrolls to all of it,
+ * and a drawing gesture or a handle can reach it all), never less than `margin`.
  */
-export function marginPx(area: Size, scale: number, well: Size, mode: ViewMode): { x: number; y: number } {
-  const axis = (length: number, wellLength: number) => {
-    const quarter = length * scale * MARGIN_FRACTION;
-    // In Fit: what room is left. Zoomed: the quarter, but never more than half the well, so a huge image does
-    // not start with a screenful of margin before its first pixel.
-    const room = mode.kind === "fit" ? (wellLength - length * scale) / 2 : wellLength / 2;
-    return Math.max(WELL_PADDING, Math.floor(Math.min(quarter, room)));
-  };
-  return { x: axis(area.width, well.width), y: axis(area.height, well.height) };
+export function marginPx(area: Size, scale: number, well: Size, mode: ViewMode, margin: number = WELL_PADDING): { x: number; y: number } {
+  if (mode.kind === "fit") return { x: margin, y: margin };
+  const axis = (length: number) => Math.max(margin, Math.ceil(length * scale * ZOOM_MARGIN_FRACTION));
+  return { x: axis(area.width), y: axis(area.height) };
 }
 
 export interface ScrollRequest {

@@ -8,7 +8,7 @@
 // one case to `invert`; `setCrop` inverts to the crop it replaced.
 import type { AnnotatedImage } from "./annotatedImage";
 import { sameCrop } from "./crop";
-import { applyEdit, type Edit } from "./editSession";
+import { applyEdit, type Edit, growthOf, sameGrowth } from "./editSession";
 
 /** Most steps kept per image (spec: undo history, 200 steps). */
 export const HISTORY_CAP = 200;
@@ -64,6 +64,12 @@ export function invert(before: AnnotatedImage, edit: Edit): Edit | null {
       return sameCrop(before.model.crop, edit.crop) ? null : { kind: "setCrop", crop: before.model.crop };
     case "setBackground":
       return (before.model.background ?? null) === edit.background ? null : { kind: "setBackground", background: before.model.background ?? null };
+    case "setShowOutside":
+      return (before.model.showOutside ?? null) === edit.showOutside ? null : { kind: "setShowOutside", showOutside: before.model.showOutside ?? null };
+    case "setGrowth": {
+      const growth = growthOf(before.model);
+      return sameGrowth(growth, edit.growth) ? null : { kind: "setGrowth", growth };
+    }
     case "batch": {
       // Each part is inverted against the image as the parts before it left it; undo runs them in reverse.
       const inverses: Edit[] = [];

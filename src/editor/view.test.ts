@@ -2,7 +2,7 @@
 import { describe, expect, it } from "vitest";
 import { FIT, effectiveScale, fitScale, marginPx, scrollAfterZoom, visibleCaptureArea, zoomStep } from "./view";
 
-// The well is the grey area around the canvas; it keeps 16 px of padding on every side.
+// The well is the area around the canvas; with no margin setting given it keeps 16 px on every side.
 describe("fitScale: whole image visible, never enlarged", () => {
   it("fits a tall Capture by height, so there is nothing to scroll", () => {
     // 100 x 1000 in an 800 x 600 well: (600 - 2 * 16) / 1000
@@ -139,29 +139,53 @@ describe("the visible area is what Fit fits", () => {
   });
 });
 
+describe("fitScale with the canvas margin setting", () => {
+  it("leaves the margin free on every side of the area", () => {
+    // 2000 x 1000 in a 1000 x 700 well with 48 px: (1000 - 96) / 2000 wide, (700 - 96) / 1000 high
+    expect(fitScale({ width: 2000, height: 1000 }, { width: 1000, height: 700 }, 48)).toBeCloseTo(0.452);
+    expect(fitScale({ width: 400, height: 300 }, { width: 1000, height: 700 }, 48)).toBe(1);
+    // exactly fits at 100%: 400 + 96 wide
+    expect(fitScale({ width: 400, height: 300 }, { width: 496, height: 396 }, 48)).toBe(1);
+    expect(fitScale({ width: 400, height: 300 }, { width: 480, height: 396 }, 48)).toBeCloseTo(384 / 400);
+  });
+
+  it("a bigger margin leaves less for the image, and effectiveScale passes it on", () => {
+    expect(fitScale({ width: 1000, height: 500 }, { width: 1000, height: 700 }, 200)).toBeCloseTo(0.6);
+    expect(effectiveScale(FIT, { width: 1000, height: 500 }, { width: 1000, height: 700 }, 200)).toBeCloseTo(0.6);
+    expect(effectiveScale({ kind: "zoom", scale: 2 }, { width: 1000, height: 500 }, { width: 1000, height: 700 }, 200)).toBe(2);
+  });
+});
+
 describe("marginPx: the dark margin around the visible area, in screen pixels per side", () => {
   const well = { width: 1000, height: 700 };
 
-  it("is a quarter of the area when the well has room", () => {
-    expect(marginPx({ width: 400, height: 300 }, 1, well, FIT)).toEqual({ x: 100, y: 75 });
+  it("in Fit it is exactly the canvas margin on all four sides, whatever the shape of the area", () => {
+    expect(marginPx({ width: 400, height: 300 }, 1, well, FIT, 48)).toEqual({ x: 48, y: 48 });
+    const scale = fitScale({ width: 2000, height: 1000 }, well, 48);
+    expect(marginPx({ width: 2000, height: 1000 }, scale, well, FIT, 48)).toEqual({ x: 48, y: 48 });
+    expect(marginPx({ width: 2000, height: 1000 }, scale, well, FIT, 120)).toEqual({ x: 120, y: 120 });
   });
 
-  it("is only what room is left when Fit fills the well, never less than the 16 px padding", () => {
-    // 2000 x 1000 fits at (1000 - 32) / 2000 = 0.484: 968 x 484 on screen, 16 px at the sides, 108 above and below.
-    const scale = fitScale({ width: 2000, height: 1000 }, well);
-    expect(marginPx({ width: 2000, height: 1000 }, scale, well, FIT)).toEqual({ x: 16, y: 108 });
+  it("a fitted area plus its margins never needs more than the well", () => {
+    for (const margin of [16, 48, 200]) {
+      for (const area of [{ width: 2000, height: 1000 }, { width: 333, height: 777 }, { width: 5000, height: 90 }]) {
+        const scale = fitScale(area, well, margin);
+        const m = marginPx(area, scale, well, FIT, margin);
+        expect(area.width * scale + 2 * m.x).toBeLessThanOrEqual(well.width + 1e-9);
+        expect(area.height * scale + 2 * m.y).toBeLessThanOrEqual(well.height + 1e-9);
+      }
+    }
   });
 
-  it("after a manual zoom the whole margin is there to scroll to", () => {
-    expect(marginPx({ width: 2000, height: 1000 }, 1, well, { kind: "zoom", scale: 1 })).toEqual({ x: 500, y: 250 });
-  });
-
-  it("after a manual zoom of a huge image it is capped at half the well, not a screenful of margin", () => {
-    expect(marginPx({ width: 4000, height: 4000 }, 1, well, { kind: "zoom", scale: 1 })).toEqual({ x: 500, y: 350 });
+  it("after a manual zoom the full quarter is there to scroll to, and never less than the margin", () => {
+    expect(marginPx({ width: 2000, height: 1000 }, 1, well, { kind: "zoom", scale: 1 }, 48)).toEqual({ x: 500, y: 250 });
+    expect(marginPx({ width: 100, height: 100 }, 1, well, { kind: "zoom", scale: 1 }, 48)).toEqual({ x: 48, y: 48 });
+    // A huge image keeps the whole quarter (gestures can reach it), not a capped part of it.
+    expect(marginPx({ width: 4000, height: 4000 }, 1, well, { kind: "zoom", scale: 1 }, 48)).toEqual({ x: 1000, y: 1000 });
   });
 
   it("is whole pixels, so it never makes Fit scroll", () => {
-    const m = marginPx({ width: 333, height: 333 }, 1, { width: 600, height: 600 }, FIT);
+    const m = marginPx({ width: 333, height: 333 }, 0.37, { width: 600, height: 600 }, { kind: "zoom", scale: 0.37 }, 48);
     expect(Number.isInteger(m.x) && Number.isInteger(m.y)).toBe(true);
   });
 });

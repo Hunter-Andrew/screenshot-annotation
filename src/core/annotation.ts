@@ -67,6 +67,26 @@ export interface AnnotationModel {
    * the Settings default is stored here (additive: no format bump; an older app shows the Capture only).
    */
   background?: Background;
+  /**
+   * Whether the editor shows what lies outside the visible area (cropped-out parts, off-canvas Annotations),
+   * dimmed. Absent means true (every file from before this field looks as it did); a new image gets the
+   * Settings default stored at creation. Editor-only: never part of an Export.
+   */
+  showOutside?: boolean;
+  /**
+   * Auto-grown area (M4 polish B): the base area the growth started from (the Capture, or the Crop the user set
+   * explicitly) and the Annotations that reach outside it, each with what it covers. The visible area (`crop`) is
+   * the base plus these extents, so it follows them back in. Both are absent when nothing grew it, and cleared
+   * when the user sets the area explicitly. An older file has neither: its area never shrinks by itself.
+   */
+  areaBase?: Crop;
+  grownBy?: GrowCause[];
+}
+
+/** An Annotation that holds the visible area open past its base: its id and what it covers, in whole Capture pixels. */
+export interface GrowCause {
+  id: string;
+  bounds: Crop;
 }
 
 export function emptyModel(): AnnotationModel {

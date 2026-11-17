@@ -72,7 +72,7 @@ describe("an Annotation that reaches past the edge", () => {
     expect(kit.latest.model!.background).toBeUndefined();
   });
 
-  it("moving it out grows the area as part of the same step, and moving it back leaves the area as it is", async () => {
+  it("moving it out grows the area as part of the same step, and moving it back shrinks it again in a step of its own", async () => {
     const { kit } = await openWithCapture();
     await act(async () => kit.latest.draw({ ...RECT, x: 2, y: 2 }, { x: 0, y: 0, width: 24, height: 24 }));
 
@@ -80,9 +80,9 @@ describe("an Annotation that reaches past the edge", () => {
     expect(kit.latest.model!.crop).toEqual({ x: -12, y: 0, width: 52, height: 30 });
 
     await act(async () => kit.latest.edit("r1", { x: 2 } as Partial<RectAnnotation>, { x: 0, y: 0, width: 24, height: 24 }));
-    expect(kit.latest.model!.crop).toEqual({ x: -12, y: 0, width: 52, height: 30 });
+    expect(kit.latest.model!.crop).toBeNull();
 
-    // The move back was a step of its own; the move out and its growth were one.
+    // The move back and its shrinking were one step; the move out and its growth were another.
     await userEvent.click(screen.getByRole("button", { name: "Undo" }));
     await userEvent.click(screen.getByRole("button", { name: "Undo" }));
     expect(kit.latest.model!.crop).toBeNull();

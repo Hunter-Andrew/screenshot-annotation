@@ -12,10 +12,11 @@ interface Props {
   size: Size;
   /** The visible area in Capture pixels: smaller than the Capture (a Crop) or reaching past it (expansion). */
   area: Crop;
-  /** True when the area is a Crop (or expansion) rather than the whole Capture: it gets an outline. */
-  cropped: boolean;
   /** What fills the area outside the Capture. */
   background: Background;
+  /** How dark the outside of the area is drawn (percent), and whether the outside shows the Capture and Annotations at all. */
+  darkness: number;
+  showOutside: boolean;
   /** The dark margin shown around the area, in screen pixels per side. */
   margin: { x: number; y: number };
   scale: number;
@@ -31,7 +32,7 @@ interface Props {
  * dark margin, and the annotation canvas laid over all of it. Mount one per image (`key` it by the image):
  * the canvas is created for that Capture and disposed with it.
  */
-export function Stage({ kit, imageUrl, size, area, cropped, background, margin, scale, interactive, events, onCanvas }: Props) {
+export function Stage({ kit, imageUrl, size, area, background, darkness, showOutside, margin, scale, interactive, events, onCanvas }: Props) {
   const host = useRef<HTMLDivElement>(null);
   const canvas = useRef<AnnotationCanvas | null>(null);
   // The canvas covers the area and its margin, as Capture pixels (the margin is whole screen pixels).
@@ -41,10 +42,12 @@ export function Stage({ kit, imageUrl, size, area, cropped, background, margin, 
     return {
       area,
       background,
+      darkness,
+      showOutside,
       workspace: { x: area.x - mx, y: area.y - my, width: area.width + 2 * mx, height: area.height + 2 * my },
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [area.x, area.y, area.width, area.height, background, margin.x, margin.y, scale]);
+  }, [area.x, area.y, area.width, area.height, background, darkness, showOutside, margin.x, margin.y, scale]);
   const latest = useRef({ events, onCanvas, scale, interactive, imageUrl, layout });
   latest.current = { events, onCanvas, scale, interactive, imageUrl, layout };
 
@@ -85,11 +88,10 @@ export function Stage({ kit, imageUrl, size, area, cropped, background, margin, 
   useEffect(() => canvas.current?.setInteractive(interactive), [interactive]);
 
   const px = (n: number) => n * scale;
-  // The picture under the canvas is only ever shown where the canvas is (it stands in until the canvas has
-  // loaded the Capture): a big Capture cropped small must not show its far parts undimmed.
-  const ws = layout.workspace;
+  // The picture under the canvas stands in until the canvas has loaded the Capture, and only the visible area of it
+  // ever shows: the outside is the canvas's (dimmed, or gone), never an undimmed Capture.
   const inset = (n: number) => `${Math.max(0, n * scale)}px`;
-  const clip = `inset(${inset(ws.y)} ${inset(size.width - (ws.x + ws.width))} ${inset(size.height - (ws.y + ws.height))} ${inset(ws.x)})`;
+  const clip = `inset(${inset(area.y)} ${inset(size.width - (area.x + area.width))} ${inset(size.height - (area.y + area.height))} ${inset(area.x)})`;
   const fill = backgroundFill(background);
   return (
     <div className="stage-pad" style={{ padding: `${margin.y}px ${margin.x}px` }}>
@@ -107,7 +109,6 @@ export function Stage({ kit, imageUrl, size, area, cropped, background, margin, 
           ref={host}
           style={{ left: -margin.x, top: -margin.y, width: px(area.width) + 2 * margin.x, height: px(area.height) + 2 * margin.y }}
         />
-        {cropped && <div className="crop-frame" aria-hidden="true" />}
       </div>
     </div>
   );

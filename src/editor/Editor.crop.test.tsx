@@ -82,17 +82,16 @@ describe("the Crop tool", () => {
 });
 
 describe("while the image has a crop", () => {
-  it("shows no crop frame without a crop, and outlines the visible area once cropped", async () => {
+  it("sets the layout's visible area to the crop, with no outline drawn, and every Annotation stays editable", async () => {
     const { kit } = await openWithCapture();
     expect(frame()).toBeNull();
 
     await act(async () => kit.latest.dragCrop(CROP));
 
-    const el = frame()!;
-    expect(el).not.toBeNull();
-    // The frame outlines the visible area, which is the box the Capture is laid out in; the canvas dims the rest.
-    expect((el.parentElement as HTMLElement).style.width).toBe(`${CROP.width * kit.latest.scale}px`);
+    // No border at rest: the canvas dims everything outside the visible area instead.
+    expect(frame()).toBeNull();
     expect(kit.latest.layout.area).toEqual(CROP);
+    expect(document.querySelector<HTMLElement>(".area")!.style.width).toBe(`${CROP.width * kit.latest.scale}px`);
     // The whole Capture stays on screen and every Annotation stays editable.
     expect(screen.getByRole("img", { name: "Capture" })).toBeVisible();
     await act(async () => kit.latest.draw(RECT));
