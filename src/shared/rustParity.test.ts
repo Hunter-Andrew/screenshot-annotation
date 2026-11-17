@@ -52,9 +52,14 @@ describe("TS/Rust shared constants", () => {
       const m = rust("settings.rs").match(new RegExp(`pub const ${name}: Range = Range \\{ min: (\\d+), max: (\\d+), default: (\\d+) \\};`));
       return m && { min: Number(m[1]), max: Number(m[2]), default: Number(m[3]) };
     };
+    // The outside darkness keeps a tenth of a percent: Rust spells it as a `DecimalRange` of f64.
+    const decimalRange = (name: string) => {
+      const m = rust("settings.rs").match(new RegExp(`pub const ${name}: DecimalRange = DecimalRange \\{ min: ([\\d.]+), max: ([\\d.]+), default: ([\\d.]+) \\};`));
+      return m && { min: Number(m[1]), max: Number(m[2]), default: Number(m[3]), decimals: 1 };
+    };
     expect(range("CALLOUT_TAIL_PERCENT")).toEqual(CALLOUT_TAIL_PERCENT);
     expect(range("CANVAS_MARGIN")).toEqual(CANVAS_MARGIN);
-    expect(range("OUTSIDE_DARKNESS")).toEqual(OUTSIDE_DARKNESS);
+    expect(decimalRange("OUTSIDE_DARKNESS")).toEqual(OUTSIDE_DARKNESS);
     expect(rust("settings.rs").match(/pub const DEFAULT_SHOW_OUTSIDE: bool = (\w+);/)?.[1]).toBe(String(DEFAULT_IMAGE_SETTINGS.showOutsideDefault));
   });
 
@@ -64,7 +69,7 @@ describe("TS/Rust shared constants", () => {
     const expected: Record<string, string> = {
       set_callout_tail_percent: "percent: u32",
       set_canvas_margin: "pixels: u32",
-      set_outside_darkness: "percent: u32",
+      set_outside_darkness: "percent: f64",
       set_show_outside_default: "show: bool",
     };
     for (const [command, arg] of Object.entries(expected)) {

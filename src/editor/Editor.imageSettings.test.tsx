@@ -50,13 +50,14 @@ describe("the other image settings", () => {
     const seen: unknown[] = [];
     await bridge.onImageSettings((settings) => seen.push(settings));
     await bridge.setCanvasMargin(100);
-    await bridge.setOutsideDarkness(80);
+    await bridge.setOutsideDarkness(99.9);
     await bridge.setShowOutsideDefault(false);
-    expect(await bridge.getImageSettings()).toMatchObject({ canvasMargin: 100, outsideDarkness: 80, showOutsideDefault: false });
+    expect(await bridge.getImageSettings()).toMatchObject({ canvasMargin: 100, outsideDarkness: 99.9, showOutsideDefault: false });
     expect(seen).toHaveLength(3);
 
     await expect(bridge.setCanvasMargin(5)).rejects.toThrow();
-    await expect(bridge.setOutsideDarkness(96)).rejects.toThrow();
+    await expect(bridge.setOutsideDarkness(100)).rejects.toThrow();
+    await expect(bridge.setOutsideDarkness(50.55)).rejects.toThrow();
     await expect(bridge.setCalloutTailPercent(4)).rejects.toThrow();
     expect(seen).toHaveLength(3);
   });

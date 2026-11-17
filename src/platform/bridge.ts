@@ -241,7 +241,7 @@ export interface PlatformBridge {
   setCalloutTailPercent(percent: number): Promise<void>;
   /** Store the canvas margin in pixels (16 to 200). A value outside the range is refused. */
   setCanvasMargin(pixels: number): Promise<void>;
-  /** Store how dark the outside of the canvas is shown, in percent (0 to 95). A value outside the range is refused. */
+  /** Store how dark the outside of the canvas is shown, in percent (0 to 99.9, to a tenth). A value outside the range, or with more decimals, is refused. */
   setOutsideDarkness(percent: number): Promise<void>;
   /** Store whether a new image shows the area outside its canvas. */
   setShowOutsideDefault(show: boolean): Promise<void>;

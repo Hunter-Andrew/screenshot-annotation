@@ -717,7 +717,7 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
           </button>
         </header>
         <ToolColumn tools={TOOLS} active={tool} disabled={!image || readOnly} bindings={BINDINGS} onPick={chooseTool} />
-        <main className="well" ref={view.wellRef} style={{ "--outside-darkness": imageSettings.outsideDarkness / 100 } as CSSProperties}>
+        <main className="well" ref={view.wellRef} style={{ "--outside-darkness": Number((imageSettings.outsideDarkness / 100).toFixed(4)) } as CSSProperties}>
           {image && imageUrl && size && area ? (
             <Stage
               key={current!.id}

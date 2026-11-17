@@ -17,8 +17,8 @@ export class OutsideDim extends FabricObject {
   area: Crop = { x: 0, y: 0, width: 0, height: 0 };
   /** The part the canvas shows, in Capture pixels. */
   workspace: Crop = { x: 0, y: 0, width: 0, height: 0 };
-  /** How dark the outside is, 0 to 95 percent. */
-  darkness = 60;
+  /** How dark the outside is, 0 to 99.9 percent. */
+  darkness = 95;
   /** False: what the canvas drew outside the area is erased instead of dimmed. */
   showOutside = true;
 

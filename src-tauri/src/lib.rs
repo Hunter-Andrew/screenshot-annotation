@@ -342,7 +342,7 @@ fn set_canvas_margin(app: AppHandle, state: tauri::State<'_, AppSettings>, pixel
 
 /// Stores the outside darkness; same rules as `set_image_background` (a value outside its range is refused).
 #[tauri::command]
-fn set_outside_darkness(app: AppHandle, state: tauri::State<'_, AppSettings>, percent: u32) -> Result<(), String> {
+fn set_outside_darkness(app: AppHandle, state: tauri::State<'_, AppSettings>, percent: f64) -> Result<(), String> {
     let mut data = state.data.lock().unwrap();
     let saved = settings::set_outside_darkness(&state.dir, &mut data, percent);
     if let Err(e) = &saved {

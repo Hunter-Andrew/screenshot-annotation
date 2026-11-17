@@ -87,7 +87,7 @@ test.describe("no border", () => {
     ];
     for (const p of inside) expect((await liveArea(page, { x: p.x, y: p.y, w: 1, h: 1 }))!.data.slice(0, 3)).toEqual(rgb(p.own));
     const outside = (await liveArea(page, { x: 37, y: -1, w: 1, h: 1 }))!.data;
-    near(outside, dimmed(pattern(137, 49), 60));
+    near(outside, dimmed(pattern(137, 49), 95));
   });
 });
 
@@ -200,19 +200,21 @@ test.describe("the margin around the visible area in Fit", () => {
 });
 
 test.describe("the outside darkness", () => {
-  test("0 leaves the cropped-out Capture as captured, 95 makes it nearly black, and a change applies live", async ({ page }) => {
+  test("0 leaves the cropped-out Capture as captured, 99.9 makes it nearly black (95 is the default), and a change applies live", async ({ page }) => {
     await page.goto("/");
     await capture(page, 300, 200);
     await cropMiddle(page);
     // Capture (80, 70) is at (-20, 20) from the area's corner.
     const read = async () => (await liveArea(page, { x: -20, y: 20, w: 1, h: 1 }))!.data;
 
-    near(await read(), dimmed(pattern(80, 70), 60));
+    near(await read(), dimmed(pattern(80, 70), 95));
     await bridge(page, "setOutsideDarkness", 0);
     await expect.poll(read).toEqual(pattern(80, 70));
-    await bridge(page, "setOutsideDarkness", 95);
-    await expect.poll(async () => Math.max(...(await read()).slice(0, 3))).toBeLessThan(30);
-    near(await read(), dimmed(pattern(80, 70), 95));
+    await bridge(page, "setOutsideDarkness", 99.9);
+    await expect.poll(async () => Math.max(...(await read()).slice(0, 3))).toBeLessThan(15);
+    near(await read(), dimmed(pattern(80, 70), 99.9));
+    await bridge(page, "setOutsideDarkness", 72.5); // a tenth is kept
+    near(await read(), dimmed(pattern(80, 70), 72.5));
     await bridge(page, "setOutsideDarkness", 30);
     near(await read(), dimmed(pattern(80, 70), 30));
     // The area itself is never dimmed.
@@ -245,7 +247,7 @@ test.describe("Show outside the canvas", () => {
     const capturePixel = async () => (await liveArea(page, { x: -20, y: 20, w: 1, h: 1 }))!.data;
     const onRect = await rect();
     expect(onRect[3]).toBe(255);
-    near(onRect, dimmed([224, 36, 36], 60));
+    near(onRect, dimmed([224, 36, 36], 95));
     expect((await capturePixel())[3]).toBe(255);
 
     await toggle(page).uncheck();

@@ -128,10 +128,10 @@
   min-width: 0;
   min-height: 0;
   /* The margin and everything outside the visible area: the well colour darkened by the Outside-canvas darkness
-     setting (set on this element as 0 to 0.95). The canvas dims what it draws outside the area by the same amount,
+     setting (set on this element as 0 to 0.999). The canvas dims what it draws outside the area by the same amount,
      and draws nothing at all there when "Show outside the canvas" is off, so this shows through as one flat fill. */
   background:
-    linear-gradient(rgba(6, 8, 12, var(--outside-darkness, 0.6)), rgba(6, 8, 12, var(--outside-darkness, 0.6))),
+    linear-gradient(rgba(6, 8, 12, var(--outside-darkness, 0.95)), rgba(6, 8, 12, var(--outside-darkness, 0.95))),
     var(--well);
 }
 .well .empty {

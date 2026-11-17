@@ -16,22 +16,27 @@ export interface ImageSettings {
   calloutTailPercent: number;
   /** The room kept around the canvas in the editor view, in pixels. */
   canvasMargin: number;
-  /** How dark the area outside the canvas is shown, in percent. */
+  /** How dark the area outside the canvas is shown, in percent (0 to 99.9, to a tenth). */
   outsideDarkness: number;
   /** Whether a new image shows the area outside its canvas. */
   showOutsideDefault: boolean;
 }
 
-/** An inclusive range of whole numbers a numeric setting may take (Rust's `settings::Range` spells the same). */
+/**
+ * An inclusive range of numbers a numeric setting may take (Rust's `settings::Range` and `DecimalRange` spell the
+ * same). Whole numbers unless `decimals` says how many decimal places it keeps (the outside darkness: one).
+ */
 export interface NumberRange {
   min: number;
   max: number;
   default: number;
+  decimals?: number;
 }
 
 export const CALLOUT_TAIL_PERCENT: NumberRange = { min: 5, max: 50, default: 20 };
 export const CANVAS_MARGIN: NumberRange = { min: 16, max: 200, default: 48 };
-export const OUTSIDE_DARKNESS: NumberRange = { min: 0, max: 95, default: 60 };
+/** How dark the outside of the canvas is shown, in percent, to a tenth: 0 to 99.9 (100 would hide it altogether). */
+export const OUTSIDE_DARKNESS: NumberRange = { min: 0, max: 99.9, default: 95, decimals: 1 };
 
 export const DEFAULT_IMAGE_SETTINGS: ImageSettings = {
   background: "transparent",
@@ -42,12 +47,25 @@ export const DEFAULT_IMAGE_SETTINGS: ImageSettings = {
   showOutsideDefault: true,
 };
 
-export const inRange = (range: NumberRange, value: unknown): value is number =>
-  typeof value === "number" && Number.isInteger(value) && value >= range.min && value <= range.max;
+/** `value` rounded to the decimal places the range keeps (whole numbers when it says none). */
+const rounded = (range: NumberRange, value: number): number => {
+  const unit = 10 ** (range.decimals ?? 0);
+  return Math.round(value * unit) / unit;
+};
 
-/** A number from the platform brought into its range; anything that is not a whole number is the default. */
-export const clampToRange = (range: NumberRange, value: unknown): number =>
-  typeof value === "number" && Number.isInteger(value) ? Math.min(range.max, Math.max(range.min, value)) : range.default;
+/** True for a number inside the range that has no more decimal places than the range keeps. */
+export const inRange = (range: NumberRange, value: unknown): value is number =>
+  typeof value === "number" && Number.isFinite(value) && rounded(range, value) === value && value >= range.min && value <= range.max;
+
+/**
+ * A number from the platform brought into its range. A whole-number range takes whole numbers only (anything else is
+ * the default); a range with decimals rounds to its decimal places. Anything that is not a number is the default.
+ */
+export const clampToRange = (range: NumberRange, value: unknown): number => {
+  if (typeof value !== "number" || !Number.isFinite(value)) return range.default;
+  if (!range.decimals && !Number.isInteger(value)) return range.default;
+  return Math.min(range.max, Math.max(range.min, rounded(range, value)));
+};
 
 export const isCheckerboard = (value: unknown): value is CheckerboardTheme => CHECKERBOARD_THEMES.includes(value as CheckerboardTheme);
 

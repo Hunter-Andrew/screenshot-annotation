@@ -24,9 +24,11 @@
 //!   pixels in the editor and the Library. It changes how transparency looks, never an exported picture.
 //! - `calloutTailPercent` (5 to 50, default 20): how much of a callout's draw drag its tail takes.
 //! - `canvasMargin` (16 to 200 pixels, default 48): the room kept around the canvas in the editor view.
-//! - `outsideDarkness` (0 to 95 percent, default 60): how dark the area outside the canvas is shown.
+//! - `outsideDarkness` (0 to 99.9 percent, to a tenth, default 95): how dark the area outside the canvas is shown.
+//!   A stored value such as 60 stays as stored; one with more decimals is rounded to a tenth.
 //! - `showOutsideDefault` (true by default): whether a new image shows the area outside its canvas.
 //!   A number outside its range is brought into the range; anything that is not a number is the default.
+//!   (A whole-number setting also takes a fraction as the default.)
 //! - `trayNoticeShown`: true once the one-time "still running in the tray" message, shown the first time
 //!   the editor is closed, has been shown. Setting it back to false (with the app closed) shows it once more.
 
@@ -70,9 +72,9 @@ pub struct Settings {
     /// The room kept around the canvas in the editor view, in pixels (`CANVAS_MARGIN`).
     #[serde(deserialize_with = "canvas_margin_or_default")]
     pub canvas_margin: u32,
-    /// How dark the area outside the canvas is shown, in percent (`OUTSIDE_DARKNESS`).
+    /// How dark the area outside the canvas is shown, in percent to a tenth (`OUTSIDE_DARKNESS`).
     #[serde(deserialize_with = "outside_darkness_or_default")]
-    pub outside_darkness: u32,
+    pub outside_darkness: f64,
     /// Whether a new image shows the area outside its canvas.
     #[serde(deserialize_with = "bool_or_true")]
     pub show_outside_default: bool,
@@ -100,9 +102,33 @@ impl Range {
     }
 }
 
+/// An inclusive range of numbers kept to a tenth (the outside darkness).
+#[derive(Debug, Clone, Copy)]
+pub struct DecimalRange {
+    pub min: f64,
+    pub max: f64,
+    pub default: f64,
+}
+
+/// `value` rounded to a tenth.
+fn tenths(value: f64) -> f64 {
+    (value * 10.0).round() / 10.0
+}
+
+impl DecimalRange {
+    /// A number brought into the range and rounded to a tenth.
+    pub fn clamp(&self, value: f64) -> f64 {
+        tenths(value).clamp(self.min, self.max)
+    }
+    /// True for a finite number inside the range that has no more than one decimal place.
+    pub fn contains(&self, value: f64) -> bool {
+        value.is_finite() && tenths(value) == value && value >= self.min && value <= self.max
+    }
+}
+
 pub const CALLOUT_TAIL_PERCENT: Range = Range { min: 5, max: 50, default: 20 };
 pub const CANVAS_MARGIN: Range = Range { min: 16, max: 200, default: 48 };
-pub const OUTSIDE_DARKNESS: Range = Range { min: 0, max: 95, default: 60 };
+pub const OUTSIDE_DARKNESS: DecimalRange = DecimalRange { min: 0.0, max: 99.9, default: 95.0 };
 pub const DEFAULT_SHOW_OUTSIDE: bool = true;
 
 /// What the editor and the Library read: both image settings, as the frontend spells them.
@@ -113,7 +139,7 @@ pub struct ImageSettings {
     pub checkerboard: String,
     pub callout_tail_percent: u32,
     pub canvas_margin: u32,
-    pub outside_darkness: u32,
+    pub outside_darkness: f64,
     pub show_outside_default: bool,
 }
 
@@ -148,6 +174,14 @@ fn number_in<'de, D: serde::Deserializer<'de>>(d: D, range: Range) -> Result<u32
     })
 }
 
+/// A stored number is rounded to a tenth and brought into `range`; anything else (text, null) is the default.
+fn tenths_in<'de, D: serde::Deserializer<'de>>(d: D, range: DecimalRange) -> Result<f64, D::Error> {
+    Ok(match serde_json::Value::deserialize(d)? {
+        serde_json::Value::Number(n) => n.as_f64().filter(|v| v.is_finite()).map_or(range.default, |v| range.clamp(v)),
+        _ => range.default,
+    })
+}
+
 fn callout_tail_percent_or_default<'de, D: serde::Deserializer<'de>>(d: D) -> Result<u32, D::Error> {
     number_in(d, CALLOUT_TAIL_PERCENT)
 }
@@ -156,8 +190,8 @@ fn canvas_margin_or_default<'de, D: serde::Deserializer<'de>>(d: D) -> Result<u3
     number_in(d, CANVAS_MARGIN)
 }
 
-fn outside_darkness_or_default<'de, D: serde::Deserializer<'de>>(d: D) -> Result<u32, D::Error> {
-    number_in(d, OUTSIDE_DARKNESS)
+fn outside_darkness_or_default<'de, D: serde::Deserializer<'de>>(d: D) -> Result<f64, D::Error> {
+    tenths_in(d, OUTSIDE_DARKNESS)
 }
 
 fn bool_or_true<'de, D: serde::Deserializer<'de>>(d: D) -> Result<bool, D::Error> {
@@ -315,10 +349,13 @@ pub fn set_canvas_margin(dir: &Path, settings: &mut Settings, value: u32) -> io:
     save(dir, settings)
 }
 
-/// Sets the outside-canvas darkness in percent; a value outside `OUTSIDE_DARKNESS` changes nothing.
-pub fn set_outside_darkness(dir: &Path, settings: &mut Settings, value: u32) -> io::Result<()> {
+/// Sets the outside-canvas darkness in percent; a value outside `OUTSIDE_DARKNESS`, or with more than one decimal, changes nothing.
+pub fn set_outside_darkness(dir: &Path, settings: &mut Settings, value: f64) -> io::Result<()> {
     if !OUTSIDE_DARKNESS.contains(value) {
-        return Err(out_of_range("outside darkness", value, OUTSIDE_DARKNESS));
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            format!("{value} is not an outside darkness ({} to {}, to a tenth)", OUTSIDE_DARKNESS.min, OUTSIDE_DARKNESS.max),
+        ));
     }
     settings.outside_darkness = value;
     save(dir, settings)
@@ -622,7 +659,7 @@ mod tests {
                 checkerboard: "light".into(),
                 callout_tail_percent: 20,
                 canvas_margin: 48,
-                outside_darkness: 60,
+                outside_darkness: 95.0,
                 show_outside_default: true,
             }
         );
@@ -633,7 +670,7 @@ mod tests {
         let json = serde_json::to_value(Settings::default().image_settings()).unwrap();
         assert_eq!(json["calloutTailPercent"], 20);
         assert_eq!(json["canvasMargin"], 48);
-        assert_eq!(json["outsideDarkness"], 60);
+        assert_eq!(json["outsideDarkness"], 95.0);
         assert_eq!(json["showOutsideDefault"], true);
     }
 
@@ -661,11 +698,17 @@ mod tests {
         assert!(set_canvas_margin(&dir, &mut s, 15).is_err());
         assert!(set_canvas_margin(&dir, &mut s, 201).is_err());
         set_canvas_margin(&dir, &mut s, 200).unwrap();
-        assert!(set_outside_darkness(&dir, &mut s, 96).is_err());
-        set_outside_darkness(&dir, &mut s, 0).unwrap();
+        assert!(set_outside_darkness(&dir, &mut s, 100.0).is_err());
+        assert!(set_outside_darkness(&dir, &mut s, 50.55).is_err());
+        assert!(set_outside_darkness(&dir, &mut s, f64::NAN).is_err());
+        assert!(set_outside_darkness(&dir, &mut s, -0.1).is_err());
+        assert_eq!(s.outside_darkness, 95.0);
+        set_outside_darkness(&dir, &mut s, 99.9).unwrap();
+        assert_eq!(s.outside_darkness, 99.9);
+        set_outside_darkness(&dir, &mut s, 0.0).unwrap();
         set_show_outside_default(&dir, &mut s, false).unwrap();
         let back = load(&dir);
-        assert_eq!((back.canvas_margin, back.outside_darkness, back.show_outside_default), (200, 0, false));
+        assert_eq!((back.canvas_margin, back.outside_darkness, back.show_outside_default), (200, 0.0, false));
         let text = fs::read_to_string(dir.join(FILE_NAME)).unwrap();
         assert!(text.contains("\"calloutTailPercent\": 50") && text.contains("\"showOutsideDefault\": false"), "{text}");
 
@@ -675,10 +718,15 @@ mod tests {
         )
         .unwrap();
         let back = load(&dir);
-        assert_eq!((back.callout_tail_percent, back.canvas_margin, back.outside_darkness, back.show_outside_default), (50, 16, 60, true));
+        assert_eq!((back.callout_tail_percent, back.canvas_margin, back.outside_darkness, back.show_outside_default), (50, 16, 95.0, true));
         fs::write(dir.join(FILE_NAME), br#"{"calloutTailPercent":-3,"canvasMargin":1.5,"outsideDarkness":null}"#).unwrap();
         let back = load(&dir);
-        assert_eq!((back.callout_tail_percent, back.canvas_margin, back.outside_darkness), (5, 48, 60));
+        assert_eq!((back.callout_tail_percent, back.canvas_margin, back.outside_darkness), (5, 48, 95.0));
+        // A stored whole number stays as stored; a fraction is kept to a tenth; a value past the range is brought into it.
+        for (stored, expected) in [("60", 60.0), ("72.5", 72.5), ("72.54", 72.5), ("99.9", 99.9), ("100", 99.9), ("-4", 0.0), ("0", 0.0)] {
+            fs::write(dir.join(FILE_NAME), format!(r#"{{"outsideDarkness":{stored}}}"#)).unwrap();
+            assert_eq!(load(&dir).outside_darkness, expected, "stored {stored}");
+        }
         assert!(!dir.join(CORRUPT_FILE_NAME).exists());
         fs::remove_dir_all(&dir).unwrap();
     }

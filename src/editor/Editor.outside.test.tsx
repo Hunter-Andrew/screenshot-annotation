@@ -71,17 +71,19 @@ describe("the canvas margin and the outside darkness settings", () => {
     expect(kit.latest.layout.workspace).toEqual({ x: -100, y: -100, width: 240, height: 230 });
   });
 
-  it("the darkness is 60 percent by default and follows a change from the Settings window at once", async () => {
+  it("the darkness is 95 percent by default and follows a change from the Settings window at once, to a tenth and up to 99.9", async () => {
     const bridge = createFakeBridge();
     const { kit } = await openWithCapture(bridge);
-    expect(kit.latest.layout.darkness).toBe(60);
-    expect(document.querySelector<HTMLElement>(".well")!.style.getPropertyValue("--outside-darkness")).toBe("0.6");
+    expect(kit.latest.layout.darkness).toBe(95);
+    expect(document.querySelector<HTMLElement>(".well")!.style.getPropertyValue("--outside-darkness")).toBe("0.95");
 
     await act(async () => bridge.setOutsideDarkness(0));
     expect(kit.latest.layout.darkness).toBe(0);
-    await act(async () => bridge.setOutsideDarkness(95));
-    expect(kit.latest.layout.darkness).toBe(95);
-    expect(document.querySelector<HTMLElement>(".well")!.style.getPropertyValue("--outside-darkness")).toBe("0.95");
+    await act(async () => bridge.setOutsideDarkness(99.9));
+    expect(kit.latest.layout.darkness).toBe(99.9);
+    expect(document.querySelector<HTMLElement>(".well")!.style.getPropertyValue("--outside-darkness")).toBe("0.999");
+    await act(async () => bridge.setOutsideDarkness(72.5));
+    expect(kit.latest.layout.darkness).toBe(72.5);
   });
 });
 

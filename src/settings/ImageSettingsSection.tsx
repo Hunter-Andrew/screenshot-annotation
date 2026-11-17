@@ -17,23 +17,28 @@ import {
 const CHECKERBOARD_LABELS: Record<CheckerboardTheme, string> = { dark: "Dark", light: "Light" };
 
 /**
- * A whole-number field that is stored when it is left (blur or Enter) holding a number inside `range`;
- * anything else snaps back to the stored value. The text is kept while typing.
+ * A number field that is stored when it is left (blur or Enter) holding a number inside `range` (with no more decimal
+ * places than the range keeps); anything else snaps back to the stored value. The text is kept while typing. With
+ * `slider`, a slider next to the box moves the same value: the box follows it while it moves, and it is stored when it
+ * is let go.
  */
 function NumberSetting(props: {
   label: string;
   hint: string;
   range: NumberRange;
   value: number | undefined;
+  slider?: string;
   onCommit: (value: number) => void;
 }) {
   const { range, value } = props;
+  const step = 1 / 10 ** (range.decimals ?? 0);
   const [draft, setDraft] = useState<string | null>(null);
-  const commit = () => {
-    const parsed = draft === null || draft.trim() === "" ? NaN : Number(draft);
+  const commitText = (text: string | null) => {
+    const parsed = text === null || text.trim() === "" ? NaN : Number(text);
     setDraft(null);
     if (inRange(range, parsed) && parsed !== value) props.onCommit(parsed);
   };
+  const commit = () => commitText(draft);
   return (
     <p>
       <label>
@@ -42,7 +47,7 @@ function NumberSetting(props: {
           type="number"
           min={range.min}
           max={range.max}
-          step={1}
+          step={step}
           style={{ width: 70 }}
           value={draft ?? value ?? ""}
           disabled={value === undefined}
@@ -51,6 +56,24 @@ function NumberSetting(props: {
           onKeyDown={(event) => event.key === "Enter" && commit()}
         />
       </label>
+      {props.slider && (
+        <>
+          {" "}
+          <input
+            type="range"
+            aria-label={props.slider}
+            min={range.min}
+            max={range.max}
+            step={step}
+            value={draft !== null && Number.isFinite(Number(draft)) && draft.trim() !== "" ? Number(draft) : (value ?? range.default)}
+            disabled={value === undefined}
+            onChange={(event) => setDraft(event.target.value)}
+            onPointerUp={commit}
+            onKeyUp={commit}
+            onBlur={commit}
+          />
+        </>
+      )}
       <br />
       <small>
         {props.hint} {range.min} to {range.max}.
@@ -158,8 +181,9 @@ export function ImageSettingsSection({ bridge }: { bridge: PlatformBridge }) {
       />
       <NumberSetting
         label="Outside-canvas darkness (%)"
-        hint="How dark the area outside the canvas is shown."
+        hint="How dark the area outside the canvas is shown, to a tenth."
         range={OUTSIDE_DARKNESS}
+        slider="Outside-canvas darkness slider"
         value={settings?.outsideDarkness}
         onCommit={(value) => save({ outsideDarkness: value }, () => bridge.setOutsideDarkness(value), "setOutsideDarkness")}
       />

@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import { createFakeBridge } from "../platform/fakeBridge";
@@ -57,7 +57,8 @@ describe("Settings > Image", () => {
     render(<Settings bridge={createFakeBridge()} />);
     await waitFor(() => expect(screen.getByLabelText("Callout tail length (% of drag)")).toHaveValue(20));
     expect(screen.getByLabelText("Canvas margin (px)")).toHaveValue(48);
-    expect(screen.getByLabelText("Outside-canvas darkness (%)")).toHaveValue(60);
+    expect(screen.getByLabelText("Outside-canvas darkness (%)")).toHaveValue(95);
+    expect(screen.getByLabelText("Outside-canvas darkness slider")).toHaveValue("95");
     expect(screen.getByLabelText("Show outside the canvas on new images")).toBeChecked();
   });
 
@@ -94,5 +95,45 @@ describe("Settings > Image", () => {
     await userEvent.tab();
     await userEvent.click(screen.getByLabelText("Show outside the canvas on new images"));
     expect(bridge.imageSettings).toMatchObject({ canvasMargin: 100, outsideDarkness: 0, showOutsideDefault: false });
+  });
+
+  it("the darkness takes a tenth in its number box, up to 99.9, and the slider moves the same value", async () => {
+    const bridge = createFakeBridge();
+    render(<Settings bridge={bridge} />);
+    const box = await screen.findByLabelText("Outside-canvas darkness (%)");
+    await waitFor(() => expect(box).toBeEnabled());
+    expect(box).toHaveAttribute("step", "0.1");
+    expect(box).toHaveAttribute("max", "99.9");
+
+    await userEvent.clear(box);
+    await userEvent.type(box, "72.5");
+    await userEvent.tab();
+    expect(bridge.imageSettings.outsideDarkness).toBe(72.5);
+
+    await userEvent.clear(box);
+    await userEvent.type(box, "99.9");
+    await userEvent.tab();
+    expect(bridge.imageSettings.outsideDarkness).toBe(99.9);
+
+    await userEvent.clear(box);
+    await userEvent.type(box, "99.95");
+    await userEvent.tab();
+    expect(bridge.imageSettings.outsideDarkness).toBe(99.9); // more than one decimal, or past 99.9: nothing is stored
+    expect(box).toHaveValue(99.9);
+    expect(screen.getByText(/0 to 99\.9/)).toBeVisible();
+
+    const slider = screen.getByLabelText("Outside-canvas darkness slider");
+    expect(slider).toHaveAttribute("step", "0.1");
+    fireEvent.change(slider, { target: { value: "40.3" } });
+    expect(box).toHaveValue(40.3); // the box follows the slider while it moves
+    fireEvent.pointerUp(slider);
+    expect(bridge.imageSettings.outsideDarkness).toBe(40.3);
+  });
+
+  it("a stored 60 is shown as 60", async () => {
+    const bridge = createFakeBridge();
+    await bridge.setOutsideDarkness(60);
+    render(<Settings bridge={bridge} />);
+    await waitFor(() => expect(screen.getByLabelText("Outside-canvas darkness (%)")).toHaveValue(60));
   });
 });
