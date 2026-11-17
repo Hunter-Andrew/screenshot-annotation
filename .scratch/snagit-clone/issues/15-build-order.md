@@ -64,9 +64,14 @@ Decided with Andrew on 2026-11-14. Each milestone is a release Andrew installs o
 - Pre-warmed windows meeting the speed targets.
 - Done when the full checklist passes.
 
-**M5 · Shortcuts (v1.1.0), after the v1.0.0 release** (added 2026-11-15)
+**M5 · Shortcuts and demo tools (v1.1.0), after the v1.0.0 release** (added 2026-11-15; demo tools added 2026-11-17)
 - Settings lists every keyboard shortcut and lets each one be remapped (ticket 28): the capture-overlay keys (Space, M), the editor's tool and action keys, and Discard. Esc and the standard editing keys stay fixed and read-only.
 - Low-risk by design, like Snagit and Greenshot: in-app keys are handled inside the app's own windows; the only global registration is the capture hotkey, using the standard Windows method plus the passive Print Screen listener of ADR 0007. No hooks, no key blocking.
+- Demo tools, for presentations and screen shares (added 2026-11-17, Andrew; all `needs-triage`, to be grilled before building):
+  - Editor Pointer tool (ticket 39): a tool that turns the mouse into a coloured pointer over the canvas; the colour is a configurable style.
+  - Desktop pointer highlight (ticket 40): a pointer highlight over the whole desktop, run by the tray app and switched on and off by its own hotkey; the colour is set in Settings.
+  - Screen annotation (ticket 41): temporary rectangles and highlights drawn over the whole desktop, from a hotkey and/or a small pop-out toolbar that can be hidden and shown.
+  - These add global hotkeys beyond the capture hotkey, so ticket 28's "capture hotkey is the only global registration" rule is widened for them: the standard `RegisterHotKey` method only, still no low-level hooks and no key blocking.
 
 **Planning approach**
 - Only M0 is broken into implementation tickets now (`.scratch/m0-skeleton/`). Later milestones are broken down when reached.
