@@ -29,6 +29,7 @@ export const DEFAULT_RETURN_TO_SELECT: Readonly<Record<string, boolean>> = {
   rect: true,
   ellipse: true,
   text: true,
+  callout: true,
   pen: false,
   highlight: false,
   // Tickets 18-21 add: callout, highlight, blur, crop.

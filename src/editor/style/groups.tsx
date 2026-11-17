@@ -110,6 +110,19 @@ function FillEditor({ value, onChange }: GroupEditorProps<"fill">) {
   );
 }
 
+function TailEditor({ value, onChange }: GroupEditorProps<"tail">) {
+  return (
+    <div className="presets" role="group" aria-label="Tail">
+      <button type="button" aria-pressed={value.enabled} onClick={() => onChange({ enabled: true })}>
+        On
+      </button>
+      <button type="button" aria-pressed={!value.enabled} onClick={() => onChange({ enabled: false })}>
+        Off
+      </button>
+    </div>
+  );
+}
+
 function OpacityEditor({ value, onChange }: GroupEditorProps<"opacity">) {
   const percent = Math.round(value.value * 100);
   const [text, setText] = useState(String(percent));
@@ -147,6 +160,7 @@ function OpacityEditor({ value, onChange }: GroupEditorProps<"opacity">) {
 
 export const GROUP_EDITORS: { [K in GroupId]: GroupEditor<K> } = {
   stroke: { title: "Stroke", Editor: StrokeEditor },
+  tail: { title: "Tail", Editor: TailEditor },
   opacity: { title: "Opacity", Editor: OpacityEditor },
   arrowheads: { title: "Arrowheads", Editor: ArrowheadsEditor },
   fill: { title: "Fill", Editor: FillEditor },

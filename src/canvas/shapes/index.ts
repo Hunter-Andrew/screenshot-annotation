@@ -1,6 +1,7 @@
 // Every Annotation type's Fabric adapter. A new tool adds one line here.
 import type { Annotation } from "../../core/annotation";
 import { arrowAdapter } from "./arrow";
+import { calloutAdapter } from "./callout";
 import { ellipseAdapter } from "./ellipse";
 import { highlightAdapter } from "./highlight";
 import { lineAdapter } from "./line";
@@ -15,6 +16,7 @@ const ADAPTERS: readonly ShapeAdapter<any>[] = [
   rectAdapter,
   ellipseAdapter,
   textAdapter,
+  calloutAdapter,
   penAdapter,
   highlightAdapter,
 ];

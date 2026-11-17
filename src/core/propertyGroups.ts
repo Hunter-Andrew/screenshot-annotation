@@ -61,7 +61,13 @@ export interface Opacity {
   value: number;
 }
 
+export interface Tail {
+  /** The Callout's pointer; on by default, and the tip stays where it was while it is off. */
+  enabled: boolean;
+}
+
 export interface PropertyGroups {
+  tail: Tail;
   stroke: Stroke;
   opacity: Opacity;
   arrowheads: Arrowheads;
@@ -102,6 +108,7 @@ const GROUP_READERS: { [K in GroupId]: (raw: unknown) => PropertyGroups[K] | und
     const width = Math.round(stored.width);
     return width >= MIN_STROKE_WIDTH && width <= MAX_STROKE_WIDTH ? { color: stored.color, width } : undefined;
   },
+  tail: (raw) => (isRecord(raw) && typeof raw.enabled === "boolean" ? { enabled: raw.enabled } : undefined),
   opacity: (raw) =>
     isRecord(raw) && typeof raw.value === "number" && raw.value >= MIN_OPACITY && raw.value <= MAX_OPACITY
       ? { value: raw.value }

@@ -1,6 +1,7 @@
 // Every drawing tool's model side, in tool-column order. A new tool adds one line here.
 import type { Annotation, AnnotationType } from "../annotation";
 import { arrowKind } from "./arrow";
+import { calloutKind } from "./callout";
 import { ellipseKind } from "./ellipse";
 import { highlightKind } from "./highlight";
 import { lineKind } from "./line";
@@ -15,6 +16,7 @@ export const ANNOTATION_KINDS: readonly AnnotationKind<any>[] = [
   rectKind,
   ellipseKind,
   textKind,
+  calloutKind,
   penKind,
   highlightKind,
 ];

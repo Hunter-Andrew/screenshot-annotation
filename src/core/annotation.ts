@@ -6,6 +6,7 @@
 // To add a tool (tickets 10-12, 18-20): add its type below, add it to the `Annotation` union,
 // describe it in `src/core/annotations/<type>.ts` and list that in `annotations/index.ts`.
 import type { ArrowAnnotation } from "./annotations/arrow";
+import type { CalloutAnnotation } from "./annotations/callout";
 import type { EllipseAnnotation } from "./annotations/ellipse";
 import type { HighlightAnnotation } from "./annotations/highlight";
 import type { LineAnnotation } from "./annotations/line";
@@ -18,7 +19,7 @@ import type { TextAnnotation } from "./annotations/text";
 export const FORMAT_VERSION = 1;
 
 export type { ArrowAnnotation, EllipseAnnotation, LineAnnotation, RectAnnotation };
-export type { HighlightAnnotation, PenAnnotation };
+export type { CalloutAnnotation, HighlightAnnotation, PenAnnotation };
 export type { TextAnnotation };
 
 export type Annotation =
@@ -28,8 +29,8 @@ export type Annotation =
   | EllipseAnnotation
   | PenAnnotation
   | HighlightAnnotation
+  | CalloutAnnotation
   | TextAnnotation;
-  // | CalloutAnnotation (18)
   // | BlurAnnotation (20)
 
 export type AnnotationType = Annotation["type"];
