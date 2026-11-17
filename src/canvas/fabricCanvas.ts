@@ -2,7 +2,7 @@
 // over the Capture image: it holds one Fabric object per Annotation, built by the per-type adapters in
 // ./shapes, and follows the model (`sync`). User gestures leave through `CanvasEvents` as model edits;
 // the canvas never keeps state of its own that the model does not have.
-import { Canvas, type FabricObject, Rect } from "fabric";
+import { Canvas, type FabricObject, FabricImage, Rect } from "fabric";
 import { kindOf } from "../core/annotations";
 import { cropFromDrag } from "../core/crop";
 import { newAnnotationId, type Annotation, type AnnotationModel } from "../core/annotation";
@@ -13,7 +13,7 @@ import { adapterFor } from "./shapes";
 const SELECT = "select";
 const CROP = "crop";
 
-export function createFabricCanvas(host: HTMLElement, { size, events }: MountOptions): AnnotationCanvas {
+export function createFabricCanvas(host: HTMLElement, { size, events, imageUrl }: MountOptions): AnnotationCanvas {
   // Its own mount point, so that tearing one canvas down (React StrictMode mounts, unmounts and
   // mounts again) never removes another canvas that was mounted into the same host meanwhile.
   const mountPoint = document.createElement("div");
@@ -21,6 +21,9 @@ export function createFabricCanvas(host: HTMLElement, { size, events }: MountOpt
   host.appendChild(mountPoint);
   const element = document.createElement("canvas");
   mountPoint.appendChild(element);
+  // A Blur reads back what is drawn beneath it on every render, so keep the pixels on the CPU side.
+  // Fabric asks the element for the same context, so it gets this one.
+  element.getContext("2d", { willReadFrequently: true });
   const canvas = new Canvas(element, {
     width: size.width,
     height: size.height,
@@ -33,6 +36,23 @@ export function createFabricCanvas(host: HTMLElement, { size, events }: MountOpt
   canvas.setTargetFindTolerance(6); // thin arrows stay easy to grab
   // The wrapper sits over the Capture image, which the editor lays out underneath.
   Object.assign(canvas.wrapperEl.style, { position: "absolute", left: "0", top: "0" });
+
+  // The Capture is the canvas's first drawn layer, under every Annotation, exactly as the Export draws
+  // it: a Blur pixelates what has been drawn beneath it, which has to include the Capture.
+  let disposed = false;
+  if (imageUrl) {
+    FabricImage.fromURL(imageUrl).then(
+      (capture) => {
+        if (disposed) return;
+        capture.set({ originX: "left", originY: "top" });
+        canvas.backgroundImage = capture;
+        canvas.requestRenderAll();
+      },
+      // The image was swapped (and its URL revoked) before this canvas could load it: it is being
+      // disposed too, so there is nothing to show.
+      () => undefined,
+    );
+  }
 
   let tool = SELECT;
   let drawStyle: Style = {};
@@ -248,6 +268,7 @@ export function createFabricCanvas(host: HTMLElement, { size, events }: MountOpt
       refreshMode();
     },
     dispose() {
+      disposed = true;
       void canvas.dispose();
       mountPoint.remove();
     },

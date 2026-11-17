@@ -25,14 +25,15 @@ interface Props {
 export function Stage({ kit, imageUrl, size, scale, interactive, crop, events, onCanvas }: Props) {
   const host = useRef<HTMLDivElement>(null);
   const canvas = useRef<AnnotationCanvas | null>(null);
-  const latest = useRef({ events, onCanvas, scale, interactive });
-  latest.current = { events, onCanvas, scale, interactive };
+  const latest = useRef({ events, onCanvas, scale, interactive, imageUrl });
+  latest.current = { events, onCanvas, scale, interactive, imageUrl };
 
   useEffect(() => {
     let cancelled = false;
     void kit
       .mount(host.current!, {
         size,
+        imageUrl: latest.current.imageUrl,
         events: {
           onCreate: (a) => latest.current.events.onCreate(a),
           onUpdate: (id, patch) => latest.current.events.onUpdate(id, patch),

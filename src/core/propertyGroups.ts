@@ -66,7 +66,17 @@ export interface Tail {
   enabled: boolean;
 }
 
+/** The Blur's pixel block size in Capture pixels: bigger blocks hide more. */
+export const MIN_STRENGTH = 4;
+export const MAX_STRENGTH = 40;
+
+export interface Strength {
+  /** MIN_STRENGTH-MAX_STRENGTH (4-40) px: the side of each pixelated square, in Capture pixels. */
+  blockSize: number;
+}
+
 export interface PropertyGroups {
+  strength: Strength;
   tail: Tail;
   stroke: Stroke;
   opacity: Opacity;
@@ -107,6 +117,11 @@ const GROUP_READERS: { [K in GroupId]: (raw: unknown) => PropertyGroups[K] | und
     if (!stored || typeof stored.width !== "number") return;
     const width = Math.round(stored.width);
     return width >= MIN_STROKE_WIDTH && width <= MAX_STROKE_WIDTH ? { color: stored.color, width } : undefined;
+  },
+  strength: (raw) => {
+    if (!isRecord(raw) || typeof raw.blockSize !== "number") return;
+    const blockSize = Math.round(raw.blockSize);
+    return blockSize >= MIN_STRENGTH && blockSize <= MAX_STRENGTH ? { blockSize } : undefined;
   },
   tail: (raw) => (isRecord(raw) && typeof raw.enabled === "boolean" ? { enabled: raw.enabled } : undefined),
   opacity: (raw) =>

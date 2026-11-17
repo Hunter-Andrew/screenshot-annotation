@@ -473,14 +473,19 @@ async function exportedRedBounds(page: Page, copiesBefore = 0) {
   return box;
 }
 
-/** True if any pixel in the rectangle of the editor canvas (Capture pixels) is not transparent. */
+/**
+ * True if any pixel in the rectangle of the editor canvas (Capture pixels) is not the plain Capture
+ * (flat grey 200 here): the canvas draws the Capture as its first layer so a Blur can pixelate it.
+ */
 async function canvasHasInk(page: Page, x: number, y: number, w: number, h: number) {
   await page.evaluate(() => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)))); // let it repaint
   return page.evaluate(
     ({ x, y, w, h }) => {
       const canvas = document.querySelector("canvas.lower-canvas") as HTMLCanvasElement;
       const { data } = canvas.getContext("2d")!.getImageData(x, y, w, h);
-      for (let i = 3; i < data.length; i += 4) if (data[i]! > 0) return true;
+      for (let i = 0; i < data.length; i += 4) {
+        if (data[i] !== 200 || data[i + 1] !== 200 || data[i + 2] !== 200 || data[i + 3] !== 255) return true;
+      }
       return false;
     },
     { x, y, w, h },

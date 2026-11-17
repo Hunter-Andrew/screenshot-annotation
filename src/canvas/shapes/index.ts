@@ -1,6 +1,7 @@
 // Every Annotation type's Fabric adapter. A new tool adds one line here.
 import type { Annotation } from "../../core/annotation";
 import { arrowAdapter } from "./arrow";
+import { blurAdapter } from "./blur";
 import { calloutAdapter } from "./callout";
 import { ellipseAdapter } from "./ellipse";
 import { highlightAdapter } from "./highlight";
@@ -19,6 +20,7 @@ const ADAPTERS: readonly ShapeAdapter<any>[] = [
   calloutAdapter,
   penAdapter,
   highlightAdapter,
+  blurAdapter,
 ];
 
 export function adapterFor(type: Annotation["type"] | string): ShapeAdapter | undefined {

@@ -36,6 +36,6 @@ export const DEFAULT_RETURN_TO_SELECT: Readonly<Record<string, boolean>> = {
   callout: true,
   pen: false,
   highlight: false,
+  blur: true,
   crop: true,
-  // Ticket 20 adds: blur.
 };

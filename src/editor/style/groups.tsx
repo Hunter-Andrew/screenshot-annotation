@@ -2,7 +2,13 @@
 // for the selected Annotation or the active tool, the groups its kind opts into, each through its
 // editor here. A new group (Fill: ticket 10; Font and Text outline: ticket 11) adds one entry.
 import { type ComponentType, useEffect, useState } from "react";
-import { MAX_OPACITY, MAX_STROKE_WIDTH, MIN_OPACITY, MIN_STROKE_WIDTH, type GroupId, type PropertyGroups } from "../../core/propertyGroups";
+import {
+  MAX_OPACITY,
+  MAX_STRENGTH,
+  MAX_STROKE_WIDTH,
+  MIN_OPACITY,
+  MIN_STRENGTH,
+  MIN_STROKE_WIDTH, type GroupId, type PropertyGroups } from "../../core/propertyGroups";
 import { ColorField, PALETTE } from "./ColorField";
 import { FontEditor, TextOutlineEditor } from "./textGroups";
 
@@ -158,7 +164,40 @@ function OpacityEditor({ value, onChange }: GroupEditorProps<"opacity">) {
   );
 }
 
+function StrengthEditor({ value, onChange }: GroupEditorProps<"strength">) {
+  const [text, setText] = useState(String(value.blockSize));
+  useEffect(() => setText(String(value.blockSize)), [value.blockSize]);
+  return (
+    <label className="row">
+      Block size
+      <input
+        type="range"
+        min={MIN_STRENGTH}
+        max={MAX_STRENGTH}
+        aria-label="Strength"
+        value={value.blockSize}
+        onChange={(e) => onChange({ blockSize: Number(e.target.value) })}
+      />
+      <input
+        type="number"
+        min={MIN_STRENGTH}
+        max={MAX_STRENGTH}
+        aria-label="Block size"
+        value={text}
+        onChange={(e) => {
+          setText(e.target.value);
+          const n = Math.round(Number(e.target.value));
+          if (e.target.value !== "" && n >= MIN_STRENGTH && n <= MAX_STRENGTH) onChange({ blockSize: n });
+        }}
+        onBlur={() => setText(String(value.blockSize))}
+      />
+      px
+    </label>
+  );
+}
+
 export const GROUP_EDITORS: { [K in GroupId]: GroupEditor<K> } = {
+  strength: { title: "Strength", Editor: StrengthEditor },
   stroke: { title: "Stroke", Editor: StrokeEditor },
   tail: { title: "Tail", Editor: TailEditor },
   opacity: { title: "Opacity", Editor: OpacityEditor },

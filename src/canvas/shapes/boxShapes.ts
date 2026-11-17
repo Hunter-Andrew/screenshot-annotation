@@ -11,7 +11,7 @@ import { Control, Ellipse, type FabricObject, Point, Rect } from "fabric";
 import type { BoxGeometry } from "../../core/annotations/box";
 import { fillPaint } from "../../core/propertyGroups";
 
-const OPTIONS = {
+export const OPTIONS = {
   originX: "left",
   originY: "top",
   objectCaching: false,
@@ -95,7 +95,7 @@ function controls(): Record<string, Control> {
   return result;
 }
 
-function paint(box: BoxGeometry) {
+export function paint(box: BoxGeometry) {
   return {
     left: box.x - box.stroke.width / 2,
     top: box.y - box.stroke.width / 2,
@@ -105,7 +105,7 @@ function paint(box: BoxGeometry) {
   };
 }
 
-function finish<T extends FabricObject>(object: T, box: BoxGeometry): T {
+export function finish<T extends FabricObject>(object: T, box: BoxGeometry): T {
   shown.set(object, box);
   object.controls = controls();
   return object;

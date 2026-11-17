@@ -42,6 +42,12 @@ export interface AnnotationCanvas {
 export interface MountOptions {
   /** The Capture's size in pixels: the canvas's native size. */
   size: Size;
+  /**
+   * The Capture as an image URL. The canvas draws it as its first layer (under every Annotation) so
+   * that a Blur can pixelate what is beneath it; the editor also shows the same image behind the
+   * canvas (it shows through until the canvas has loaded it).
+   */
+  imageUrl?: string;
   events: CanvasEvents;
 }
 
