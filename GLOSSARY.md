@@ -17,8 +17,12 @@ A Capture together with its Annotations, kept editable.
 _Avoid_: Document, project, file
 
 **Crop**:
-The visible area of an Annotated Image. It narrows what is shown and exported without discarding any of the Capture.
-_Avoid_: Trim, cut
+The visible area of an Annotated Image. It narrows what is shown and exported without discarding any of the Capture. The visible area may also be larger than the Capture (canvas expansion): the Crop tool's handles and any Annotation drawn or moved past the edge make it bigger, and the part outside the Capture is filled with the image's Background.
+_Avoid_: Trim, cut, canvas size
+
+**Background**:
+What fills the part of an Annotated Image's visible area that lies outside the Capture: White, Dark (the fixed colour `#1f2937`) or Transparent. Chosen per image; a Setting gives the one new images start with. Never part of the Capture.
+_Avoid_: Canvas colour, fill, margin (the margin is the dark space the editor shows around the image, which is not exported)
 
 **Blur**:
 An Annotation that pixelates whatever lies beneath its box, in the editor, in the Library file's visible pixels and in every Export. Pixelate-only; the Capture underneath is never altered.

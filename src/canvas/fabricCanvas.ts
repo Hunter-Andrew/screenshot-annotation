@@ -331,6 +331,8 @@ export function createFabricCanvas(host: HTMLElement, { events, imageUrl, layout
     const { workspace } = layout;
     canvas.setDimensions({ width: workspace.width * scale, height: workspace.height * scale });
     canvas.setViewportTransform([scale, 0, 0, scale, -workspace.x * scale, -workspace.y * scale]);
+    // The handles' screen positions come from the viewport: refresh them (the frame's hit boxes especially).
+    for (const object of canvas.getObjects()) object.setCoords();
     canvas.requestRenderAll();
   };
   applyView();
@@ -385,7 +387,9 @@ export function createFabricCanvas(host: HTMLElement, { events, imageUrl, layout
     },
     select(id) {
       const object = id === null ? undefined : objectsById.get(id);
-      silently(() => (object ? canvas.setActiveObject(object) : canvas.discardActiveObject()));
+      // With the Crop tool on, "nothing selected" still leaves the frame's handles up.
+      const target = object ?? frame ?? undefined;
+      silently(() => (target ? canvas.setActiveObject(target) : canvas.discardActiveObject()));
       canvas.requestRenderAll();
     },
     setScale(next) {
@@ -400,8 +404,8 @@ export function createFabricCanvas(host: HTMLElement, { events, imageUrl, layout
       }
       dim.area = next.area;
       dim.workspace = next.workspace;
-      if (frame) frame.place(next.area);
       applyView();
+      if (frame) frame.place(next.area);
     },
     setInteractive(next) {
       interactive = next;

@@ -57,22 +57,26 @@ test.describe("Crop", () => {
     await page.goto("/");
     await capture(page);
     const original = await libraryFile(page);
-    const stage = (await page.locator(".stage").boundingBox())!;
-    const scale = stage.width / W;
-    const at = (x: number, y: number) => ({ x: stage.x + x * scale, y: stage.y + y * scale });
+    // Where the Capture is on screen now: Fit re-fits after every change of the visible area (ticket 37).
+    const view = async () => {
+      const stage = (await page.locator(".stage").boundingBox())!;
+      const scale = stage.width / W;
+      return { scale, at: (x: number, y: number) => ({ x: stage.x + x * scale, y: stage.y + y * scale }) };
+    };
 
     await page.keyboard.press("c");
     await expect(page.getByRole("button", { name: /^Crop/ })).toHaveAttribute("aria-pressed", "true");
+    let { at } = await view();
     await drag(page, at(100, 50), at(400, 250));
 
-    // The tool went back to Select; the rest is dimmed with a visible border, the whole Capture is still shown.
+    // The tool went back to Select; the rest is dimmed (on the canvas) with a visible border, the whole Capture is still shown.
     await expect(page.getByRole("button", { name: /^Select/ })).toHaveAttribute("aria-pressed", "true");
     const frame = page.locator(".crop-frame");
     await expect(frame).toBeVisible();
     const box = (await frame.boundingBox())!;
+    const { scale } = await view();
     expect(box.width / scale).toBeCloseTo(300, -1);
     expect(box.height / scale).toBeCloseTo(200, -1);
-    expect(await frame.evaluate((el) => getComputedStyle(el).boxShadow)).not.toBe("none");
     expect(await frame.evaluate((el) => getComputedStyle(el).outlineStyle)).toBe("solid");
     await expect(page.getByRole("img", { name: "Capture" })).toBeVisible();
 
@@ -100,13 +104,15 @@ test.describe("Crop", () => {
     expect(file.visible).toEqual([cropped.width, cropped.height]);
     expect(file.capture).toEqual(original.capture);
 
-    // Widen by drawing a bigger rectangle, then remove the crop: the original area is back.
+    // Widen by drawing a bigger rectangle (a drag reaches a quarter of the area into the margin around it, so
+    // a 300 x 200 crop widens to at most 450 x 300 in one go), then remove the crop: the original area is back.
     await page.keyboard.press("c");
-    await drag(page, at(20, 20), at(580, 380));
+    ({ at } = await view());
+    await drag(page, at(40, 10), at(460, 290));
     await page.getByRole("button", { name: "Copy", exact: true }).click();
     await expect
       .poll(async () => decodePixels(Uint8Array.from(await page.evaluate(() => Array.from((window as unknown as InPage).__fakeBridge.copiedImages.at(-1)!)))).width)
-      .toBeGreaterThan(540);
+      .toBeGreaterThan(400);
 
     await page.getByRole("button", { name: "Remove crop" }).click();
     await expect(page.locator(".crop-frame")).toHaveCount(0);

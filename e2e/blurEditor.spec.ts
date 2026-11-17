@@ -1,6 +1,7 @@
 import { expect, type Page, test } from "@playwright/test";
 import { decodePixels, hasChunk } from "../src/core/testing";
 import { at, averageOf, nearly, pattern } from "./blurPattern";
+import { liveArea } from "./liveCanvas";
 
 // The Blur tool in the editor (ticket 20): real Chromium, the real Fabric canvas, the fake bridge.
 
@@ -44,13 +45,7 @@ async function savedBlurs(page: Page) {
 
 /** A pixel of what the editor canvas is showing right now (it is at 100%: one pixel per pixel). */
 async function livePixel(page: Page, x: number, y: number) {
-  return page.evaluate(
-    ({ x, y }) => {
-      const canvas = document.querySelector<HTMLCanvasElement>(".lower-canvas")!;
-      return Array.from(canvas.getContext("2d")!.getImageData(x, y, 1, 1).data);
-    },
-    { x, y },
-  );
+  return (await liveArea(page, { x, y, w: 1, h: 1 }))!.data;
 }
 
 async function copiedPixels(page: Page) {

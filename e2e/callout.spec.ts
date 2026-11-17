@@ -1,5 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
 import { decodePixels, hasChunk } from "../src/core/testing";
+import { liveArea } from "./liveCanvas";
 
 // The Callout in real Chromium with the real Fabric canvas and the fake bridge.
 
@@ -126,19 +127,19 @@ test("dragging a callout with the tail on: the press is the tip, the release the
   await page.mouse.move(release.x, release.y, { steps: 6 });
   // Live preview: the red outline of the speech box and its tail, from the press point (100, 100) to the
   // box's far corner (the dashed blue area of the plain Text preview has no red).
-  const red = await page.evaluate(() => {
-    const canvas = document.querySelector<HTMLCanvasElement>(".canvas-container canvas.lower-canvas")!;
-    const data = canvas.getContext("2d")!.getImageData(0, 0, canvas.width, canvas.height).data;
+  const live = (await liveArea(page))!;
+  const red = (() => {
+    const { data, width } = live;
     let minX = Infinity, maxX = -1, maxY = -1;
     for (let i = 0; i < data.length; i += 4) {
       if (data[i]! > 200 && data[i + 1]! < 90) {
-        minX = Math.min(minX, (i / 4) % canvas.width);
-        maxX = Math.max(maxX, (i / 4) % canvas.width);
-        maxY = Math.max(maxY, Math.floor(i / 4 / canvas.width));
+        minX = Math.min(minX, (i / 4) % width);
+        maxX = Math.max(maxX, (i / 4) % width);
+        maxY = Math.max(maxY, Math.floor(i / 4 / width));
       }
     }
     return { minX, maxX, maxY };
-  });
+  })();
   expect(red.minX).toBeLessThanOrEqual(105);
   expect(red.maxX).toBeGreaterThanOrEqual(420);
   expect(red.maxY).toBeGreaterThanOrEqual(215);

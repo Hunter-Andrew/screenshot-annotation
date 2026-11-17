@@ -50,6 +50,9 @@
 .editor button:disabled {
   opacity: 0.45;
   cursor: default;
+  /* A disabled button swallows the mouse-up of a drag that is released over it (the canvas then never hears that
+     the drag ended); let the pointer fall through to what is beneath. */
+  pointer-events: none;
 }
 .editor button[aria-pressed="true"] {
   background: var(--pressed);
@@ -155,6 +158,10 @@
 .canvas-host {
   position: absolute;
 }
+/* An inline canvas leaves a few pixels for descenders below it, which would make the well scroll. */
+.canvas-host canvas {
+  display: block;
+}
 /* Transparency shows as a checkerboard (Settings: Dark or Light), in the editor and the Library only. */
 .editor {
   --checker-a: #2b2f3a;
@@ -184,6 +191,11 @@
   outline-offset: -1px;
 }
 
+.presets[role="radiogroup"] {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 0;
+}
 .radio {
   display: inline-flex;
   align-items: center;

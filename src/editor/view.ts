@@ -51,14 +51,17 @@ const MARGIN_FRACTION = 0.25;
 /**
  * The dark margin around the visible area, in whole screen pixels on each side. In Fit it is as much as the
  * well has room for (up to a quarter of the area, never under the padding), so the margin never makes the
- * well scroll; after a manual zoom it is the whole quarter, which the well scrolls to.
+ * well scroll; after a manual zoom it is the quarter (at most half the well), which the well scrolls to.
  */
 export function marginPx(area: Size, scale: number, well: Size, mode: ViewMode): { x: number; y: number } {
-  const axis = (length: number, room: number) => {
+  const axis = (length: number, wellLength: number) => {
     const quarter = length * scale * MARGIN_FRACTION;
-    return Math.max(WELL_PADDING, Math.floor(mode.kind === "fit" ? Math.min(quarter, room) : quarter));
+    // In Fit: what room is left. Zoomed: the quarter, but never more than half the well, so a huge image does
+    // not start with a screenful of margin before its first pixel.
+    const room = mode.kind === "fit" ? (wellLength - length * scale) / 2 : wellLength / 2;
+    return Math.max(WELL_PADDING, Math.floor(Math.min(quarter, room)));
   };
-  return { x: axis(area.width, (well.width - area.width * scale) / 2), y: axis(area.height, (well.height - area.height * scale) / 2) };
+  return { x: axis(area.width, well.width), y: axis(area.height, well.height) };
 }
 
 export interface ScrollRequest {

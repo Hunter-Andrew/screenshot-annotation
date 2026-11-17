@@ -375,12 +375,13 @@ test.describe("fit and scroll", () => {
     await page.locator(".well").evaluate((el) => (el.scrollTop = 0));
     r = await rects(page);
     expect(r.stage.top).toBeGreaterThanOrEqual(r.well.top); // the top is reachable, not clipped away
-    expect(r.stage.top).toBeLessThan(r.well.top + 40);
+    // Above the image is its dark margin (ticket 37), at most half the well.
+    expect(r.stage.top).toBeLessThanOrEqual(r.well.top + (r.well.bottom - r.well.top) / 2);
 
     await page.locator(".well").evaluate((el) => (el.scrollTop = el.scrollHeight));
     r = await rects(page);
     expect(r.stage.bottom).toBeLessThanOrEqual(r.well.bottom + 0.5); // the bottom is reachable too
-    expect(r.stage.bottom).toBeGreaterThan(r.well.bottom - 40);
+    expect(r.stage.bottom).toBeGreaterThanOrEqual(r.well.bottom - (r.well.bottom - r.well.top) / 2);
 
     await page.keyboard.press("Control+0");
     r = await rects(page);

@@ -57,13 +57,11 @@ export class CropFrame extends Rect {
       cornerSize: 10,
       touchCornerSize: 20,
       objectCaching: false,
+      // Only the handles and the thin outline take the pointer (the fill is transparent): a press inside the
+      // frame is not on it, and draws a fresh rectangle instead.
+      perPixelTargetFind: true,
     });
     this.setControlsVisibility({ mtr: false });
-  }
-
-  /** Only the handles take the pointer; a press inside the frame draws a fresh rectangle instead. */
-  override containsPoint(): boolean {
-    return false;
   }
 
   /** The frame as it was dragged, in whole Capture pixels. */

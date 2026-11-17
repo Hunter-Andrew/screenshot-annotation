@@ -1,5 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
 import { decodePixels, hasChunk } from "../src/core/testing";
+import { liveArea } from "./liveCanvas";
 import { at, averageOf, nearly, pattern } from "./blurPattern";
 
 // Pasted images (ticket 38) in real Chromium with the real Fabric canvas and the fake platform bridge.
@@ -216,14 +217,7 @@ const onlyImage = async (page: Page) => (await savedImages(page))[0]!;
 
 /** The live editor canvas pixel, or null while the canvas is being rebuilt (after reopening an image): poll until it is there. */
 async function livePixel(page: Page, x: number, y: number) {
-  return page.evaluate(
-    ({ x, y }) => {
-      const canvas = document.querySelector<HTMLCanvasElement>(".lower-canvas");
-      const context = canvas?.getContext("2d");
-      return context ? Array.from(context.getImageData(x, y, 1, 1).data) : null;
-    },
-    { x, y },
-  );
+  return (await liveArea(page, { x, y, w: 1, h: 1 }))?.data ?? null;
 }
 
 /** True once the live canvas exists and its pixel differs from `plain` (the image is drawn over the Capture). */

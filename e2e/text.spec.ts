@@ -1,5 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
 import { decodePixels, hasChunk } from "../src/core/testing";
+import { liveArea } from "./liveCanvas";
 
 // The Text tool in real Chromium with the real Fabric canvas and the fake platform bridge. The model
 // is read back the way the next app start reads it: by decoding the auto-saved Library PNG.
@@ -234,9 +235,8 @@ test("font size: typed, from the presets; bold, italic; the wrap handles leave t
  * scanning that canvas for the border color. Needs 100% zoom (one canvas pixel per Capture pixel).
  */
 async function rightHandle(page: Page, view: { at(x: number, y: number): { x: number; y: number } }) {
-  const box = await page.evaluate(() => {
-    const canvas = document.querySelector("canvas.lower-canvas") as HTMLCanvasElement;
-    const { data, width, height } = canvas.getContext("2d")!.getImageData(0, 0, canvas.width, canvas.height);
+  const { data, width, height } = (await liveArea(page))!;
+  const box = (() => {
     let right = -1;
     let top = height;
     let bottom = -1;
@@ -252,7 +252,7 @@ async function rightHandle(page: Page, view: { at(x: number, y: number): { x: nu
       }
     }
     return { right, top, bottom };
-  });
+  })();
   expect(box.right).toBeGreaterThan(0);
   // The handle is a 12 px circle centred on the box edge, whose outline reaches 6 px beyond it.
   return view.at(box.right - 6, (box.top + box.bottom) / 2);
@@ -295,11 +295,7 @@ test("the Export has the text burned in, pixel for pixel as on the canvas", asyn
 
   await page.evaluate(() => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)))); // let the deselect repaint
   // What the editor canvas shows, composited over the Capture's grey (the canvas itself is transparent).
-  const onScreen = await page.evaluate(() => {
-    const canvas = document.querySelector("canvas.lower-canvas") as HTMLCanvasElement;
-    const { data } = canvas.getContext("2d")!.getImageData(0, 0, canvas.width, canvas.height);
-    return { width: canvas.width, height: canvas.height, data: Array.from(data) };
-  });
+  const onScreen = (await liveArea(page))!;
   await page.getByRole("button", { name: "Copy", exact: true }).click();
   await expect.poll(() => page.evaluate(() => (window as unknown as InPage).__fakeBridge.copiedImages.length)).toBe(1);
   const png = Uint8Array.from(await page.evaluate(() => Array.from((window as unknown as InPage).__fakeBridge.copiedImages[0]!)));
@@ -479,17 +475,11 @@ async function exportedRedBounds(page: Page, copiesBefore = 0) {
  */
 async function canvasHasInk(page: Page, x: number, y: number, w: number, h: number) {
   await page.evaluate(() => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)))); // let it repaint
-  return page.evaluate(
-    ({ x, y, w, h }) => {
-      const canvas = document.querySelector("canvas.lower-canvas") as HTMLCanvasElement;
-      const { data } = canvas.getContext("2d")!.getImageData(x, y, w, h);
-      for (let i = 0; i < data.length; i += 4) {
-        if (data[i] !== 200 || data[i + 1] !== 200 || data[i + 2] !== 200 || data[i + 3] !== 255) return true;
-      }
-      return false;
-    },
-    { x, y, w, h },
-  );
+  const { data } = (await liveArea(page, { x, y, w, h }))!;
+  for (let i = 0; i < data.length; i += 4) {
+    if (data[i] !== 200 || data[i + 1] !== 200 || data[i + 2] !== 200 || data[i + 3] !== 255) return true;
+  }
+  return false;
 }
 
 test("Text: dragging draws a dashed area, then types in it, wrapping at the dragged width and growing past its height", async ({ page }) => {

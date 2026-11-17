@@ -156,6 +156,10 @@ describe("marginPx: the dark margin around the visible area, in screen pixels pe
     expect(marginPx({ width: 2000, height: 1000 }, 1, well, { kind: "zoom", scale: 1 })).toEqual({ x: 500, y: 250 });
   });
 
+  it("after a manual zoom of a huge image it is capped at half the well, not a screenful of margin", () => {
+    expect(marginPx({ width: 4000, height: 4000 }, 1, well, { kind: "zoom", scale: 1 })).toEqual({ x: 500, y: 350 });
+  });
+
   it("is whole pixels, so it never makes Fit scroll", () => {
     const m = marginPx({ width: 333, height: 333 }, 1, { width: 600, height: 600 }, FIT);
     expect(Number.isInteger(m.x) && Number.isInteger(m.y)).toBe(true);
