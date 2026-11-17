@@ -14,4 +14,4 @@ Single-context: one root `GLOSSARY.md` plus `docs/adr/`. See `docs/agents/domain
 
 ### Releases
 
-Before tagging or publishing any release (`vX.Y.Z`), remind Andrew to run the manual checklist in `docs/release-checklist.md` on the work laptop, and don't call the release done until Andrew confirms it passed.
+Before tagging or publishing any release (`vX.Y.Z`), remind Andrew to run the manual checklist in `docs/release-checklist.md` on the Windows test PC, and don't call the release done until Andrew confirms it passed.

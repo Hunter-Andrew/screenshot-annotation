@@ -19,7 +19,7 @@ jobs:
       - uses: actions/checkout@v4
 
       # Signing is optional. Unsigned builds are flagged with a warning and a run summary note (some
-      # machines' Smart App Control may block unsigned installers; Andrew's laptop currently does not),
+      # machines' Smart App Control may block unsigned installers; it has blocked some CI builds on Andrew's PC and allowed others),
       # and release tags (v*) may be published unsigned. Half-configured signing is an error, so a
       # typo in one secret cannot silently produce an unsigned release.
       - name: Check signing configuration

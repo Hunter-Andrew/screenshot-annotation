@@ -2,7 +2,7 @@
 
 A Windows desktop app for capturing and annotating screenshots, in the style of Snagit (images only, no video). It installs per-user, with no admin rights needed.
 
-> **Status:** Milestones M0 to M2 are built. M3 (Library) is built (the Library Strip, the full-window grid, delete with Undo and the folder as the source of truth) and is at version 0.4.0 in the code; it is not released until the [release checklist](docs/release-checklist.md) has passed on the work laptop. M4 (Callout, Highlighter, Blur, Crop and polish) is next. Decisions are recorded in [.scratch/snagit-clone/map.md](.scratch/snagit-clone/map.md) and [docs/adr/](docs/adr/); terms are in [GLOSSARY.md](GLOSSARY.md).
+> **Status:** Milestones M0 to M2 are built. M3 (Library) is built (the Library Strip, the full-window grid, delete with Undo and the folder as the source of truth) and is at version 0.4.0 in the code; it is not released until the [release checklist](docs/release-checklist.md) has passed on the Windows test PC. M4 (Callout, Highlighter, Blur, Crop and polish) is next. Decisions are recorded in [.scratch/snagit-clone/map.md](.scratch/snagit-clone/map.md) and [docs/adr/](docs/adr/); terms are in [GLOSSARY.md](GLOSSARY.md).
 
 ## Roadmap
 
@@ -24,7 +24,7 @@ A Windows desktop app for capturing and annotating screenshots, in the style of 
 
 ## Stack
 
-[Tauri 2](docs/adr/0001-tauri-2-per-user-nsis.md): a React + TypeScript UI with a Fabric.js canvas, and Rust for the Windows integration, shipped as a per-user NSIS installer (no admin). Builds run on GitHub Actions; the work laptop only downloads and installs.
+[Tauri 2](docs/adr/0001-tauri-2-per-user-nsis.md): a React + TypeScript UI with a Fabric.js canvas, and Rust for the Windows integration, shipped as a per-user NSIS installer (no admin). Builds run on GitHub Actions; the Windows test PC only downloads and installs.
 
 ## Install and update
 
@@ -67,7 +67,7 @@ The UI only talks to the operating system through the Platform bridge (`src/plat
 
 ## Releasing
 
-Pushing a `vX.Y.Z` tag runs the same tests and build as every push, then publishes a GitHub Release with the setup `.exe` attached; a failing test blocks the Release. The tag must match the version in `package.json` and `src-tauri/tauri.conf.json`. Before tagging, run the manual [release checklist](docs/release-checklist.md) on the work laptop.
+Pushing a `vX.Y.Z` tag runs the same tests and build as every push, then publishes a GitHub Release with the setup `.exe` attached; a failing test blocks the Release. The tag must match the version in `package.json` and `src-tauri/tauri.conf.json`. Before tagging, run the manual [release checklist](docs/release-checklist.md) on the Windows test PC.
 
 ## License
 
