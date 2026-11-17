@@ -89,20 +89,18 @@ export function Stage({ kit, imageUrl, size, area, background, darkness, showOut
 
   const px = (n: number) => n * scale;
   // The picture under the canvas stands in until the canvas has loaded the Capture, and only the visible area of it
-  // ever shows: the outside is the canvas's (dimmed, or gone), never an undimmed Capture.
-  const inset = (n: number) => `${Math.max(0, n * scale)}px`;
-  const clip = `inset(${inset(area.y)} ${inset(size.width - (area.x + area.width))} ${inset(size.height - (area.y + area.height))} ${inset(area.x)})`;
+  // ever shows (the box below clips it): the outside is the canvas's (dimmed, or gone), never an undimmed Capture,
+  // and a big Capture cropped small does not make the well scroll.
   const fill = backgroundFill(background);
   return (
     <div className="stage-pad" style={{ padding: `${margin.y}px ${margin.x}px` }}>
       <div className="area" style={{ width: px(area.width), height: px(area.height), background: fill ?? undefined }}>
         {fill === null && <div className="checker" aria-hidden="true" />}
         {/* The Capture's own box (what the Capture's pixels map to on screen), placed relative to the area. */}
-        <div
-          className="stage"
-          style={{ left: px(-area.x), top: px(-area.y), width: px(size.width), height: px(size.height), clipPath: clip }}
-        >
-          <img src={imageUrl} alt="Capture" draggable={false} />
+        <div className="stage-clip">
+          <div className="stage" style={{ left: px(-area.x), top: px(-area.y), width: px(size.width), height: px(size.height) }}>
+            <img src={imageUrl} alt="Capture" draggable={false} />
+          </div>
         </div>
         <div
           className="canvas-host"

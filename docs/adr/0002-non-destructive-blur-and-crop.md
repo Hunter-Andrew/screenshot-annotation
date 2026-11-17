@@ -18,3 +18,7 @@ Crop and canvas expansion are one concept: the stored visible area (`crop`) may 
 
 - **Burn blur into the Capture:** safe at rest, but the blur could no longer be moved or removed. Rejected.
 - **A "permanently apply blur" action:** out of scope for v1.
+
+## Update (2026-11-17, M4 polish B)
+
+The visible area an Annotation grew now shrinks back when that Annotation shrinks, moves back inside or is deleted: it is always the base area (the Capture, or the Crop the user set explicitly) plus the Annotations that reach outside the base, and never smaller than the base. Setting the area explicitly (the Crop tool, a fresh rectangle or a handle drag, or Remove crop) makes it the final base and forgets what grew it, so nothing shrinks after that. A file written before this has no record of what grew its area, so its area is left as it is. Showing what lies outside the visible area is a per-image editor choice (`showOutside`) and never changes the Capture or any Export.

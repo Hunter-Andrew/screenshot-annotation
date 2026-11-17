@@ -17,12 +17,16 @@ A Capture together with its Annotations, kept editable.
 _Avoid_: Document, project, file
 
 **Crop**:
-The visible area of an Annotated Image. It narrows what is shown and exported without discarding any of the Capture. The visible area may also be larger than the Capture (canvas expansion): the Crop tool's handles and any Annotation drawn or moved past the edge make it bigger, and the part outside the Capture is filled with the image's Background.
+The visible area of an Annotated Image. It narrows what is shown and exported without discarding any of the Capture. The visible area may also be larger than the Capture (canvas expansion): the Crop tool's handles and any Annotation drawn or moved past the edge make it bigger, and the part outside the Capture is filled with the image's Background. An area that an Annotation grew shrinks back when that Annotation shrinks, moves inside or is deleted, but never below its base (the Capture, or the Crop the user set); setting the area explicitly with the Crop tool makes it final.
 _Avoid_: Trim, cut, canvas size
 
 **Background**:
 What fills the part of an Annotated Image's visible area that lies outside the Capture: White, Dark (the fixed colour `#1f2937`) or Transparent. Chosen per image; a Setting gives the one new images start with. Never part of the Capture.
 _Avoid_: Canvas colour, fill, margin (the margin is the dark space the editor shows around the image, which is not exported)
+
+**Outside**:
+Everything the editor draws outside the visible area: the dark margin around it and any cropped-out part of the Capture with its Annotations. It is dimmed by the Outside-canvas darkness setting, or, when the image's "Show outside the canvas" is off, replaced by the dark fill alone. Editor only; never part of an Export.
+_Avoid_: Margin (means only the space around the area), workspace
 
 **Blur**:
 An Annotation that pixelates whatever lies beneath its box, in the editor, in the Library file's visible pixels and in every Export. Pixelate-only; the Capture underneath is never altered.

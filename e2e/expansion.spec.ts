@@ -185,15 +185,15 @@ test.describe("the Crop tool's handles", () => {
     const stage = await stageBox(page);
 
     await page.keyboard.press("c");
-    // The right-middle handle sits on the middle of the right edge: drag it 60 px outward.
-    await drag(page, { x: stage.x + 300, y: stage.y + 100 }, { x: stage.x + 360, y: stage.y + 100 });
+    // The right-middle handle sits on the middle of the right edge: drag it 40 px outward (the margin is 48 px).
+    await drag(page, { x: stage.x + 300, y: stage.y + 100 }, { x: stage.x + 340, y: stage.y + 100 });
     await expect(page.getByRole("button", { name: /^Crop/ })).toHaveAttribute("aria-pressed", "true"); // still fine-tuning
     // (The handle is grabbed a few pixels off its edge, so sizes are to within a few pixels.)
     let out = await copied(page);
     const wide = out.px.width;
-    expect(Math.abs(wide - 360)).toBeLessThanOrEqual(5);
+    expect(Math.abs(wide - 340)).toBeLessThanOrEqual(5);
     expect(out.px.height).toBe(200);
-    expect(Array.from(at(out.px, 340, 100))).toEqual(WHITE);
+    expect(Array.from(at(out.px, 320, 100))).toEqual(WHITE);
 
     // The left-middle handle moves in by 100 px: a Crop of the expanded image.
     const area = (await page.locator(".area").boundingBox())!; // the grown image was centred again
@@ -271,7 +271,7 @@ test.describe("the view", () => {
     expect(stage.width).toBe(800);
   });
 
-  test("everything outside the visible area is very dark, with the margin around it; the area itself is as captured", async ({ page }) => {
+  test("everything the canvas draws outside the visible area is dimmed (60% by default); the area itself is as captured", async ({ page }) => {
     await page.goto("/");
     await capture(page, 300, 200);
     await page.getByRole("button", { name: "100%" }).click();
@@ -280,27 +280,18 @@ test.describe("the view", () => {
     await page.keyboard.press("c");
     const stage = await stageBox(page);
     await drag(page, { x: stage.x + 100, y: stage.y + 50 }, { x: stage.x + 250, y: stage.y + 150 });
-    await expect(page.locator(".crop-frame")).toBeVisible();
+    await expect.poll(async () => Math.round((await page.locator(".area").boundingBox())!.width)).toBe(150);
 
     const inside = (await liveArea(page, { x: 10, y: 10, w: 1, h: 1 }))!.data;
-    const area = (await page.locator(".area").boundingBox())!;
     expect(inside).toEqual(pattern(110, 60));
-    // Outside: the cropped-out Capture is dimmed to nearly black, and so is the margin around the image.
-    const outside = await page.evaluate(
-      ({ dx, dy }) => {
-        const canvas = document.querySelector<HTMLCanvasElement>("canvas.lower-canvas")!;
-        const box = canvas.getBoundingClientRect();
-        const area = document.querySelector(".area")!.getBoundingClientRect();
-        const read = (x: number, y: number) => Array.from(canvas.getContext("2d")!.getImageData(Math.round(area.left - box.left + x), Math.round(area.top - box.top + y), 1, 1).data);
-        return { croppedOut: read(dx, dy), margin: read(-10, -10) };
-      },
-      { dx: -20, dy: 20 },
-    );
-    for (const pixel of [outside.croppedOut, outside.margin]) {
-      expect(pixel[3]).toBeGreaterThan(200);
-      expect(Math.max(pixel[0]!, pixel[1]!, pixel[2]!)).toBeLessThan(40);
-    }
-    expect(area.width).toBeCloseTo(150, 0);
+    // The cropped-out Capture is at area (-20, 20) = Capture (80, 70): 40% of its own colour plus 60% of the dim.
+    const outside = await liveArea(page, { x: -20, y: 20, w: 1, h: 1 });
+    const own = pattern(80, 70);
+    const dim = [6, 8, 12];
+    [0, 1, 2].forEach((k) => expect(Math.abs(outside!.data[k]! - (own[k]! * 0.4 + dim[k]! * 0.6))).toBeLessThanOrEqual(2));
+    expect(outside!.data[3]).toBe(255);
+    // The margin is not painted by the canvas at all: it is the well's own dark fill.
+    expect((await liveArea(page, { x: -120, y: 0, w: 1, h: 1 }))!.data[3]).toBe(0);
   });
 
   test("Transparent is shown on a checkerboard that is Dark or Light as Settings say, and never reaches the Export", async ({ page }) => {

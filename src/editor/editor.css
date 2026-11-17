@@ -148,6 +148,12 @@
 .area {
   position: relative;
 }
+/* Shows only the part of the Capture inside the visible area (and keeps the rest from making the well scroll). */
+.stage-clip {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
 /* The Capture's own box (what its pixels map to); it may be bigger or smaller than the area. */
 .stage {
   position: absolute;

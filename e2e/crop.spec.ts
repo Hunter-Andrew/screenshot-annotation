@@ -69,15 +69,14 @@ test.describe("Crop", () => {
     let { at } = await view();
     await drag(page, at(100, 50), at(400, 250));
 
-    // The tool went back to Select; the rest is dimmed (on the canvas) with a visible border, the whole Capture is still shown.
+    // The tool went back to Select; the rest is dimmed (on the canvas) and nothing is outlined, the whole Capture is still shown.
     await expect(page.getByRole("button", { name: /^Select/ })).toHaveAttribute("aria-pressed", "true");
-    const frame = page.locator(".crop-frame");
-    await expect(frame).toBeVisible();
-    const box = (await frame.boundingBox())!;
+    const box = (await page.locator(".area").boundingBox())!;
     const { scale } = await view();
     expect(box.width / scale).toBeCloseTo(300, -1);
     expect(box.height / scale).toBeCloseTo(200, -1);
-    expect(await frame.evaluate((el) => getComputedStyle(el).outlineStyle)).toBe("solid");
+    await expect(page.locator(".crop-frame")).toHaveCount(0);
+    expect(await page.locator(".area").evaluate((el) => getComputedStyle(el).boxShadow)).toBe("none");
     await expect(page.getByRole("img", { name: "Capture" })).toBeVisible();
 
     // Copy: exactly the cropped pixels, no editable data.
@@ -104,15 +103,15 @@ test.describe("Crop", () => {
     expect(file.visible).toEqual([cropped.width, cropped.height]);
     expect(file.capture).toEqual(original.capture);
 
-    // Widen by drawing a bigger rectangle (a drag reaches a quarter of the area into the margin around it, so
-    // a 300 x 200 crop widens to at most 450 x 300 in one go), then remove the crop: the original area is back.
+    // Widen by drawing a bigger rectangle (a drag reaches the 48 px margin around the area, so a 300 x 200 crop
+    // widens to at most 396 x 296 in one go), then remove the crop: the original area is back.
     await page.keyboard.press("c");
     ({ at } = await view());
-    await drag(page, at(40, 10), at(460, 290));
+    await drag(page, at(55, 5), at(445, 295));
     await page.getByRole("button", { name: "Copy", exact: true }).click();
     await expect
       .poll(async () => decodePixels(Uint8Array.from(await page.evaluate(() => Array.from((window as unknown as InPage).__fakeBridge.copiedImages.at(-1)!)))).width)
-      .toBeGreaterThan(400);
+      .toBeGreaterThan(350);
 
     await page.getByRole("button", { name: "Remove crop" }).click();
     await expect(page.locator(".crop-frame")).toHaveCount(0);
@@ -135,14 +134,16 @@ test.describe("Crop", () => {
     const stage = (await page.locator(".stage").boundingBox())!;
 
     await page.keyboard.press("c");
+    const areaWidth = async () => Math.round((await page.locator(".area").boundingBox())!.width);
+    const whole = await areaWidth();
     await page.mouse.click(stage.x + 100, stage.y + 100);
-    await expect(page.locator(".crop-frame")).toHaveCount(0);
+    expect(await areaWidth()).toBe(whole);
 
     await drag(page, { x: stage.x + 100, y: stage.y + 100 }, { x: stage.x + 300, y: stage.y + 250 });
-    await expect(page.locator(".crop-frame")).toBeVisible();
+    await expect.poll(areaWidth).toBeLessThan(whole);
     await page.keyboard.press("Control+z");
-    await expect(page.locator(".crop-frame")).toHaveCount(0);
+    await expect.poll(areaWidth).toBe(whole);
     await page.keyboard.press("Control+Shift+z");
-    await expect(page.locator(".crop-frame")).toBeVisible();
+    await expect.poll(areaWidth).toBeLessThan(whole);
   });
 });
