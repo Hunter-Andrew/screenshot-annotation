@@ -148,3 +148,33 @@ test.describe("the Crop tool's handles follow the visible area", () => {
     await expectHandlesOnArea(page);
   });
 });
+
+test.describe("the Crop tool's corner handles never lock the aspect ratio", () => {
+  for (const shift of [false, true]) {
+    test(`a diagonal drag resizes the area freely in both axes${shift ? " with Shift held" : ""}`, async ({ page }) => {
+      await page.goto("/");
+      await capture(page, 300, 200);
+      await page.keyboard.press("c");
+      const before = (await page.locator(".area").boundingBox())!;
+      // The bottom-right corner 40 px out and 30 px in: 340 x 170, not a 3:2 rectangle.
+      if (shift) await page.keyboard.down("Shift");
+      await drag(page, { x: before.x + before.width, y: before.y + before.height }, { x: before.x + before.width + 40, y: before.y + before.height - 30 });
+      if (shift) await page.keyboard.up("Shift");
+      const after = (await page.locator(".area").boundingBox())!;
+      expect(Math.abs(after.width - 340)).toBeLessThanOrEqual(5);
+      expect(Math.abs(after.height - 170)).toBeLessThanOrEqual(5);
+    });
+  }
+
+  test("the top-left corner too, in both directions", async ({ page }) => {
+    await page.goto("/");
+    await capture(page, 300, 200);
+    await page.keyboard.press("c");
+    const before = (await page.locator(".area").boundingBox())!;
+    await drag(page, { x: before.x, y: before.y }, { x: before.x + 50, y: before.y - 20 });
+    const after = (await page.locator(".area").boundingBox())!;
+    expect(Math.abs(after.width - 250)).toBeLessThanOrEqual(5);
+    expect(Math.abs(after.height - 220)).toBeLessThanOrEqual(5);
+  });
+});
+

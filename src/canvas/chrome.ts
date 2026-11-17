@@ -76,6 +76,24 @@ export class CropFrame extends Rect {
       perPixelTargetFind: true,
     });
     this.setControlsVisibility({ mtr: false });
+    // The area is never kept in proportion: Fabric's corner handles scale both sides together (uniform scaling, or
+    // with Shift), so each corner gets its own action instead: the corner follows the pointer in both axes at once,
+    // the opposite corner stays where it was. (A pasted image keeps Fabric's corners: proportional unless Shift.)
+    const opposite = { tl: [1, 1], tr: [0, 1], bl: [1, 0], br: [0, 0] } as const;
+    for (const corner of ["tl", "tr", "bl", "br"] as const) {
+      this.controls[corner]!.actionHandler = (_event, transform, x, y) => {
+        const frame = transform.target as CropFrame;
+        const { left, top, scaleX, scaleY } = transform.original;
+        const [fromRight, fromBottom] = opposite[corner];
+        const anchorX = left + fromRight * frame.width * scaleX;
+        const anchorY = top + fromBottom * frame.height * scaleY;
+        // Crossing the anchor turns the rectangle over (it never goes below a pixel).
+        const width = Math.max(1, Math.abs(x - anchorX));
+        const height = Math.max(1, Math.abs(y - anchorY));
+        frame.set({ left: Math.min(x, anchorX), top: Math.min(y, anchorY), scaleX: width / frame.width, scaleY: height / frame.height });
+        return true;
+      };
+    }
   }
 
   /** The frame as it was dragged, in whole Capture pixels. */
