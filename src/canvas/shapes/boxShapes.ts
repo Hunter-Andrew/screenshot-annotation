@@ -106,10 +106,10 @@ function controls(rules: ResizeRules): Record<string, Control> {
           const corner = handle.x !== 0 && handle.y !== 0;
           if (corner && !(event as MouseEvent).shiftKey) {
             // The shape the gesture started with: the larger of what the pointer asks for on each axis wins.
-            const t2 = transform as unknown as { ratio?: number };
-            t2.ratio ??= box.width / box.height;
-            const width = Math.max(x2 - x1, (y2 - y1) * t2.ratio);
-            const height = width / t2.ratio;
+            const ratioHolder = transform as unknown as { ratio?: number };
+            ratioHolder.ratio ??= box.width / box.height;
+            const width = Math.max(x2 - x1, (y2 - y1) * ratioHolder.ratio);
+            const height = width / ratioHolder.ratio;
             if (handle.x === -1) x1 = x2 - width;
             else x2 = x1 + width;
             if (handle.y === -1) y1 = y2 - height;

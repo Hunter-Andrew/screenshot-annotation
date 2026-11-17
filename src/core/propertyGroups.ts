@@ -1,7 +1,7 @@
 // The shared property groups of the Annotation model (ADR 0005). Each tool opts into the groups it
 // uses (`AnnotationKind.groups`); an Annotation stores each group it uses under the group's key.
 //
-// To add a group (tickets 10 and 11): declare its value type here, add it to `PropertyGroups`, and
+// To add a group (see `PropertyGroups` below for the current set): declare its value type here, add it to `PropertyGroups`, and
 // register its Style panel editor in `src/editor/style/groups.tsx`.
 
 /** Stroke thickness limits in Capture pixels: the Style panel and the stored-style reader share them. */

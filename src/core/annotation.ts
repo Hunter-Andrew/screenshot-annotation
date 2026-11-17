@@ -17,7 +17,7 @@ import type { RectAnnotation } from "./annotations/rect";
 import type { TextAnnotation } from "./annotations/text";
 
 /** The format version of a file with no pasted image. A file numbered above what the reader supports opens read-only.
- *  Adding a tool or property group is additive and needs no bump: the app only ever moves forward. */
+ *  Adding a tool or property group is additive and needs no bump (the app only ever moves forward), except the `image` type: see below and ADR 0004. */
 export const FORMAT_VERSION = 1;
 /** A file that holds an image Annotation is version 2: it adds an embedded part (the `snIM` chunks) that a
  *  version 1 reader cannot skip, so that reader opens it read-only. Written only when needed (ticket 38). */

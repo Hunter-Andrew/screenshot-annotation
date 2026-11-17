@@ -20,6 +20,18 @@ _Avoid_: Document, project, file
 The visible area of an Annotated Image. It narrows what is shown and exported without discarding any of the Capture.
 _Avoid_: Trim, cut
 
+**Blur**:
+An Annotation that pixelates whatever lies beneath its box, in the editor, in the Library file's visible pixels and in every Export. Pixelate-only; the Capture underneath is never altered.
+_Avoid_: Redact, mosaic, soft blur
+
+**Callout**:
+An Annotation of boxed text with an optional pointer tail that can be dragged to point anywhere.
+_Avoid_: Speech bubble, note
+
+**Pasted image**:
+A picture pasted from the clipboard into an Annotated Image as an Annotation of its own, which can be moved, resized, given a border and made translucent. It is not part of the Capture.
+_Avoid_: Sticker, overlay image
+
 **Library**:
 The collection of every Annotated Image the user has made.
 _Avoid_: History, gallery

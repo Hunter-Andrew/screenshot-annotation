@@ -16,8 +16,9 @@ export class BlurShape extends Rect {
     // and device scale included; there is no rotation or skew (the handles never produce one).
     const m = ctx.getTransform();
     const scale = m.a;
+    const scaleY = m.d;
     const width = this.width * scale;
-    const height = this.height * scale;
+    const height = this.height * scaleY;
     pixelate(ctx, { left: m.e - width / 2, top: m.f - height / 2, width, height }, this.blockSize * scale);
   }
 }
