@@ -15,6 +15,10 @@
 //!   you draw with that tool starts the way you left it. One entry per tool ("arrow", "rect"...). The
 //!   editor writes and checks it; a missing or unreadable entry just means that tool uses its default.
 //!   Deleting the whole field (with the app closed) resets every tool to its default style.
+//! - `launchAtSignIn`: true (the default, also when the field is missing) starts the app in the tray when
+//!   you sign in to Windows, through a value in the per-user Run key. Change it in Settings.
+//! - `trayNoticeShown`: true once the one-time "still running in the tray" message, shown the first time
+//!   the editor is closed, has been shown. Setting it back to false (with the app closed) shows it once more.
 
 use std::fs;
 use std::io;
@@ -40,6 +44,10 @@ pub struct Settings {
     /// editor owns the shape (and validates it on read), so a new tool or group needs no change here.
     #[serde(deserialize_with = "object_or_empty")]
     pub tool_styles: serde_json::Map<String, serde_json::Value>,
+    /// Start the app when the user signs in to Windows (default true), through the HKCU Run key.
+    pub launch_at_sign_in: bool,
+    /// The one-time "still running in the tray" notice, shown the first time the editor is closed, was shown.
+    pub tray_notice_shown: bool,
 }
 
 impl Default for Settings {
@@ -49,6 +57,8 @@ impl Default for Settings {
             print_screen_notice_dismissed: false,
             magnifier: true,
             tool_styles: serde_json::Map::new(),
+            launch_at_sign_in: true,
+            tray_notice_shown: false,
         }
     }
 }
@@ -115,6 +125,30 @@ pub fn set_tool_styles(
 ) -> io::Result<()> {
     settings.tool_styles = styles;
     save(dir, settings)
+}
+
+/// Sets "launch at sign-in" and then tries to save; like `set_magnifier`, the in-memory value changes
+/// even when the write fails.
+pub fn set_launch_at_sign_in(dir: &Path, settings: &mut Settings, enabled: bool) -> io::Result<()> {
+    settings.launch_at_sign_in = enabled;
+    save(dir, settings)
+}
+
+/// Forgets every sticky tool style (and the per-tool choices stored beside them) and tries to save.
+pub fn reset_tool_styles(dir: &Path, settings: &mut Settings) -> io::Result<()> {
+    settings.tool_styles = serde_json::Map::new();
+    save(dir, settings)
+}
+
+/// True exactly once: the first time the editor is closed to the tray. Records that the notice was
+/// shown (in memory at once, then on disk; a failed write only means it may be shown once more after a restart).
+pub fn take_tray_notice(dir: &Path, settings: &mut Settings) -> bool {
+    if settings.tray_notice_shown {
+        return false;
+    }
+    settings.tray_notice_shown = true;
+    let _ = save(dir, settings);
+    true
 }
 
 #[cfg(test)]
@@ -311,6 +345,73 @@ mod tests {
         let mut s = Settings::default();
         assert!(set_tool_styles(&blocker, &mut s, styles(r#"{"line":{}}"#)).is_err());
         assert!(s.tool_styles.contains_key("line"));
+        fs::remove_file(&blocker).unwrap();
+    }
+
+    #[test]
+    fn launch_at_sign_in_is_on_by_default_and_for_files_from_before_it_existed() {
+        assert!(Settings::default().launch_at_sign_in);
+        let dir = temp_dir("launch-old-file");
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(dir.join(FILE_NAME), br#"{"hotkey":"alt+x"}"#).unwrap();
+        assert!(load(&dir).launch_at_sign_in);
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn turning_launch_at_sign_in_off_is_saved_and_leaves_the_rest_alone() {
+        let dir = temp_dir("launch-off");
+        let mut s = Settings { hotkey: "alt+x".into(), ..Settings::default() };
+        set_launch_at_sign_in(&dir, &mut s, false).unwrap();
+        let back = load(&dir);
+        assert!(!back.launch_at_sign_in);
+        assert_eq!(back.hotkey, "alt+x");
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn launch_at_sign_in_keeps_the_new_value_in_memory_when_the_file_cannot_be_written() {
+        let blocker = temp_dir("launch-blocked");
+        fs::write(&blocker, b"not a folder").unwrap();
+        let mut s = Settings::default();
+        assert!(set_launch_at_sign_in(&blocker, &mut s, false).is_err());
+        assert!(!s.launch_at_sign_in);
+        fs::remove_file(&blocker).unwrap();
+    }
+
+    #[test]
+    fn reset_tool_styles_clears_every_sticky_style_and_nothing_else() {
+        let dir = temp_dir("reset-styles");
+        let mut s = Settings { hotkey: "alt+x".into(), magnifier: false, ..Settings::default() };
+        set_tool_styles(&dir, &mut s, styles(r#"{"rect":{"stroke":{"width":8}},"toolBehavior":{"pen":true}}"#)).unwrap();
+        reset_tool_styles(&dir, &mut s).unwrap();
+        let back = load(&dir);
+        assert!(back.tool_styles.is_empty());
+        assert_eq!(back.hotkey, "alt+x");
+        assert!(!back.magnifier);
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn the_tray_notice_is_taken_once_and_stays_taken_after_a_restart() {
+        let dir = temp_dir("tray-notice");
+        let mut s = Settings::default();
+        assert!(!s.tray_notice_shown);
+        assert!(take_tray_notice(&dir, &mut s));
+        assert!(!take_tray_notice(&dir, &mut s));
+        let mut after_restart = load(&dir);
+        assert!(after_restart.tray_notice_shown);
+        assert!(!take_tray_notice(&dir, &mut after_restart));
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn a_tray_notice_that_could_not_be_recorded_is_not_repeated_in_the_same_run() {
+        let blocker = temp_dir("tray-notice-blocked");
+        fs::write(&blocker, b"not a folder").unwrap();
+        let mut s = Settings::default();
+        assert!(take_tray_notice(&blocker, &mut s));
+        assert!(!take_tray_notice(&blocker, &mut s));
         fs::remove_file(&blocker).unwrap();
     }
 }

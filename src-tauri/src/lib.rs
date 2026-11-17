@@ -1,6 +1,9 @@
+mod autostart;
 mod capture;
 mod capture_image;
 mod capture_wire;
+mod countdown;
+mod delay;
 mod diag;
 mod editor_window;
 mod geometry;
@@ -17,6 +20,8 @@ mod settings;
 mod url_guard;
 mod watchdog;
 mod thumbnail;
+mod tray_menu;
+mod warm;
 mod window_open;
 
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -25,7 +30,7 @@ use std::time::Duration;
 
 use tauri::{
     ipc::{InvokeBody, Request, Response},
-    menu::{Menu, MenuItem},
+    menu::MenuBuilder,
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
     AppHandle, Emitter, Manager, RunEvent, WebviewUrl, WebviewWindowBuilder,
 };
@@ -37,6 +42,8 @@ const SETTINGS_LABEL: &str = "settings";
 const EDITOR_LABEL: &str = "editor";
 /// Event telling the editor a Capture is waiting; it then calls `take_capture`.
 const CAPTURE_READY_EVENT: &str = "capture-ready";
+/// Event telling every window that the sticky tool styles were reset.
+const TOOL_STYLES_RESET_EVENT: &str = "tool-styles-reset";
 /// How long the editor stays hidden before the screen is read, so it is not in the picture.
 const HIDE_SETTLE: Duration = Duration::from_millis(150);
 
@@ -282,6 +289,70 @@ fn set_tool_styles(state: tauri::State<'_, AppSettings>, styles: serde_json::Map
     }
 }
 
+/// Whether the app starts when the user signs in to Windows (default on; stored in settings.json).
+#[tauri::command]
+fn get_launch_at_sign_in(state: tauri::State<'_, AppSettings>) -> bool {
+    state.data.lock().unwrap().launch_at_sign_in
+}
+
+/// Turns launch at sign-in on or off: the per-user Run key first, then the stored choice, so a
+/// refused registry write leaves both as they were and the error reaches the Settings page.
+#[tauri::command]
+fn set_launch_at_sign_in(state: tauri::State<'_, AppSettings>, enabled: bool) -> Result<(), String> {
+    let exe = std::env::current_exe().map_err(|e| e.to_string())?;
+    autostart::apply(&autostart::HkcuRun, enabled, &exe)
+        .inspect_err(|e| diag::log(&format!("launch at sign-in {enabled}: {e}")))?;
+    let mut data = state.data.lock().unwrap();
+    match settings::set_launch_at_sign_in(&state.dir, &mut data, enabled) {
+        Ok(()) => diag::log(&format!("launch at sign-in set to {enabled} (saved)")),
+        Err(e) => diag::log(&format!("launch at sign-in set to {enabled}; could not save settings.json (kept in memory): {e}")),
+    }
+    Ok(())
+}
+
+/// Makes the Run key match the stored choice, at every start: an install that moved is corrected and
+/// a fresh install (default on) registers itself. Skipped in debug builds, so running from a source
+/// checkout never puts a development exe into the user's startup list.
+fn sync_launch_at_sign_in(enabled: bool) {
+    if cfg!(debug_assertions) {
+        return;
+    }
+    let result = std::env::current_exe()
+        .map_err(|e| e.to_string())
+        .and_then(|exe| autostart::apply(&autostart::HkcuRun, enabled, &exe));
+    match result {
+        Ok(change) => diag::log(&format!("launch at sign-in ({enabled}): Run key {change:?}")),
+        Err(e) => diag::log(&format!("launch at sign-in ({enabled}): could not update the Run key: {e}")),
+    }
+}
+
+/// The Library folder, for Settings to show (read-only there).
+#[tauri::command]
+fn library_folder(app: AppHandle) -> Result<String, String> {
+    Ok(library_root(&app)?.to_string_lossy().into_owned())
+}
+
+/// Shows the Library folder in Explorer, creating it first if no capture was saved yet.
+#[tauri::command]
+fn open_library_folder(app: AppHandle) -> Result<(), String> {
+    let root = library_root(&app)?;
+    std::fs::create_dir_all(&root).map_err(|e| e.to_string())?;
+    tauri_plugin_opener::open_path(root.to_string_lossy().into_owned(), None::<&str>).map_err(|e| e.to_string())
+}
+
+/// Settings > Reset tool styles: forget every sticky style, store that, and tell every window that
+/// holds some (the editor, which stays loaded while hidden) to drop them too.
+#[tauri::command]
+fn reset_tool_styles(app: AppHandle, state: tauri::State<'_, AppSettings>) {
+    let mut data = state.data.lock().unwrap();
+    match settings::reset_tool_styles(&state.dir, &mut data) {
+        Ok(()) => diag::log("tool styles reset (saved)"),
+        Err(e) => diag::log(&format!("tool styles reset; could not save settings.json (kept in memory): {e}")),
+    }
+    drop(data);
+    let _ = app.emit(TOOL_STYLES_RESET_EVENT, ());
+}
+
 /// Opens Windows Settings > Bluetooth & devices (the user then clicks Keyboard). A fixed target, deliberately not routed
 /// through `open_url`, whose allowlist stays limited to the Releases page (ADR 0006).
 #[tauri::command]
@@ -293,6 +364,18 @@ fn open_keyboard_settings() -> Result<(), String> {
 #[tauri::command]
 fn start_capture(app: AppHandle) {
     capture_async(app, "editor button");
+}
+
+/// The delay timer (tray menu, the editor's top bar): hide the editor, count `seconds` down next to the
+/// mouse pointer, then capture. Only the delays in `delay::CHOICES` are accepted. A plain `fn` is fine
+/// here: the countdown and the window work run on a thread of their own (see `overlay::begin_delayed`).
+#[tauri::command]
+fn start_delayed_capture(app: AppHandle, seconds: u32) -> Result<(), String> {
+    if delay::delay_for(seconds).is_none() {
+        return Err(format!("{seconds} s is not one of {:?}", delay::CHOICES));
+    }
+    overlay::begin_delayed(app, seconds);
+    Ok(())
 }
 
 /// Returns the pending Capture (see `pack_capture`) and clears it; an empty body when none.
@@ -692,7 +775,7 @@ fn show_settings(app: &AppHandle) {
     let make = || {
         new_window(app, SETTINGS_LABEL, WebviewUrl::App("index.html#settings".into()))
             .title("Settings")
-            .inner_size(460.0, 440.0)
+            .inner_size(480.0, 720.0)
             .resizable(false)
             .build()
     };
@@ -715,17 +798,71 @@ fn remember_editor_state(win: &tauri::WebviewWindow) {
     }
 }
 
-/// Hide the editor (for a capture, or ticket 24's pre-warming), remembering whether it was maximized.
+/// Hide the editor (for a capture, or when the user closes it), remembering whether it was maximized.
+/// The window stays loaded, so showing it again is instant (ADR 0003).
 pub(crate) fn hide_editor(win: &tauri::WebviewWindow) {
     remember_editor_state(win);
     let _ = win.hide();
 }
 
-/// Show the editor window maximized (normal chrome kept), creating it on first use (pre-warming is
-/// ticket 24). A window the user is looking at is only focused, never resized. A hidden one is
-/// shown in the state the user left it (maximized on its first show), so this works the same for
-/// a window that is created hidden and kept loaded. Never call from the main thread or a sync
-/// command; use `request_editor`.
+/// The user closed the editor: hide it to the tray instead (the app keeps running so the hotkey
+/// works), and the first time only, tell them so. Called from the window-event handler, so the
+/// notice is shown from a thread of its own.
+fn close_editor_to_tray(app: &AppHandle) {
+    if let Some(win) = app.get_webview_window(EDITOR_LABEL) {
+        hide_editor(&win);
+        diag::log("editor closed: hidden to the tray");
+    }
+    let Some(state) = app.try_state::<AppSettings>() else { return };
+    let first_time = settings::take_tray_notice(&state.dir, &mut state.data.lock().unwrap());
+    if first_time {
+        let app = app.clone();
+        std::thread::spawn(move || {
+            use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
+            app.dialog()
+                .message(
+                    "Screenshot Annotation is still running in the system tray, so the capture hotkey keeps \
+                     working.\n\nClick its tray icon to open the editor again, or right-click it and choose Exit to quit.",
+                )
+                .title("Screenshot Annotation")
+                .kind(MessageDialogKind::Info)
+                .blocking_show();
+        });
+    }
+}
+
+/// The editor window as it is created: the one place its title, size and URL are set, for the hidden
+/// pre-warmed window and for a window made on demand.
+fn editor_builder<'a>(app: &'a AppHandle) -> WebviewWindowBuilder<'a, tauri::Wry, AppHandle> {
+    new_window(app, EDITOR_LABEL, WebviewUrl::App("index.html".into()))
+        .title("Screenshot Annotation")
+        .inner_size(1100.0, 720.0)
+        .min_inner_size(760.0, 480.0)
+}
+
+/// Create the editor window hidden at startup, so the first capture only has to show it (ADR 0003).
+/// Blocks while WebView2 builds it: call from a worker thread (see `warm_up`). A failure only costs
+/// speed: `show_editor` creates the window on demand.
+fn prewarm_editor(app: &AppHandle) {
+    let started = std::time::Instant::now();
+    let make = || editor_builder(app).visible(false).build();
+    if let Some((_, true)) = create_or_existing(app, EDITOR_LABEL, make) {
+        diag::log(&format!("editor window pre-warmed in {} ms (hidden)", started.elapsed().as_millis()));
+    }
+}
+
+/// Everything ADR 0003 keeps loaded and hidden while the app sits in the tray: the editor and one
+/// overlay per monitor. Runs on a worker thread of its own at startup.
+fn warm_up(app: &AppHandle) {
+    prewarm_editor(app);
+    overlay::prewarm(app);
+}
+
+/// Show the editor window maximized (normal chrome kept), creating it on first use if it is not
+/// there (normally it is: `prewarm_editor` made it hidden at startup and closing only hides it). A
+/// window the user is looking at is only focused, never resized. A hidden one is shown in the
+/// state the user left it (maximized on its first show). Never call from the main thread or a
+/// sync command; use `request_editor`.
 fn show_editor(app: &AppHandle) {
     let remembered = *app.state::<EditorMaximized>().0.lock().unwrap();
     let maximize = editor_window::should_maximize(remembered);
@@ -740,14 +877,7 @@ fn show_editor(app: &AppHandle) {
         focus(&win);
         return;
     }
-    let make = || {
-        new_window(app, EDITOR_LABEL, WebviewUrl::App("index.html".into()))
-            .title("Screenshot Annotation")
-            .inner_size(1100.0, 720.0)
-            .min_inner_size(760.0, 480.0)
-            .maximized(maximize)
-            .build()
-    };
+    let make = || editor_builder(app).maximized(maximize).build();
     if let Some((win, created)) = create_or_existing(app, EDITOR_LABEL, make) {
         if !created {
             focus(&win);
@@ -805,11 +935,14 @@ pub fn run() {
         .manage(PendingCapture::default())
         .manage(LibraryState::default())
         .manage(EditorMaximized::default())
+        .manage(countdown::CountdownState::default())
         .on_window_event(|window, event| {
-            // Closing destroys the editor; remember its state so the next one opens the same way.
-            if window.label() == EDITOR_LABEL && matches!(event, tauri::WindowEvent::CloseRequested { .. }) {
-                if let Some(win) = window.app_handle().get_webview_window(EDITOR_LABEL) {
-                    remember_editor_state(&win);
+            // Closing the editor hides it to the tray (ticket 23) and keeps it loaded (ADR 0003), so the
+            // next capture or tray click only has to show it. Only the tray's Exit ends the app.
+            if window.label() == EDITOR_LABEL {
+                if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                    api.prevent_close();
+                    close_editor_to_tray(window.app_handle());
                 }
             }
             // Settings closes on its own and touches no other window; the log shows it did.
@@ -831,6 +964,8 @@ pub fn run() {
             app_version,
             open_url,
             start_capture,
+            start_delayed_capture,
+            countdown::countdown_remaining,
             take_capture,
             copy_image,
             library_save,
@@ -848,6 +983,11 @@ pub fn run() {
             history_delete,
             history_purge_before,
             open_settings,
+            get_launch_at_sign_in,
+            set_launch_at_sign_in,
+            library_folder,
+            open_library_folder,
+            reset_tool_styles,
             save_png_as,
             get_hotkey,
             set_hotkey,
@@ -859,6 +999,7 @@ pub fn run() {
             set_tool_styles,
             overlay::overlay_frame,
             overlay::overlay_windows,
+            overlay::overlay_attempt,
             overlay::overlay_ready,
             overlay::overlay_log,
             overlay::overlay_finish,
@@ -892,23 +1033,28 @@ pub fn run() {
                 reading.describe()
             ));
             let notice_pending = !loaded.print_screen_notice_dismissed && reading.enabled();
+            let launch_at_sign_in = loaded.launch_at_sign_in;
             app.manage(AppSettings { dir, data: Mutex::new(loaded) });
             if notice_pending {
                 // First run: open Settings, where the one-time Print Screen notice lives.
                 request_settings(app.handle(), "first run notice");
             }
 
-            let capture = MenuItem::with_id(app, "capture", "Capture", true, None::<&str>)?;
-            let editor = MenuItem::with_id(app, "editor", "Open editor", true, None::<&str>)?;
-            let settings = MenuItem::with_id(app, "settings", "Settings", true, None::<&str>)?;
-            let log_folder = MenuItem::with_id(app, "log", "Open log folder", true, None::<&str>)?;
-            let exit = MenuItem::with_id(app, "exit", "Exit", true, None::<&str>)?;
+            sync_launch_at_sign_in(launch_at_sign_in);
+
+            let mut menu = MenuBuilder::new(app);
+            for entry in tray_menu::entries(&delay::CHOICES) {
+                menu = match entry {
+                    tray_menu::Entry::Item { id, label } => menu.text(id, label),
+                    tray_menu::Entry::Separator => menu.separator(),
+                };
+            }
             let mut tray = TrayIconBuilder::new();
             if let Some(icon) = app.default_window_icon() {
                 tray = tray.icon(icon.clone());
             }
             tray.tooltip("Screenshot Annotation")
-                .menu(&Menu::with_items(app, &[&capture, &editor, &settings, &log_folder, &exit])?)
+                .menu(&menu.build()?)
                 .show_menu_on_left_click(false)
                 .on_tray_icon_event(|tray, event| {
                     if let TrayIconEvent::Click {
@@ -920,15 +1066,18 @@ pub fn run() {
                         request_editor(tray.app_handle(), "tray icon click");
                     }
                 })
-                .on_menu_event(|app, event| match event.id.as_ref() {
-                    "capture" => capture_async(app.clone(), "tray"),
-                    "log" => open_log_folder(),
-                    "editor" => request_editor(app, "tray menu"),
-                    "settings" => request_settings(app, "tray menu"),
-                    "exit" => app.exit(0),
-                    _ => {}
+                .on_menu_event(|app, event| match tray_menu::action_for(event.id.as_ref()) {
+                    Some(tray_menu::Action::Capture) => capture_async(app.clone(), "tray"),
+                    Some(tray_menu::Action::CaptureIn(seconds)) => overlay::begin_delayed(app.clone(), seconds),
+                    Some(tray_menu::Action::OpenLogFolder) => open_log_folder(),
+                    Some(tray_menu::Action::OpenEditor) => request_editor(app, "tray menu"),
+                    Some(tray_menu::Action::Settings) => request_settings(app, "tray menu"),
+                    Some(tray_menu::Action::Exit) => app.exit(0),
+                    None => {}
                 })
                 .build(app)?;
+            // Last: the tray is usable at once; the hidden windows load behind it (ADR 0003).
+            on_worker_thread(app.handle(), warm_up);
             Ok(())
         })
         .build(tauri::generate_context!())

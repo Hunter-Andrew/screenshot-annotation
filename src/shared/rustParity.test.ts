@@ -5,7 +5,8 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import { OVERLAY_HASH_PREFIX, RELEASES_URL, SETTINGS_HASH } from "./constants";
+import { CAPTURE_DELAYS } from "../platform/bridge";
+import { COUNTDOWN_HASH, OVERLAY_HASH_PREFIX, RELEASES_URL, SETTINGS_HASH } from "./constants";
 
 const rust = (file: string) => readFileSync(resolve(__dirname, "../../src-tauri/src", file), "utf8");
 
@@ -25,10 +26,49 @@ describe("TS/Rust shared constants", () => {
     expect(match?.[1]).toBe(OVERLAY_HASH_PREFIX);
   });
 
+  it("countdown.rs opens the countdown badge window at the hash App.tsx routes on", () => {
+    const match = rust("countdown.rs").match(/WebviewUrl::App\("index\.html([^"]*)"/);
+    expect(match?.[1]).toBe(COUNTDOWN_HASH);
+  });
+
+  it("delay.rs offers the same delays as the editor's top bar", () => {
+    const match = rust("delay.rs").match(/pub const CHOICES: \[u32; \d+\] = \[([^\]]*)\];/);
+    expect(match?.[1].split(",").map((n) => Number(n.trim()))).toEqual([...CAPTURE_DELAYS]);
+  });
+
+  it("every command the Tauri bridge invokes is registered in lib.rs", () => {
+    const tauriBridge = readFileSync(resolve(__dirname, "../platform/tauriBridge.ts"), "utf8");
+    const commands = [...tauriBridge.matchAll(/invoke<[^>]*>\("([a-z_]+)"/g)].map((m) => m[1]);
+    expect(commands.length).toBeGreaterThan(30);
+    const handlers = rust("lib.rs").match(/generate_handler!\[([\s\S]*?)\]/)?.[1] ?? "";
+    const registered = handlers.split(",").map((h) => h.trim().replace(/^\w+::/, "")).filter(Boolean);
+    expect(commands.filter((c) => !registered.includes(c))).toEqual([]);
+  });
+
   it("the overlay capability glob covers the overlay window labels", () => {
     const label = rust("overlay.rs").match(/const LABEL_PREFIX: &str = "([^"]+)";/)?.[1];
     const capability = readFileSync(resolve(__dirname, "../../src-tauri/capabilities/default.json"), "utf8");
     expect(JSON.parse(capability).windows).toContain(`${label}*`);
+  });
+
+  it("the capability covers the countdown badge window, so its page may listen for the numbers", () => {
+    const label = rust("countdown.rs").match(/pub const LABEL: &str = "([^"]+)";/)?.[1];
+    const capability = readFileSync(resolve(__dirname, "../../src-tauri/capabilities/default.json"), "utf8");
+    expect(label).toBeTruthy();
+    expect(JSON.parse(capability).windows).toContain(label);
+  });
+
+  it("the events Rust emits are the ones the Tauri bridge listens for", () => {
+    const tauriBridge = readFileSync(resolve(__dirname, "../platform/tauriBridge.ts"), "utf8");
+    const emitted = [
+      rust("overlay.rs").match(/ATTEMPT_EVENT: &str = "([^"]+)"/)?.[1],
+      rust("countdown.rs").match(/pub const EVENT: &str = "([^"]+)"/)?.[1],
+      rust("lib.rs").match(/TOOL_STYLES_RESET_EVENT: &str = "([^"]+)"/)?.[1],
+    ];
+    for (const name of emitted) {
+      expect(name).toBeTruthy();
+      expect(tauriBridge).toMatch(new RegExp(`listen(<[^>]*>)?\\("${name}"`));
+    }
   });
 
   it("the CSP lets the page reach Tauri's IPC protocol (else every call degrades to postMessage and binary replies stop being ArrayBuffers)", () => {

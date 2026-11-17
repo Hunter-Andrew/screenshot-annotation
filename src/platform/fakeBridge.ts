@@ -44,6 +44,22 @@ export interface FakeBridge extends PlatformBridge {
   failNextLibraryUpdate(message: string): void;
   /** Undo history files by key (`modifiedAt`: ms since the epoch; tests may set it to age a file). Survive a reload in the browser build. */
   readonly historyFiles: Map<string, { text: string; modifiedAt: number }>;
+  /** Seconds passed to `startDelayedCapture`, in order. */
+  readonly delayedCaptures: number[];
+  /** Drive the countdown badge like the platform does: show `remaining`, or null once it is over. */
+  setCountdown(remaining: number | null): void;
+  /** Launch at sign-in as stored (`fake.launchAtSignIn` in the fake storage; on for a fresh fake). */
+  readonly launchAtSignIn: boolean;
+  /** The next `setLaunchAtSignIn` rejects with this message (Windows refused the registry write). */
+  failNextLaunchAtSignIn(message: string): void;
+  /** The folder `getLibraryFolder` reports. */
+  readonly libraryFolder: string;
+  /** How many times "Open in Explorer" was used. */
+  readonly libraryFolderOpened: number;
+  /** How many times the tool styles were reset. */
+  readonly toolStylesResets: number;
+  /** Start or end a capture on the overlay pages: an attempt number, or null for idle. */
+  setOverlayAttempt(attempt: number | null): void;
   /** How many times the editor asked to open Settings (the gear button). */
   readonly settingsOpened: number;
   /** The next Save as PNG… behaves as if the user cancelled the dialog. */
@@ -119,6 +135,11 @@ export function createFakeBridge(
     overlayFrames?: Record<number, { width: number; height: number }>;
     /** Windows per monitor (topmost first, native pixels local to the monitor); none by default. */
     overlayWindows?: Record<number, OverlayRect[]>;
+    /**
+     * Which capture the overlay pages are showing at the start: an attempt number (the default, 1: a
+     * window opened for a capture) or null (a pre-warmed window sitting idle and hidden).
+     */
+    overlayAttempt?: number | null;
   } = {},
 ): FakeBridge {
   const memory = new Map<string, string>();
@@ -137,6 +158,15 @@ export function createFakeBridge(
   const overlayOutcomes: OverlayOutcome[] = [];
   const overlayLogs: { message: string; fatal: boolean }[] = [];
   let overlayFrameFailure: string | null = null;
+  let overlayAttempt: number | null = options.overlayAttempt === undefined ? 1 : options.overlayAttempt;
+  const overlayAttemptHandlers = new Set<(attempt: number | null) => void>();
+  const delayedCaptures: number[] = [];
+  let countdown: number | null = null;
+  const countdownHandlers = new Set<(remaining: number | null) => void>();
+  let launchFailure: string | null = null;
+  let libraryFolderOpened = 0;
+  let toolStylesResets = 0;
+  const toolStylesResetHandlers = new Set<() => void>();
   const magnifierHandlers = new Set<(enabled: boolean) => void>();
   const openedUrls: string[] = [];
   const copiedImages: Uint8Array[] = [];
@@ -291,6 +321,21 @@ export function createFakeBridge(
       openedUrls.push(url);
     },
     startCapture: async () => simulateCapture(defaultShot()),
+    delayedCaptures,
+    startDelayedCapture: async (seconds) => {
+      delayedCaptures.push(seconds);
+    },
+    getCountdown: async () => countdown,
+    onCountdown: async (handler) => {
+      countdownHandlers.add(handler);
+      return () => {
+        countdownHandlers.delete(handler);
+      };
+    },
+    setCountdown: (remaining) => {
+      countdown = remaining;
+      countdownHandlers.forEach((handler) => handler(remaining));
+    },
     onCapture: async (handler) => {
       handlers.add(handler);
       undelivered.splice(0).forEach(handler);
@@ -429,6 +474,54 @@ export function createFakeBridge(
     },
     openSettings: async () => {
       settingsOpened++;
+    },
+    get launchAtSignIn() {
+      return store.getItem("fake.launchAtSignIn") !== "0";
+    },
+    getLaunchAtSignIn: async () => store.getItem("fake.launchAtSignIn") !== "0",
+    setLaunchAtSignIn: async (enabled) => {
+      if (launchFailure !== null) {
+        const message = launchFailure;
+        launchFailure = null;
+        throw new Error(message);
+      }
+      store.setItem("fake.launchAtSignIn", enabled ? "1" : "0");
+    },
+    failNextLaunchAtSignIn: (message) => {
+      launchFailure = message;
+    },
+    libraryFolder: "C:\\Users\\fake\\Pictures\\Screenshot Annotation",
+    get libraryFolderOpened() {
+      return libraryFolderOpened;
+    },
+    getLibraryFolder: async () => "C:\\Users\\fake\\Pictures\\Screenshot Annotation",
+    openLibraryFolder: async () => {
+      libraryFolderOpened++;
+    },
+    get toolStylesResets() {
+      return toolStylesResets;
+    },
+    resetToolStyles: async () => {
+      toolStylesResets++;
+      store.setItem("fake.toolStyles", "{}");
+      toolStylesResetHandlers.forEach((handler) => handler());
+    },
+    onToolStylesReset: async (handler) => {
+      toolStylesResetHandlers.add(handler);
+      return () => {
+        toolStylesResetHandlers.delete(handler);
+      };
+    },
+    overlayAttempt: async () => overlayAttempt,
+    onOverlayAttempt: async (handler) => {
+      overlayAttemptHandlers.add(handler);
+      return () => {
+        overlayAttemptHandlers.delete(handler);
+      };
+    },
+    setOverlayAttempt: (attempt) => {
+      overlayAttempt = attempt;
+      overlayAttemptHandlers.forEach((handler) => handler(attempt));
     },
     overlayFrame: async (monitor) => {
       overlayFrameRequests.push(monitor);

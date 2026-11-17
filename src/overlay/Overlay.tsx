@@ -21,13 +21,48 @@ const viewportSize = () => ({ width: window.innerWidth, height: window.innerHeig
 const fill: CSSProperties = { position: "fixed", inset: 0 };
 
 /**
- * One capture overlay window: the frozen frame of one monitor stretched over the whole window.
+ * One capture overlay window. The window is created at startup and kept hidden (ADR 0003), so this
+ * page loads long before any capture: it sits idle until the platform says a capture began (an
+ * attempt number) and goes back to idle when it ends. Each attempt is a fresh `ActiveOverlay`
+ * (keyed by the attempt number), so nothing from the last capture survives into the next.
+ */
+export function Overlay({ bridge, monitor }: { bridge: PlatformBridge; monitor: number }) {
+  const [attempt, setAttempt] = useState<number | null>(null);
+  useEffect(() => {
+    let alive = true;
+    let off: (() => void) | undefined;
+    let heardEvent = false;
+    void (async () => {
+      const unsubscribe = await bridge.onOverlayAttempt((next) => {
+        heardEvent = true;
+        if (alive) setAttempt(next);
+      });
+      if (!alive) return unsubscribe();
+      off = unsubscribe;
+      // A capture may have begun before this page finished loading; an event heard meanwhile is newer.
+      try {
+        const current = await bridge.overlayAttempt();
+        if (alive && !heardEvent) setAttempt(current);
+      } catch (e) {
+        void bridge.logOverlay(`overlay ${monitor}: overlayAttempt failed: ${e}`);
+      }
+    })();
+    return () => {
+      alive = false;
+      off?.();
+    };
+  }, [bridge, monitor]);
+  return attempt === null ? null : <ActiveOverlay key={attempt} bridge={bridge} monitor={monitor} />;
+}
+
+/**
+ * One capture on one monitor: the frozen frame of that monitor stretched over the whole window.
  * Drag to select (the region stops at this monitor's edge) and release to capture at once;
  * hover highlights the window under the pointer and a click captures its visible rectangle;
  * Space takes the whole monitor under the mouse pointer, Esc cancels, M toggles the magnifier.
  * Mouse-pointer-free by construction: the frame was read with the pointer not drawn.
  */
-export function Overlay({ bridge, monitor }: { bridge: PlatformBridge; monitor: number }) {
+function ActiveOverlay({ bridge, monitor }: { bridge: PlatformBridge; monitor: number }) {
   const [frame, setFrame] = useState<OverlayFrame | null>(null);
   const [pointer, setPointer] = useState<Point | null>(null);
   const [drag, setDrag] = useState<{ start: Point; current: Point } | null>(null);
