@@ -42,6 +42,60 @@ pub fn badge_position(cursor: (i32, i32), monitor: Rect) -> (i32, i32) {
     (place(cursor.0, mx, mw), place(cursor.1, my, mh))
 }
 
+/// Where one countdown stands: waiting, cancelled by Esc, or over (the capture has started).
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum Phase {
+    Running,
+    Cancelled,
+    Fired,
+}
+
+/// One running countdown, shared between the thread that counts and the Esc handler. Whichever
+/// comes first wins and the other is told so: Esc before the countdown ends cancels the capture;
+/// Esc after the capture started (a key press that arrives late) is ignored.
+pub struct Countdown(std::sync::Mutex<Phase>);
+
+impl Countdown {
+    pub fn new() -> Self {
+        Countdown(std::sync::Mutex::new(Phase::Running))
+    }
+
+    fn phase(&self) -> std::sync::MutexGuard<'_, Phase> {
+        self.0.lock().unwrap_or_else(|p| p.into_inner())
+    }
+
+    /// Esc was pressed. True only if this stopped a countdown that was still running.
+    pub fn cancel(&self) -> bool {
+        let mut phase = self.phase();
+        let running = *phase == Phase::Running;
+        if running {
+            *phase = Phase::Cancelled;
+        }
+        running
+    }
+
+    /// The time is up. True if the capture may start now; false if Esc got there first (or this was
+    /// already called).
+    pub fn fire(&self) -> bool {
+        let mut phase = self.phase();
+        let running = *phase == Phase::Running;
+        if running {
+            *phase = Phase::Fired;
+        }
+        running
+    }
+
+    pub fn is_cancelled(&self) -> bool {
+        *self.phase() == Phase::Cancelled
+    }
+}
+
+impl Default for Countdown {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -98,5 +152,39 @@ mod tests {
     fn the_badge_stays_on_a_monitor_smaller_than_it_wants() {
         let tiny: Rect = (0, 0, 50, 50);
         assert_eq!(badge_position((10, 10), tiny), (0, 0));
+    }
+
+    #[test]
+    fn escape_cancels_a_countdown_that_is_still_running() {
+        let countdown = Countdown::new();
+        assert!(!countdown.is_cancelled());
+        assert!(countdown.cancel());
+        assert!(countdown.is_cancelled());
+        // The countdown then ends without the capture: it cannot fire any more.
+        assert!(!countdown.fire());
+    }
+
+    #[test]
+    fn a_countdown_that_runs_out_fires_the_capture_once() {
+        let countdown = Countdown::new();
+        assert!(countdown.fire());
+        assert!(!countdown.fire());
+        assert!(!countdown.is_cancelled());
+    }
+
+    #[test]
+    fn escape_after_the_capture_started_is_ignored() {
+        let countdown = Countdown::new();
+        assert!(countdown.fire());
+        assert!(!countdown.cancel());
+        assert!(!countdown.is_cancelled());
+    }
+
+    #[test]
+    fn a_second_escape_changes_nothing() {
+        let countdown = Countdown::new();
+        assert!(countdown.cancel());
+        assert!(!countdown.cancel());
+        assert!(countdown.is_cancelled());
     }
 }

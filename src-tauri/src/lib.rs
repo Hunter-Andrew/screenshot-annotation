@@ -1010,10 +1010,16 @@ pub fn run() {
             app.handle().plugin(
                 tauri_plugin_global_shortcut::Builder::new()
                     .with_handler(|app, shortcut, event| {
-                        // The plugin only calls this for hotkeys this app registered, so there is one
-                        // capture hotkey and nothing to compare; log every event it delivers.
+                        // The plugin only calls this for hotkeys this app registered: the capture hotkey,
+                        // and Esc during a delay countdown; log every event it delivers.
                         diag::log(&format!("hotkey event: {} {:?}", shortcut.into_string(), event.state()));
-                        if event.state() == ShortcutState::Pressed {
+                        if event.state() != ShortcutState::Pressed {
+                            return;
+                        }
+                        // Esc is registered only while a delay countdown runs, and only cancels it.
+                        if *shortcut == countdown::escape_shortcut() {
+                            countdown::cancel(app);
+                        } else {
                             capture_async(app.clone(), "hotkey");
                         }
                     })

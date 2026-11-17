@@ -216,6 +216,13 @@ pub fn begin_delayed(app: AppHandle, seconds: u32) {
         };
         // A panic must not leave `busy` set, which would block every later capture.
         let counted = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| crate::countdown::run(&app, total)));
+        if let Ok(false) = counted {
+            // Esc during the countdown: no capture; release the slot and bring the editor back.
+            app.state::<OverlayState>().busy.store(false, Ordering::SeqCst);
+            restore_editor(&app, editor_hidden);
+            diag::log("delay timer cancelled with Esc; nothing was captured");
+            return;
+        }
         if counted.is_err() {
             app.state::<OverlayState>().busy.store(false, Ordering::SeqCst);
             restore_editor(&app, editor_hidden);
