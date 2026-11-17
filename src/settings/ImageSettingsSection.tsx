@@ -2,9 +2,62 @@ import { useEffect, useState } from "react";
 import type { Background } from "../core/annotation";
 import { BACKGROUND_LABELS, BACKGROUNDS, isBackground } from "../core/area";
 import type { PlatformBridge } from "../platform/bridge";
-import { CHECKERBOARD_THEMES, type CheckerboardTheme, type ImageSettings, isCheckerboard } from "../shared/imageSettings";
+import {
+  CALLOUT_TAIL_PERCENT,
+  CANVAS_MARGIN,
+  CHECKERBOARD_THEMES,
+  type CheckerboardTheme,
+  type ImageSettings,
+  inRange,
+  isCheckerboard,
+  type NumberRange,
+  OUTSIDE_DARKNESS,
+} from "../shared/imageSettings";
 
 const CHECKERBOARD_LABELS: Record<CheckerboardTheme, string> = { dark: "Dark", light: "Light" };
+
+/**
+ * A whole-number field that is stored when it is left (blur or Enter) holding a number inside `range`;
+ * anything else snaps back to the stored value. The text is kept while typing.
+ */
+function NumberSetting(props: {
+  label: string;
+  hint: string;
+  range: NumberRange;
+  value: number | undefined;
+  onCommit: (value: number) => void;
+}) {
+  const { range, value } = props;
+  const [draft, setDraft] = useState<string | null>(null);
+  const commit = () => {
+    const parsed = draft === null || draft.trim() === "" ? NaN : Number(draft);
+    setDraft(null);
+    if (inRange(range, parsed) && parsed !== value) props.onCommit(parsed);
+  };
+  return (
+    <p>
+      <label>
+        {props.label}{" "}
+        <input
+          type="number"
+          min={range.min}
+          max={range.max}
+          step={1}
+          style={{ width: 70 }}
+          value={draft ?? value ?? ""}
+          disabled={value === undefined}
+          onChange={(event) => setDraft(event.target.value)}
+          onBlur={commit}
+          onKeyDown={(event) => event.key === "Enter" && commit()}
+        />
+      </label>
+      <br />
+      <small>
+        {props.hint} {range.min} to {range.max}.
+      </small>
+    </p>
+  );
+}
 
 /**
  * "Image background" (what a new image starts with outside its Capture) and "Transparency checkerboard"
@@ -30,6 +83,11 @@ export function ImageSettingsSection({ bridge }: { bridge: PlatformBridge }) {
       off?.();
     };
   }, [bridge]);
+
+  const save = (change: Partial<ImageSettings>, store: () => Promise<void>, name: string) => {
+    setSettings((current) => (current ? { ...current, ...change } : current));
+    store().catch((e) => void bridge.logSettings(`${name} failed: ${e}`));
+  };
 
   return (
     <section aria-labelledby="image-heading">
@@ -83,6 +141,41 @@ export function ImageSettingsSection({ bridge }: { bridge: PlatformBridge }) {
         </label>
         <br />
         <small>How transparent areas look in the editor and the Library; never in an exported picture.</small>
+      </p>
+      <NumberSetting
+        label="Callout tail length (% of drag)"
+        hint="How much of the drag that draws a callout becomes its tail."
+        range={CALLOUT_TAIL_PERCENT}
+        value={settings?.calloutTailPercent}
+        onCommit={(value) => save({ calloutTailPercent: value }, () => bridge.setCalloutTailPercent(value), "setCalloutTailPercent")}
+      />
+      <NumberSetting
+        label="Canvas margin (px)"
+        hint="Room kept around the canvas in the editor."
+        range={CANVAS_MARGIN}
+        value={settings?.canvasMargin}
+        onCommit={(value) => save({ canvasMargin: value }, () => bridge.setCanvasMargin(value), "setCanvasMargin")}
+      />
+      <NumberSetting
+        label="Outside-canvas darkness (%)"
+        hint="How dark the area outside the canvas is shown."
+        range={OUTSIDE_DARKNESS}
+        value={settings?.outsideDarkness}
+        onCommit={(value) => save({ outsideDarkness: value }, () => bridge.setOutsideDarkness(value), "setOutsideDarkness")}
+      />
+      <p>
+        <label>
+          <input
+            type="checkbox"
+            checked={settings?.showOutsideDefault ?? true}
+            disabled={settings === null}
+            onChange={(event) => {
+              const show = event.target.checked;
+              save({ showOutsideDefault: show }, () => bridge.setShowOutsideDefault(show), "setShowOutsideDefault");
+            }}
+          />{" "}
+          Show outside the canvas on new images
+        </label>
       </p>
     </section>
   );

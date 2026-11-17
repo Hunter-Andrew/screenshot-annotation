@@ -218,14 +218,14 @@ describe("the Image section of the Style panel", () => {
 });
 
 describe("transparency", () => {
-  it("is drawn on a checkerboard under the visible area, Dark by default and Light when Settings say so", async () => {
+  it("is drawn on a checkerboard under the visible area, Light by default and Dark when Settings say so", async () => {
     const bridge = createFakeBridge();
     await openWithCapture(bridge);
-    expect(document.querySelector(".editor")).toHaveAttribute("data-checker", "dark");
+    expect(document.querySelector(".editor")).toHaveAttribute("data-checker", "light");
     expect(document.querySelector(".area .checker")).not.toBeNull();
 
-    await act(async () => bridge.setCheckerboard("light"));
-    expect(document.querySelector(".editor")).toHaveAttribute("data-checker", "light");
+    await act(async () => bridge.setCheckerboard("dark"));
+    expect(document.querySelector(".editor")).toHaveAttribute("data-checker", "dark");
   });
 
   it("is not drawn for a White or Dark background", async () => {

@@ -20,8 +20,13 @@
 //! - `imageBackground`: what fills the part of a new image outside the Capture when it is made bigger than
 //!   the Capture: "white", "dark" or "transparent" (the default, also when the field is missing or not one of
 //!   those). The image keeps its own choice once it has one; this is only where it starts.
-//! - `transparencyCheckerboard`: "dark" (the default) or "light": the checkerboard drawn behind transparent
+//! - `transparencyCheckerboard`: "light" (the default) or "dark": the checkerboard drawn behind transparent
 //!   pixels in the editor and the Library. It changes how transparency looks, never an exported picture.
+//! - `calloutTailPercent` (5 to 50, default 20): how much of a callout's draw drag its tail takes.
+//! - `canvasMargin` (16 to 200 pixels, default 48): the room kept around the canvas in the editor view.
+//! - `outsideDarkness` (0 to 95 percent, default 60): how dark the area outside the canvas is shown.
+//! - `showOutsideDefault` (true by default): whether a new image shows the area outside its canvas.
+//!   A number outside its range is brought into the range; anything that is not a number is the default.
 //! - `trayNoticeShown`: true once the one-time "still running in the tray" message, shown the first time
 //!   the editor is closed, has been shown. Setting it back to false (with the app closed) shows it once more.
 
@@ -59,18 +64,57 @@ pub struct Settings {
     /// The checkerboard behind transparent pixels: one of `CHECKERBOARDS`.
     #[serde(deserialize_with = "checkerboard_or_default")]
     pub transparency_checkerboard: String,
+    /// How much of a callout's draw drag its tail takes, in percent (`CALLOUT_TAIL_PERCENT`).
+    #[serde(deserialize_with = "callout_tail_percent_or_default")]
+    pub callout_tail_percent: u32,
+    /// The room kept around the canvas in the editor view, in pixels (`CANVAS_MARGIN`).
+    #[serde(deserialize_with = "canvas_margin_or_default")]
+    pub canvas_margin: u32,
+    /// How dark the area outside the canvas is shown, in percent (`OUTSIDE_DARKNESS`).
+    #[serde(deserialize_with = "outside_darkness_or_default")]
+    pub outside_darkness: u32,
+    /// Whether a new image shows the area outside its canvas.
+    #[serde(deserialize_with = "bool_or_true")]
+    pub show_outside_default: bool,
 }
 
 pub const BACKGROUNDS: [&str; 3] = ["white", "dark", "transparent"];
 pub const CHECKERBOARDS: [&str; 2] = ["dark", "light"];
 pub const DEFAULT_IMAGE_BACKGROUND: &str = "transparent";
-pub const DEFAULT_CHECKERBOARD: &str = "dark";
+pub const DEFAULT_CHECKERBOARD: &str = "light";
+
+/// An inclusive range of whole numbers a numeric setting may take.
+#[derive(Debug, Clone, Copy)]
+pub struct Range {
+    pub min: u32,
+    pub max: u32,
+    pub default: u32,
+}
+
+impl Range {
+    pub fn clamp(&self, value: u32) -> u32 {
+        value.clamp(self.min, self.max)
+    }
+    pub fn contains(&self, value: u32) -> bool {
+        (self.min..=self.max).contains(&value)
+    }
+}
+
+pub const CALLOUT_TAIL_PERCENT: Range = Range { min: 5, max: 50, default: 20 };
+pub const CANVAS_MARGIN: Range = Range { min: 16, max: 200, default: 48 };
+pub const OUTSIDE_DARKNESS: Range = Range { min: 0, max: 95, default: 60 };
+pub const DEFAULT_SHOW_OUTSIDE: bool = true;
 
 /// What the editor and the Library read: both image settings, as the frontend spells them.
 #[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ImageSettings {
     pub background: String,
     pub checkerboard: String,
+    pub callout_tail_percent: u32,
+    pub canvas_margin: u32,
+    pub outside_darkness: u32,
+    pub show_outside_default: bool,
 }
 
 /// A stored choice that is not one of `allowed` (a hand edit, a newer version) is the default, not an error.
@@ -92,9 +136,47 @@ fn checkerboard_or_default<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Str
     choice_or(d, &CHECKERBOARDS, DEFAULT_CHECKERBOARD)
 }
 
+/// A stored whole number is brought into `range`; anything else (text, a fraction, null) is the default.
+fn number_in<'de, D: serde::Deserializer<'de>>(d: D, range: Range) -> Result<u32, D::Error> {
+    Ok(match serde_json::Value::deserialize(d)? {
+        serde_json::Value::Number(n) => match (n.as_u64(), n.as_i64()) {
+            (Some(v), _) => range.clamp(v.min(u32::MAX as u64) as u32),
+            (None, Some(_)) => range.min,
+            _ => range.default,
+        },
+        _ => range.default,
+    })
+}
+
+fn callout_tail_percent_or_default<'de, D: serde::Deserializer<'de>>(d: D) -> Result<u32, D::Error> {
+    number_in(d, CALLOUT_TAIL_PERCENT)
+}
+
+fn canvas_margin_or_default<'de, D: serde::Deserializer<'de>>(d: D) -> Result<u32, D::Error> {
+    number_in(d, CANVAS_MARGIN)
+}
+
+fn outside_darkness_or_default<'de, D: serde::Deserializer<'de>>(d: D) -> Result<u32, D::Error> {
+    number_in(d, OUTSIDE_DARKNESS)
+}
+
+fn bool_or_true<'de, D: serde::Deserializer<'de>>(d: D) -> Result<bool, D::Error> {
+    Ok(match serde_json::Value::deserialize(d)? {
+        serde_json::Value::Bool(b) => b,
+        _ => DEFAULT_SHOW_OUTSIDE,
+    })
+}
+
 impl Settings {
     pub fn image_settings(&self) -> ImageSettings {
-        ImageSettings { background: self.image_background.clone(), checkerboard: self.transparency_checkerboard.clone() }
+        ImageSettings {
+            background: self.image_background.clone(),
+            checkerboard: self.transparency_checkerboard.clone(),
+            callout_tail_percent: self.callout_tail_percent,
+            canvas_margin: self.canvas_margin,
+            outside_darkness: self.outside_darkness,
+            show_outside_default: self.show_outside_default,
+        }
     }
 }
 
@@ -109,6 +191,10 @@ impl Default for Settings {
             tray_notice_shown: false,
             image_background: DEFAULT_IMAGE_BACKGROUND.into(),
             transparency_checkerboard: DEFAULT_CHECKERBOARD.into(),
+            callout_tail_percent: CALLOUT_TAIL_PERCENT.default,
+            canvas_margin: CANVAS_MARGIN.default,
+            outside_darkness: OUTSIDE_DARKNESS.default,
+            show_outside_default: DEFAULT_SHOW_OUTSIDE,
         }
     }
 }
@@ -204,6 +290,43 @@ pub fn set_transparency_checkerboard(dir: &Path, settings: &mut Settings, theme:
         return Err(invalid_choice("checkerboard", theme));
     }
     settings.transparency_checkerboard = theme.to_string();
+    save(dir, settings)
+}
+
+fn out_of_range(what: &str, value: u32, range: Range) -> io::Error {
+    io::Error::new(io::ErrorKind::InvalidInput, format!("{value} is not a {what} ({} to {})", range.min, range.max))
+}
+
+/// Sets the callout tail percentage; a value outside `CALLOUT_TAIL_PERCENT` changes nothing. Same save rules as the others.
+pub fn set_callout_tail_percent(dir: &Path, settings: &mut Settings, value: u32) -> io::Result<()> {
+    if !CALLOUT_TAIL_PERCENT.contains(value) {
+        return Err(out_of_range("callout tail percentage", value, CALLOUT_TAIL_PERCENT));
+    }
+    settings.callout_tail_percent = value;
+    save(dir, settings)
+}
+
+/// Sets the canvas margin in pixels; a value outside `CANVAS_MARGIN` changes nothing.
+pub fn set_canvas_margin(dir: &Path, settings: &mut Settings, value: u32) -> io::Result<()> {
+    if !CANVAS_MARGIN.contains(value) {
+        return Err(out_of_range("canvas margin", value, CANVAS_MARGIN));
+    }
+    settings.canvas_margin = value;
+    save(dir, settings)
+}
+
+/// Sets the outside-canvas darkness in percent; a value outside `OUTSIDE_DARKNESS` changes nothing.
+pub fn set_outside_darkness(dir: &Path, settings: &mut Settings, value: u32) -> io::Result<()> {
+    if !OUTSIDE_DARKNESS.contains(value) {
+        return Err(out_of_range("outside darkness", value, OUTSIDE_DARKNESS));
+    }
+    settings.outside_darkness = value;
+    save(dir, settings)
+}
+
+/// Sets whether new images show the area outside the canvas.
+pub fn set_show_outside_default(dir: &Path, settings: &mut Settings, show: bool) -> io::Result<()> {
+    settings.show_outside_default = show;
     save(dir, settings)
 }
 
@@ -489,10 +612,75 @@ mod tests {
     }
 
     #[test]
-    fn a_fresh_install_starts_transparent_with_the_dark_checkerboard() {
+    fn a_fresh_install_starts_transparent_with_the_light_checkerboard_and_the_view_defaults() {
         let s = load(&temp_dir("fresh-image"));
-        assert_eq!((s.image_background.as_str(), s.transparency_checkerboard.as_str()), ("transparent", "dark"));
-        assert_eq!(s.image_settings(), ImageSettings { background: "transparent".into(), checkerboard: "dark".into() });
+        assert_eq!((s.image_background.as_str(), s.transparency_checkerboard.as_str()), ("transparent", "light"));
+        assert_eq!(
+            s.image_settings(),
+            ImageSettings {
+                background: "transparent".into(),
+                checkerboard: "light".into(),
+                callout_tail_percent: 20,
+                canvas_margin: 48,
+                outside_darkness: 60,
+                show_outside_default: true,
+            }
+        );
+    }
+
+    #[test]
+    fn the_image_settings_reach_the_page_in_camel_case() {
+        let json = serde_json::to_value(Settings::default().image_settings()).unwrap();
+        assert_eq!(json["calloutTailPercent"], 20);
+        assert_eq!(json["canvasMargin"], 48);
+        assert_eq!(json["outsideDarkness"], 60);
+        assert_eq!(json["showOutsideDefault"], true);
+    }
+
+    #[test]
+    fn a_stored_checkerboard_is_kept_and_a_missing_one_is_now_light() {
+        let dir = temp_dir("old-checkerboard");
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(dir.join(FILE_NAME), br#"{"transparencyCheckerboard":"dark"}"#).unwrap();
+        assert_eq!(load(&dir).transparency_checkerboard, "dark");
+        fs::write(dir.join(FILE_NAME), br#"{"hotkey":"alt+x"}"#).unwrap();
+        assert_eq!(load(&dir).transparency_checkerboard, "light");
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn the_numeric_settings_are_validated_on_set_and_clamped_or_defaulted_on_load() {
+        let dir = temp_dir("numeric");
+        let mut s = Settings::default();
+        for (bad, ok) in [(4u32, 5u32), (51, 50)] {
+            assert!(set_callout_tail_percent(&dir, &mut s, bad).is_err());
+            assert_ne!(s.callout_tail_percent, bad);
+            set_callout_tail_percent(&dir, &mut s, ok).unwrap();
+            assert_eq!(s.callout_tail_percent, ok);
+        }
+        assert!(set_canvas_margin(&dir, &mut s, 15).is_err());
+        assert!(set_canvas_margin(&dir, &mut s, 201).is_err());
+        set_canvas_margin(&dir, &mut s, 200).unwrap();
+        assert!(set_outside_darkness(&dir, &mut s, 96).is_err());
+        set_outside_darkness(&dir, &mut s, 0).unwrap();
+        set_show_outside_default(&dir, &mut s, false).unwrap();
+        let back = load(&dir);
+        assert_eq!((back.canvas_margin, back.outside_darkness, back.show_outside_default), (200, 0, false));
+        let text = fs::read_to_string(dir.join(FILE_NAME)).unwrap();
+        assert!(text.contains("\"calloutTailPercent\": 50") && text.contains("\"showOutsideDefault\": false"), "{text}");
+
+        fs::write(
+            dir.join(FILE_NAME),
+            br#"{"calloutTailPercent":99,"canvasMargin":3,"outsideDarkness":"x","showOutsideDefault":"no"}"#,
+        )
+        .unwrap();
+        let back = load(&dir);
+        assert_eq!((back.callout_tail_percent, back.canvas_margin, back.outside_darkness, back.show_outside_default), (50, 16, 60, true));
+        fs::write(dir.join(FILE_NAME), br#"{"calloutTailPercent":-3,"canvasMargin":1.5,"outsideDarkness":null}"#).unwrap();
+        let back = load(&dir);
+        assert_eq!((back.callout_tail_percent, back.canvas_margin, back.outside_darkness), (5, 48, 60));
+        assert!(!dir.join(CORRUPT_FILE_NAME).exists());
+        fs::remove_dir_all(&dir).unwrap();
     }
 
     #[test]
@@ -502,7 +690,7 @@ mod tests {
         fs::write(dir.join(FILE_NAME), br#"{"hotkey":"alt+x"}"#).unwrap();
         let s = load(&dir);
         assert_eq!(s.hotkey, "alt+x");
-        assert_eq!((s.image_background.as_str(), s.transparency_checkerboard.as_str()), ("transparent", "dark"));
+        assert_eq!((s.image_background.as_str(), s.transparency_checkerboard.as_str()), ("transparent", "light"));
         assert!(!dir.join(CORRUPT_FILE_NAME).exists());
         fs::remove_dir_all(&dir).unwrap();
     }
@@ -528,13 +716,13 @@ mod tests {
         assert!(set_image_background(&dir, &mut s, "pink").is_err());
         assert!(set_transparency_checkerboard(&dir, &mut s, "").is_err());
         assert_eq!(s.image_background, "transparent");
-        assert_eq!(s.transparency_checkerboard, "dark");
+        assert_eq!(s.transparency_checkerboard, "light");
 
         fs::create_dir_all(&dir).unwrap();
         fs::write(dir.join(FILE_NAME), br#"{"hotkey":"alt+x","imageBackground":"pink","transparencyCheckerboard":5}"#).unwrap();
         let back = load(&dir);
         assert_eq!(back.hotkey, "alt+x");
-        assert_eq!((back.image_background.as_str(), back.transparency_checkerboard.as_str()), ("transparent", "dark"));
+        assert_eq!((back.image_background.as_str(), back.transparency_checkerboard.as_str()), ("transparent", "light"));
         fs::remove_dir_all(&dir).unwrap();
     }
 

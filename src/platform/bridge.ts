@@ -228,13 +228,23 @@ export interface PlatformBridge {
 
   /**
    * The two image settings (ticket 37): the background a new image starts with, and how transparency
-   * looks (the checkerboard). Defaults on a fresh install or an older settings file: Transparent, Dark.
+   * looks (the checkerboard). Defaults on a fresh install or an older settings file: Transparent, Light.
+   * The same event and getter carry the callout tail length, the canvas margin, the outside-canvas darkness and
+   * whether a new image shows the outside (all validated against their ranges in `shared/imageSettings.ts`).
    */
   getImageSettings(): Promise<ImageSettings>;
   /** Store the default background for new images and tell every window via `onImageSettings`. A failed write is logged and kept in memory. */
   setImageBackground(background: Background): Promise<void>;
   /** Store the checkerboard choice and tell every window via `onImageSettings`. */
   setCheckerboard(theme: CheckerboardTheme): Promise<void>;
+  /** Store the callout tail length (percent of the draw drag, 5 to 50). A value outside the range is refused. */
+  setCalloutTailPercent(percent: number): Promise<void>;
+  /** Store the canvas margin in pixels (16 to 200). A value outside the range is refused. */
+  setCanvasMargin(pixels: number): Promise<void>;
+  /** Store how dark the outside of the canvas is shown, in percent (0 to 95). A value outside the range is refused. */
+  setOutsideDarkness(percent: number): Promise<void>;
+  /** Store whether a new image shows the area outside its canvas. */
+  setShowOutsideDefault(show: boolean): Promise<void>;
   /** The image settings changed (from any window); delivers the new values. Returns an unsubscribe function. */
   onImageSettings(handler: (settings: ImageSettings) => void): Promise<() => void>;
 

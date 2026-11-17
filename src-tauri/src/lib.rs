@@ -311,6 +311,62 @@ fn set_checkerboard(app: AppHandle, state: tauri::State<'_, AppSettings>, theme:
     saved.or_else(|e| if e.kind() == std::io::ErrorKind::InvalidInput { Err(e.to_string()) } else { Ok(()) })
 }
 
+/// Stores the callout tail percentage; same rules as `set_image_background` (a value outside its range is refused).
+#[tauri::command]
+fn set_callout_tail_percent(app: AppHandle, state: tauri::State<'_, AppSettings>, percent: u32) -> Result<(), String> {
+    let mut data = state.data.lock().unwrap();
+    let saved = settings::set_callout_tail_percent(&state.dir, &mut data, percent);
+    if let Err(e) = &saved {
+        diag::log(&format!("the callout tail percentage set to {percent}; could not save settings.json (kept in memory): {e}"));
+    }
+    let now = data.image_settings();
+    drop(data);
+    let _ = app.emit(IMAGE_SETTINGS_EVENT, now);
+    saved.or_else(|e| if e.kind() == std::io::ErrorKind::InvalidInput { Err(e.to_string()) } else { Ok(()) })
+}
+
+/// Stores the canvas margin; same rules as `set_image_background` (a value outside its range is refused).
+#[tauri::command]
+fn set_canvas_margin(app: AppHandle, state: tauri::State<'_, AppSettings>, pixels: u32) -> Result<(), String> {
+    let mut data = state.data.lock().unwrap();
+    let saved = settings::set_canvas_margin(&state.dir, &mut data, pixels);
+    if let Err(e) = &saved {
+        diag::log(&format!("the canvas margin set to {pixels}; could not save settings.json (kept in memory): {e}"));
+    }
+    let now = data.image_settings();
+    drop(data);
+    let _ = app.emit(IMAGE_SETTINGS_EVENT, now);
+    saved.or_else(|e| if e.kind() == std::io::ErrorKind::InvalidInput { Err(e.to_string()) } else { Ok(()) })
+}
+
+/// Stores the outside darkness; same rules as `set_image_background` (a value outside its range is refused).
+#[tauri::command]
+fn set_outside_darkness(app: AppHandle, state: tauri::State<'_, AppSettings>, percent: u32) -> Result<(), String> {
+    let mut data = state.data.lock().unwrap();
+    let saved = settings::set_outside_darkness(&state.dir, &mut data, percent);
+    if let Err(e) = &saved {
+        diag::log(&format!("the outside darkness set to {percent}; could not save settings.json (kept in memory): {e}"));
+    }
+    let now = data.image_settings();
+    drop(data);
+    let _ = app.emit(IMAGE_SETTINGS_EVENT, now);
+    saved.or_else(|e| if e.kind() == std::io::ErrorKind::InvalidInput { Err(e.to_string()) } else { Ok(()) })
+}
+
+/// Stores show-outside-by-default; same rules as `set_image_background` (a value outside its range is refused).
+#[tauri::command]
+fn set_show_outside_default(app: AppHandle, state: tauri::State<'_, AppSettings>, show: bool) -> Result<(), String> {
+    let mut data = state.data.lock().unwrap();
+    let saved = settings::set_show_outside_default(&state.dir, &mut data, show);
+    if let Err(e) = &saved {
+        diag::log(&format!("show-outside-by-default set to {show}; could not save settings.json (kept in memory): {e}"));
+    }
+    let now = data.image_settings();
+    drop(data);
+    let _ = app.emit(IMAGE_SETTINGS_EVENT, now);
+    saved.or_else(|e| if e.kind() == std::io::ErrorKind::InvalidInput { Err(e.to_string()) } else { Ok(()) })
+}
+
 /// Each drawing tool's last style, as stored in settings.json (the editor reads and checks it).
 #[tauri::command]
 fn get_tool_styles(state: tauri::State<'_, AppSettings>) -> serde_json::Map<String, serde_json::Value> {
@@ -1045,7 +1101,11 @@ pub fn run() {
             set_magnifier,
             get_image_settings,
             set_image_background,
-            set_checkerboard
+            set_checkerboard,
+            set_callout_tail_percent,
+            set_canvas_margin,
+            set_outside_darkness,
+            set_show_outside_default
         ])
         .setup(|app| {
             app.handle().plugin(

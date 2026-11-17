@@ -313,11 +313,11 @@ test.describe("the view", () => {
     const checker = page.locator(".area .checker");
     await expect(checker).toBeVisible();
     const colour = () => checker.evaluate((el) => getComputedStyle(el).backgroundColor);
-    expect(await colour()).toBe("rgb(43, 47, 58)");
+    expect(await colour()).toBe("rgb(255, 255, 255)");
     expect(await checker.evaluate((el) => getComputedStyle(el).backgroundImage)).toContain("conic-gradient");
 
-    await setSetting(page, "setCheckerboard", "light");
-    await expect.poll(colour).toBe("rgb(255, 255, 255)");
+    await setSetting(page, "setCheckerboard", "dark");
+    await expect.poll(colour).toBe("rgb(43, 47, 58)");
 
     // The picture itself is transparent there, not checkered.
     const out = await copied(page);

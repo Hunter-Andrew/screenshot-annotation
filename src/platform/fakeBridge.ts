@@ -1,5 +1,5 @@
 import { encodeRgbaPng, readSize } from "../core/png";
-import { DEFAULT_IMAGE_SETTINGS, type ImageSettings, sanitizeImageSettings } from "../shared/imageSettings";
+import { CALLOUT_TAIL_PERCENT, CANVAS_MARGIN, DEFAULT_IMAGE_SETTINGS, type ImageSettings, inRange, OUTSIDE_DARKNESS, sanitizeImageSettings } from "../shared/imageSettings";
 import { formatStamp } from "../shared/stamp";
 import type { CaptureResult, LibraryFile, LibraryItem, OverlayOutcome, OverlayRect, PlatformBridge } from "./bridge";
 
@@ -95,7 +95,7 @@ export interface FakeBridge extends PlatformBridge {
   readonly printScreenNoticeDismissed: boolean;
   /** The stored magnifier setting (`fake.magnifier` in the fake storage; on for a fresh fake). */
   readonly magnifier: boolean;
-  /** The stored image settings (`fake.imageSettings` in the fake storage; Transparent and Dark for a fresh fake). */
+  /** The stored image settings (`fake.imageSettings` in the fake storage; Transparent and Light for a fresh fake). */
   readonly imageSettings: ImageSettings;
   /** The stored tool styles (`fake.toolStyles` in the fake storage; empty for a fresh fake). */
   readonly toolStyles: Record<string, unknown>;
@@ -586,6 +586,21 @@ export function createFakeBridge(
     },
     setCheckerboard: async (checkerboard) => {
       writeImageSettings({ ...readImageSettings(), checkerboard });
+    },
+    setCalloutTailPercent: async (percent) => {
+      if (!inRange(CALLOUT_TAIL_PERCENT, percent)) throw new Error(`${percent} is not a callout tail percentage`);
+      writeImageSettings({ ...readImageSettings(), calloutTailPercent: percent });
+    },
+    setCanvasMargin: async (pixels) => {
+      if (!inRange(CANVAS_MARGIN, pixels)) throw new Error(`${pixels} is not a canvas margin`);
+      writeImageSettings({ ...readImageSettings(), canvasMargin: pixels });
+    },
+    setOutsideDarkness: async (percent) => {
+      if (!inRange(OUTSIDE_DARKNESS, percent)) throw new Error(`${percent} is not an outside darkness`);
+      writeImageSettings({ ...readImageSettings(), outsideDarkness: percent });
+    },
+    setShowOutsideDefault: async (show) => {
+      writeImageSettings({ ...readImageSettings(), showOutsideDefault: show });
     },
     onImageSettings: async (handler) => {
       imageSettingsHandlers.add(handler);
