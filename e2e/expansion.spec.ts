@@ -272,7 +272,7 @@ test.describe("the view", () => {
     expect(stage.width).toBe(800);
   });
 
-  test("everything the canvas draws outside the visible area is dimmed (60% by default); the area itself is as captured", async ({ page }) => {
+  test("everything the canvas draws outside the visible area is dimmed (95% by default); the area itself is as captured", async ({ page }) => {
     await page.goto("/");
     await capture(page, 300, 200);
     await page.getByRole("button", { name: "100%" }).click();
@@ -285,11 +285,11 @@ test.describe("the view", () => {
 
     const inside = (await liveArea(page, { x: 10, y: 10, w: 1, h: 1 }))!.data;
     expect(inside).toEqual(pattern(110, 60));
-    // The cropped-out Capture is at area (-20, 20) = Capture (80, 70): 40% of its own colour plus 60% of the dim.
+    // The cropped-out Capture is at area (-20, 20) = Capture (80, 70): 5% of its own colour plus 95% of the dim.
     const outside = await liveArea(page, { x: -20, y: 20, w: 1, h: 1 });
     const own = pattern(80, 70);
     const dim = [6, 8, 12];
-    [0, 1, 2].forEach((k) => expect(Math.abs(outside!.data[k]! - (own[k]! * 0.4 + dim[k]! * 0.6))).toBeLessThanOrEqual(2));
+    [0, 1, 2].forEach((k) => expect(Math.abs(outside!.data[k]! - (own[k]! * 0.05 + dim[k]! * 0.95))).toBeLessThanOrEqual(2));
     expect(outside!.data[3]).toBe(255);
     // The margin is not painted by the canvas at all: it is the well's own dark fill.
     expect((await liveArea(page, { x: -120, y: 0, w: 1, h: 1 }))!.data[3]).toBe(0);
