@@ -17,7 +17,7 @@ export const CROP_TOOL: Tool = { id: "crop", label: "Crop", shortcutAction: "too
 
 export const TOOLS: readonly Tool[] = [
   SELECT_TOOL,
-  ...ANNOTATION_KINDS.map((k) => ({ id: k.type as string, label: k.label, shortcutAction: k.shortcutAction })),
+  ...ANNOTATION_KINDS.filter((k) => !k.pasted).map((k) => ({ id: k.type as string, label: k.label, shortcutAction: k.shortcutAction })),
   CROP_TOOL,
 ];
 

@@ -67,7 +67,18 @@ export function invert(before: AnnotatedImage, edit: Edit): Edit | null {
   }
 }
 
-const sameKeys = (a: object, b: object) => {
+/** The pasted images (ticket 38) the steps would put back (an Annotation they add), each id once. */
+export function historyImageIds(history: HistoryState): string[] {
+  const ids = new Set<string>();
+  for (const step of [...history.undo, ...history.redo]) {
+    for (const edit of [step.undo, step.redo]) {
+      if (edit.kind === "add" && edit.annotation.type === "image") ids.add(edit.annotation.imageId);
+    }
+  }
+  return [...ids];
+}
+
+const sameKeys =(a: object, b: object) => {
   const [x, y] = [Object.keys(a).sort(), Object.keys(b).sort()];
   return x.length === y.length && x.every((key, i) => key === y[i]);
 };

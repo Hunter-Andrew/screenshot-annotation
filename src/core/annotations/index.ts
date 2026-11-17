@@ -5,6 +5,7 @@ import { blurKind } from "./blur";
 import { calloutKind } from "./callout";
 import { ellipseKind } from "./ellipse";
 import { highlightKind } from "./highlight";
+import { imageKind } from "./image";
 import { lineKind } from "./line";
 import { penKind } from "./pen";
 import { rectKind } from "./rect";
@@ -21,6 +22,7 @@ export const ANNOTATION_KINDS: readonly AnnotationKind<any>[] = [
   penKind,
   highlightKind,
   blurKind,
+  imageKind,
 ];
 
 export function kindOf(type: AnnotationType | string): AnnotationKind<Annotation> | undefined {

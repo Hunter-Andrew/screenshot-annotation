@@ -61,6 +61,15 @@ export interface Opacity {
   value: number;
 }
 
+/** A pasted image's border (ticket 38): drawn inside the image's edge, always solid, off by default. */
+export interface Border {
+  enabled: boolean;
+  /** CSS hex color. Kept while the border is off, so switching it on again restores it. */
+  color: string;
+  /** MIN_STROKE_WIDTH-MAX_STROKE_WIDTH (1-30) px, in Capture pixels. */
+  width: number;
+}
+
 export interface Tail {
   /** The Callout's pointer; on by default, and the tip stays where it was while it is off. */
   enabled: boolean;
@@ -79,6 +88,7 @@ export interface PropertyGroups {
   strength: Strength;
   tail: Tail;
   stroke: Stroke;
+  border: Border;
   opacity: Opacity;
   arrowheads: Arrowheads;
   fill: Fill;
@@ -122,6 +132,12 @@ const GROUP_READERS: { [K in GroupId]: (raw: unknown) => PropertyGroups[K] | und
     if (!isRecord(raw) || typeof raw.blockSize !== "number") return;
     const blockSize = Math.round(raw.blockSize);
     return blockSize >= MIN_STRENGTH && blockSize <= MAX_STRENGTH ? { blockSize } : undefined;
+  },
+  border: (raw) => {
+    const stored = readColor(raw);
+    if (!stored || typeof stored.enabled !== "boolean" || typeof stored.width !== "number") return;
+    const width = Math.round(stored.width);
+    return width >= MIN_STROKE_WIDTH && width <= MAX_STROKE_WIDTH ? { enabled: stored.enabled, color: stored.color, width } : undefined;
   },
   tail: (raw) => (isRecord(raw) && typeof raw.enabled === "boolean" ? { enabled: raw.enabled } : undefined),
   opacity: (raw) =>

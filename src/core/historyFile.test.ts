@@ -89,21 +89,21 @@ describe("restoreHistory: what to do with a stored history when an image is open
   });
 
   it("starts empty when there is none", () => {
-    expect(restoreHistory(null, "h1", NOW)).toEqual({ reason: "none", history: { undo: [], redo: [] } });
+    expect(restoreHistory(null, "h1", NOW)).toEqual({ reason: "none", history: { undo: [], redo: [] }, images: {} });
   });
 
   it("discards it when the PNG changed outside the app (hash mismatch)", () => {
-    expect(restoreHistory(file(), "h2", NOW)).toEqual({ reason: "changed", history: { undo: [], redo: [] } });
+    expect(restoreHistory(file(), "h2", NOW)).toEqual({ reason: "changed", history: { undo: [], redo: [] }, images: {} });
   });
 
   it("discards it after 60 days without opening or editing", () => {
     const old = file({ touchedAt: NOW - 61 * DAY_MS });
-    expect(restoreHistory(old, "h1", NOW)).toEqual({ reason: "expired", history: { undo: [], redo: [] } });
+    expect(restoreHistory(old, "h1", NOW)).toEqual({ reason: "expired", history: { undo: [], redo: [] }, images: {} });
     expect(restoreHistory(file({ touchedAt: NOW - 59 * DAY_MS }), "h1", NOW).reason).toBe("restored");
   });
 
   it("discards a corrupt file instead of failing", () => {
-    expect(restoreHistory("{oops", "h1", NOW)).toEqual({ reason: "corrupt", history: { undo: [], redo: [] } });
+    expect(restoreHistory("{oops", "h1", NOW)).toEqual({ reason: "corrupt", history: { undo: [], redo: [] }, images: {} });
   });
 
   it("enforces the 200-step cap on what it loads, keeping the newest", () => {

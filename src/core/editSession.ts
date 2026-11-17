@@ -64,6 +64,11 @@ export interface EditSession {
   /** The image as it is now. */
   readonly image: AnnotatedImage;
   apply(edit: Edit): void;
+  /**
+   * Hand the session the PNG bytes of a pasted image before an `add` that refers to it. Not an edit: no
+   * undo step. The bytes stay for the whole session (Undo of a delete needs them).
+   */
+  registerImage(imageId: string, png: Uint8Array): void;
   /** Take back the last edit. False when there is nothing to undo. */
   undo(): boolean;
   /** Reapply the last undone edit. False when there is nothing to redo. */
@@ -131,6 +136,10 @@ export function createEditSession(initial: AnnotatedImage, options: SessionOptio
       if (inverse) history = record(history, { undo: inverse, redo: edit, at: now() });
       image = next;
       notify(edit);
+    },
+    registerImage(imageId, png) {
+      if (image.images?.[imageId]) return;
+      image = { ...image, images: { ...image.images, [imageId]: png } };
     },
     undo: () => replay(popUndo, "undo"),
     redo: () => replay(popRedo, "redo"),

@@ -10,18 +10,24 @@ import type { BlurAnnotation } from "./annotations/blur";
 import type { CalloutAnnotation } from "./annotations/callout";
 import type { EllipseAnnotation } from "./annotations/ellipse";
 import type { HighlightAnnotation } from "./annotations/highlight";
+import type { ImageAnnotation } from "./annotations/image";
 import type { LineAnnotation } from "./annotations/line";
 import type { PenAnnotation } from "./annotations/pen";
 import type { RectAnnotation } from "./annotations/rect";
 import type { TextAnnotation } from "./annotations/text";
 
-/** Bump when the embedded format changes incompatibly. A file with a higher number opens read-only.
+/** The format version of a file with no pasted image. A file numbered above what the reader supports opens read-only.
  *  Adding a tool or property group is additive and needs no bump: the app only ever moves forward. */
 export const FORMAT_VERSION = 1;
+/** A file that holds an image Annotation is version 2: it adds an embedded part (the `snIM` chunks) that a
+ *  version 1 reader cannot skip, so that reader opens it read-only. Written only when needed (ticket 38). */
+export const IMAGE_FORMAT_VERSION = 2;
+/** The newest format this build reads and writes. */
+export const SUPPORTED_FORMAT_VERSION = IMAGE_FORMAT_VERSION;
 
 export type { ArrowAnnotation, EllipseAnnotation, LineAnnotation, RectAnnotation };
 export type { BlurAnnotation, CalloutAnnotation, HighlightAnnotation, PenAnnotation };
-export type { TextAnnotation };
+export type { ImageAnnotation, TextAnnotation };
 
 export type Annotation =
   | ArrowAnnotation
@@ -32,6 +38,7 @@ export type Annotation =
   | HighlightAnnotation
   | BlurAnnotation
   | CalloutAnnotation
+  | ImageAnnotation
   | TextAnnotation;
 
 export type AnnotationType = Annotation["type"];

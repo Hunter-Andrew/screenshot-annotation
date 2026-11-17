@@ -33,4 +33,6 @@ export interface AnnotationKind<A extends Annotation = Annotation> {
    * it becomes an Annotation only once something has been typed.
    */
   readonly typedInPlace?: boolean;
+  /** True for an Annotation that is pasted rather than drawn (the image): no tool-column button, no shortcut. */
+  readonly pasted?: boolean;
 }
