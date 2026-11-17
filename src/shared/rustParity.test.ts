@@ -7,7 +7,7 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { BACKGROUNDS } from "../core/area";
 import { CAPTURE_DELAYS } from "../platform/bridge";
-import { CHECKERBOARD_THEMES, DEFAULT_IMAGE_SETTINGS } from "./imageSettings";
+import { CALLOUT_TAIL_PERCENT, CANVAS_MARGIN, CHECKERBOARD_THEMES, DEFAULT_IMAGE_SETTINGS, OUTSIDE_DARKNESS } from "./imageSettings";
 import { COUNTDOWN_HASH, OVERLAY_HASH_PREFIX, RELEASES_URL, SETTINGS_HASH } from "./constants";
 
 const rust = (file: string) => readFileSync(resolve(__dirname, "../../src-tauri/src", file), "utf8");
@@ -45,6 +45,34 @@ describe("TS/Rust shared constants", () => {
     expect(list("CHECKERBOARDS")).toEqual([...CHECKERBOARD_THEMES]);
     expect(text("DEFAULT_IMAGE_BACKGROUND")).toBe(DEFAULT_IMAGE_SETTINGS.background);
     expect(text("DEFAULT_CHECKERBOARD")).toBe(DEFAULT_IMAGE_SETTINGS.checkerboard);
+  });
+
+  it("settings.rs has the same ranges and defaults for the numeric and boolean image settings as the editor", () => {
+    const range = (name: string) => {
+      const m = rust("settings.rs").match(new RegExp(`pub const ${name}: Range = Range \\{ min: (\\d+), max: (\\d+), default: (\\d+) \\};`));
+      return m && { min: Number(m[1]), max: Number(m[2]), default: Number(m[3]) };
+    };
+    expect(range("CALLOUT_TAIL_PERCENT")).toEqual(CALLOUT_TAIL_PERCENT);
+    expect(range("CANVAS_MARGIN")).toEqual(CANVAS_MARGIN);
+    expect(range("OUTSIDE_DARKNESS")).toEqual(OUTSIDE_DARKNESS);
+    expect(rust("settings.rs").match(/pub const DEFAULT_SHOW_OUTSIDE: bool = (\w+);/)?.[1]).toBe(String(DEFAULT_IMAGE_SETTINGS.showOutsideDefault));
+  });
+
+  it("the bridge's image-setting commands exist in lib.rs, are registered, and use the argument names Rust expects", () => {
+    const tauriBridge = readFileSync(resolve(__dirname, "../platform/tauriBridge.ts"), "utf8");
+    const lib = rust("lib.rs");
+    const expected: Record<string, string> = {
+      set_callout_tail_percent: "percent: u32",
+      set_canvas_margin: "pixels: u32",
+      set_outside_darkness: "percent: u32",
+      set_show_outside_default: "show: bool",
+    };
+    for (const [command, arg] of Object.entries(expected)) {
+      const name = arg.split(":")[0];
+      expect(tauriBridge).toContain(`invoke<void>("${command}", { ${name} })`);
+      expect(lib).toContain(`fn ${command}(app: AppHandle, state: tauri::State<'_, AppSettings>, ${arg})`);
+      expect(lib).toMatch(new RegExp(`\\b${command},?\\s`));
+    }
   });
 
   it("every command the Tauri bridge invokes is registered in lib.rs", () => {

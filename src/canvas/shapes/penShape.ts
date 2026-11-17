@@ -60,6 +60,18 @@ export class PenShape extends FabricObject {
     const { color, width } = this.annotation.stroke;
 
     ctx.globalAlpha *= "opacity" in this.annotation ? this.annotation.opacity.value : 1;
+    // A highlighter multiplies with what is beneath it (like a marker: dark text stays dark, white
+    // text on a dark ground comes out in the marker's colour). The context is put back for whatever is drawn next.
+    ctx.save();
+    try {
+      if (this.annotation.type === "highlight") ctx.globalCompositeOperation = "multiply";
+      this.paintStroke(ctx, ox, oy, color, width);
+    } finally {
+      ctx.restore();
+    }
+  }
+
+  private paintStroke(ctx: CanvasRenderingContext2D, ox: number, oy: number, color: string, width: number): void {
     ctx.strokeStyle = color;
     ctx.lineWidth = width;
     ctx.lineCap = "round";

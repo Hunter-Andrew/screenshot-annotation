@@ -24,6 +24,10 @@ export interface Arrowheads {
 export type TextAlign = "left" | "center" | "right";
 export const TEXT_ALIGNS: readonly TextAlign[] = ["left", "center", "right"];
 
+/** Where a text sits inside its box when the box is taller than the text (a dragged-out area, a resized box). */
+export type VerticalAlign = "top" | "middle" | "bottom";
+export const VERTICAL_ALIGNS: readonly VerticalAlign[] = ["top", "middle", "bottom"];
+
 export interface Font {
   /** 8-200 px, in Capture pixels. */
   size: number;
@@ -33,7 +37,20 @@ export interface Font {
   color: string;
   /** Alignment of the lines in the box; absent in images and settings saved before it existed, which means left. */
   align?: TextAlign;
+  /**
+   * Where the text sits in a box taller than it. Absent in images and settings saved before it existed, which means
+   * top (so an older text keeps its look); a NEW Text or Callout starts with "middle" from its default style.
+   */
+  valign?: VerticalAlign;
+  /** The whole text underlined. Absent in images and settings saved before it existed, which means off. */
+  underline?: boolean;
 }
+
+/** The vertical alignment of a font: a missing one is "top", because that is how older texts were drawn. */
+export const valignOf = (font: Font): VerticalAlign => font.valign ?? "top";
+
+/** Whether a font is underlined: a missing value is off. */
+export const isUnderlined = (font: Font): boolean => font.underline === true;
 
 export interface TextOutline {
   /** Text is red with a white outline by default; the outline can be switched off. */
@@ -160,7 +177,17 @@ const GROUP_READERS: { [K in GroupId]: (raw: unknown) => PropertyGroups[K] | und
     const whole = Math.round(size);
     if (whole < MIN_FONT_SIZE || whole > MAX_FONT_SIZE) return undefined;
     const align = (TEXT_ALIGNS as readonly unknown[]).includes(stored.align) ? (stored.align as TextAlign) : undefined;
-    return { size: whole, bold, italic, color: stored.color, ...(align ? { align } : {}) };
+    const valign = (VERTICAL_ALIGNS as readonly unknown[]).includes(stored.valign) ? (stored.valign as VerticalAlign) : undefined;
+    const underline = typeof stored.underline === "boolean" ? stored.underline : undefined;
+    return {
+      size: whole,
+      bold,
+      italic,
+      color: stored.color,
+      ...(align ? { align } : {}),
+      ...(valign ? { valign } : {}),
+      ...(underline !== undefined ? { underline } : {}),
+    };
   },
   textOutline: (raw) => {
     const stored = readColor(raw);

@@ -33,9 +33,9 @@ export function clampFontSize(size: number): number {
 }
 
 /** Where lines wrap in a text box made by a click (a drag sets its own). */
-const DEFAULT_WIDTH = 240;
+export const DEFAULT_WIDTH = 240;
 /** A drag narrower than this is too thin to be an area: the default width is used instead. */
-const MIN_AREA_WIDTH = 20;
+export const MIN_AREA_WIDTH = 20;
 /** Pointer movement (Capture pixels) under which a press is a click, not a drag. */
 export const CLICK_SLOP = 4;
 
@@ -79,7 +79,7 @@ export const textKind: AnnotationKind<TextAnnotation> = {
   shortcutAction: "tool.text",
   groups: ["font", "textOutline"],
   defaultStyle: {
-    font: { size: 24, bold: false, italic: false, color: "#e02424", align: "left" },
+    font: { size: 24, bold: false, italic: false, color: "#e02424", align: "left", valign: "middle", underline: false },
     textOutline: { enabled: true, color: "#ffffff", width: 2 },
   },
   typedInPlace: true,

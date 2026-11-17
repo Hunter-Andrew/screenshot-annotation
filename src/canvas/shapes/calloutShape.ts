@@ -6,6 +6,7 @@ import { Control, Point } from "fabric";
 import type { CalloutAnnotation } from "../../core/annotations/callout";
 import { bubbleBox, CALLOUT_PAD, defaultTip, outlinePath, tailTo } from "../../core/annotations/calloutGeometry";
 import { fillPaint } from "../../core/propertyGroups";
+import type { HandleName } from "../../core/annotations/textBox";
 import { TextShape } from "./textShape";
 
 export class CalloutShape extends TextShape {
@@ -46,6 +47,19 @@ export class CalloutShape extends TextShape {
   /** The tip as an offset from the text box's top-left corner (the default when the user has not set one). */
   private tipOffset(): { x: number; y: number } {
     return this.tip ?? defaultTip({ width: this.width, height: this.height });
+  }
+
+  /**
+   * The tail's tip must not move when the box is resized, whichever handle does it: the tip is stored relative to
+   * the box's top-left corner, so every resize re-aims it from the new corner. A tip that was still the default
+   * (never placed) is frozen here, on the first resize, where it was. Moving the whole callout keeps the offset.
+   */
+  override dragHandle(name: HandleName, x: number, y: number): boolean {
+    const before = this.tipOffset();
+    const spot = { x: this.left + before.x, y: this.top + before.y };
+    const changed = super.dragHandle(name, x, y);
+    if (changed) this.tip = { x: spot.x - this.left, y: spot.y - this.top };
+    return changed;
   }
 
   override isControlVisible(control: string): boolean {

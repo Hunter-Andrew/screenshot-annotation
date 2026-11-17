@@ -269,7 +269,8 @@ fn run(app: &AppHandle, attempt: u64, editor_hidden_already: bool) {
         }
         Some(win) if win.is_visible().unwrap_or(false) => {
             crate::hide_editor(&win);
-            std::thread::sleep(crate::HIDE_SETTLE);
+            // The editor fades out: wait for it to be fully gone, or it is partly in the picture.
+            std::thread::sleep(crate::delay::wait_after_hiding_editor(crate::HIDE_SETTLE));
             diag::log("editor was visible: hidden for the capture");
             true
         }

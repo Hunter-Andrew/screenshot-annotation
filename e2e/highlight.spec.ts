@@ -41,7 +41,7 @@ async function saved(page: Page): Promise<Highlight[]> {
 test.describe("the Highlighter", () => {
   test.use({ viewport: { width: 760, height: 520 } });
 
-  test("H draws a see-through yellow stroke; Shift makes it straight and horizontal; Copy burns it in", async ({ page }) => {
+  test("H draws a yellow multiply stroke; Shift makes it straight and horizontal; Copy burns it in", async ({ page }) => {
     await page.goto("/");
     await capture(page, 600, 400);
     const box = (await page.locator(".stage").boundingBox())!;
@@ -66,8 +66,8 @@ test.describe("the Highlighter", () => {
     expect(h!.type).toBe("highlight");
     expect(h!.points.every((p) => Math.abs(p.y - 150) <= 2)).toBe(true);
     expect(Math.abs(h!.points.at(-1)!.x - 400)).toBeLessThanOrEqual(3);
-    expect(h!.stroke).toEqual({ color: "#facc15", width: 20 });
-    expect(h!.opacity.value).toBeLessThan(1);
+    expect(h!.stroke).toEqual({ color: "#ffee00", width: 20 });
+    expect(h!.opacity.value).toBe(1);
 
     await page.getByRole("button", { name: "Copy", exact: true }).click();
     await expect.poll(() => page.evaluate(() => (window as unknown as InPage).__fakeBridge.copiedImages.length)).toBe(1);
@@ -75,11 +75,8 @@ test.describe("the Highlighter", () => {
     const px = decodePixels(png);
     const pixel = (x: number, y: number) => Array.from(px.rgba.slice((y * px.width + x) * 4, (y * px.width + x) * 4 + 4));
     const [r, g, b] = pixel(250, 150);
-    // Yellow over white at half strength: still bright, but visibly less blue; the page behind shows through.
-    expect(r).toBeGreaterThan(240);
-    expect(g).toBeGreaterThan(200);
-    expect(b).toBeLessThan(200);
-    expect(b).toBeGreaterThan(80);
+    // #ffee00 multiplied over white is #ffee00 itself.
+    expect([r, g, b]).toEqual([255, 238, 0]);
     expect(pixel(250, 250)).toEqual([255, 255, 255, 255]); // untouched below the stroke
   });
 
