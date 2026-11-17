@@ -5,8 +5,9 @@
 // same `applyEdit` as any other edit. The inverse is computed from the image as it was before the
 // edit, generically: an update inverts to the old values of the keys it patched, so a new Annotation
 // kind (tickets 10-12, 18-20) needs nothing here. A new kind of `Edit` (ticket 21's `setCrop`) adds
-// one case to `invert`.
+// one case to `invert`; `setCrop` inverts to the crop it replaced.
 import type { AnnotatedImage } from "./annotatedImage";
+import { sameCrop } from "./crop";
 import type { Edit } from "./editSession";
 
 /** Most steps kept per image (spec: undo history, 200 steps). */
@@ -59,6 +60,8 @@ export function invert(before: AnnotatedImage, edit: Edit): Edit | null {
       const to = Math.max(0, Math.min(edit.to, list.length - 1));
       return index < 0 || index === to ? null : { kind: "reorder", id: edit.id, to: index };
     }
+    case "setCrop":
+      return sameCrop(before.model.crop, edit.crop) ? null : { kind: "setCrop", crop: before.model.crop };
     default:
       return null;
   }

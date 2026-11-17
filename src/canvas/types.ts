@@ -3,7 +3,7 @@
 // and is loaded on first use; tests pass a stub kit. The canvas only renders and edits the
 // app-owned model (ADR 0005); the model is the source of truth and the canvas follows it.
 import type { FinishedRenderer } from "../core/annotatedImage";
-import type { Annotation, AnnotationModel } from "../core/annotation";
+import type { Annotation, AnnotationModel, Crop } from "../core/annotation";
 import type { Style } from "../core/propertyGroups";
 
 export interface Size {
@@ -19,12 +19,14 @@ export interface CanvasEvents {
   onUpdate(id: string, patch: Partial<Annotation>): void;
   /** The selection changed (null: nothing selected). */
   onSelect(id: string | null): void;
+  /** A Crop drag finished (the Crop tool): the new visible area, whole pixels inside the Capture. */
+  onCrop(crop: Crop): void;
 }
 
 export interface AnnotationCanvas {
   /** Make the canvas show exactly `model.annotations` (adds, updates and removes objects). */
   sync(model: AnnotationModel): void;
-  /** The active tool: "select", or an Annotation type to draw. Choosing a tool clears the selection. */
+  /** The active tool: "select", "crop", or an Annotation type to draw. Choosing a tool clears the selection. */
   setTool(tool: string): void;
   /** The style new Annotations are drawn in. */
   setDrawStyle(style: Style): void;

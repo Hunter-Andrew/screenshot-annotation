@@ -4,12 +4,14 @@
 // the canvas never keeps state of its own that the model does not have.
 import { Canvas, type FabricObject, Rect } from "fabric";
 import { kindOf } from "../core/annotations";
+import { cropFromDrag } from "../core/crop";
 import { newAnnotationId, type Annotation, type AnnotationModel } from "../core/annotation";
 import type { Style } from "../core/propertyGroups";
 import type { AnnotationCanvas, MountOptions } from "./types";
 import { adapterFor } from "./shapes";
 
 const SELECT = "select";
+const CROP = "crop";
 
 export function createFabricCanvas(host: HTMLElement, { size, events }: MountOptions): AnnotationCanvas {
   // Its own mount point, so that tearing one canvas down (React StrictMode mounts, unmounts and
@@ -148,6 +150,8 @@ export function createFabricCanvas(host: HTMLElement, { size, events }: MountOpt
     drag = { from, path: [from], ghost: null };
   });
   canvas.on("mouse:move", (event) => {
+    // The Crop tool previews its rectangle like Text's box (same dashed preview).
+    if (drag && tool === CROP) return previewArea(drag, clampToImage(canvas.getScenePoint(event.e)));
     const kind = kindOf(tool);
     const adapter = adapterFor(tool);
     if (!drag || !kind || !adapter) return;
@@ -170,6 +174,13 @@ export function createFabricCanvas(host: HTMLElement, { size, events }: MountOpt
   canvas.on("mouse:up", (event) => {
     const gesture = drag;
     drag = null;
+    if (gesture && tool === CROP) {
+      if (gesture.ghost) canvas.remove(gesture.ghost);
+      canvas.requestRenderAll();
+      const crop = cropFromDrag(gesture.from, clampToImage(canvas.getScenePoint(event.e)), size);
+      if (crop) events.onCrop(crop);
+      return;
+    }
     const kind = kindOf(tool);
     if (!gesture || !kind) return;
     if (gesture.ghost) canvas.remove(gesture.ghost);

@@ -22,11 +22,13 @@ interface Props {
   /** Stacking order and Delete for the selected Annotation; null when nothing is selected (or read-only). */
   arrange?: Arrange | null;
   /** The active drawing tool's own behavior option (not a property of any Annotation); null when no drawing tool is active. */
+  /** The Crop section: shown while the Crop tool is active or the image has a crop. Null: not shown. */
+  crop?: { active: boolean; hasCrop: boolean; onRemove(): void } | null;
   toolOption?: { label: string; checked: boolean; onChange(value: boolean): void; hidden?: boolean } | null;
 }
 
 /** The Style panel (right column): one section per property group the kind opts into. */
-export function StylePanel({ kind, style, onChange, arrange = null, toolOption = null }: Props) {
+export function StylePanel({ kind, style, onChange, arrange = null, crop = null, toolOption = null }: Props) {
   return (
     <aside className="style-panel" aria-label="Style">
       <h2>Style</h2>
@@ -44,8 +46,19 @@ export function StylePanel({ kind, style, onChange, arrange = null, toolOption =
             {toolOption.label}
           </label>
         ))}
+      {crop && (
+        <section className="group" aria-label="Crop">
+          <h3>Crop</h3>
+          {crop.active && <p className="hint">Drag on the image to set the visible area.</p>}
+          <div className="presets">
+            <button onClick={crop.onRemove} disabled={!crop.hasCrop}>
+              Remove crop
+            </button>
+          </div>
+        </section>
+      )}
       {kind === null ? (
-        <p className="hint">Select an Annotation, or pick a tool, to change its style.</p>
+        crop?.active ? null : <p className="hint">Select an Annotation, or pick a tool, to change its style.</p>
       ) : (
         kind.groups.map((group) => {
           const value = style[group];

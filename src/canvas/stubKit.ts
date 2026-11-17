@@ -1,7 +1,7 @@
 // Test-only: a CanvasKit with no canvas, for the editor's jsdom tests (jsdom has no 2D canvas, and
 // Fabric needs one). It records what the editor tells the canvas, and lets a test play the part of
 // the user's gestures. The real canvas is exercised by the Playwright tests in e2e/.
-import type { Annotation, AnnotationModel } from "../core/annotation";
+import type { Annotation, AnnotationModel, Crop } from "../core/annotation";
 import type { Style } from "../core/propertyGroups";
 import type { AnnotationCanvas, CanvasEvents, CanvasKit, MountOptions } from "./types";
 
@@ -20,6 +20,8 @@ export interface StubCanvas extends AnnotationCanvas {
   draw(annotation: Annotation): void;
   /** The user moves or resizes an Annotation. */
   edit(id: string, patch: Partial<Annotation>): void;
+  /** The user finishes a Crop drag. */
+  dragCrop(crop: Crop): void;
   /** The user clicks an Annotation (or empty space, with null). */
   click(id: string | null): void;
 }
@@ -28,6 +30,8 @@ export interface StubKit extends CanvasKit {
   readonly canvases: StubCanvas[];
   /** The canvas of the image on show. */
   readonly latest: StubCanvas;
+  /** Replaceable by a test that wants to see what the Export renderer is given. */
+  render: CanvasKit["render"];
 }
 
 export function createStubKit(): StubKit {
@@ -73,6 +77,7 @@ export function createStubKit(): StubKit {
           canvas.disposed = true;
         },
         draw: (annotation) => events.onCreate(annotation),
+        dragCrop: (crop) => events.onCrop(crop),
         edit: (id, patch) => events.onUpdate(id, patch),
         click(id) {
           canvas.selected = id;
