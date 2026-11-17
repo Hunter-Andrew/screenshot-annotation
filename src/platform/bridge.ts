@@ -77,6 +77,9 @@ export type SetHotkeyResult =
   | { ok: true }
   | { ok: false; reason: "conflict" | "invalid" | "failed" };
 
+/** The delays the delay timer offers, in seconds (the tray menu lists the same; `src-tauri/src/delay.rs` must match, see rustParity.test.ts). */
+export const CAPTURE_DELAYS = [3, 5, 10] as const;
+
 export interface PlatformBridge {
   /** The installed app version, e.g. "0.1.0". */
   getVersion(): Promise<string>;
@@ -85,6 +88,17 @@ export interface PlatformBridge {
 
   /** Capture the monitor under the cursor (what the hotkey does). The result arrives via `onCapture`. */
   startCapture(): Promise<void>;
+  /**
+   * The delay timer: capture `seconds` from now (one of `CAPTURE_DELAYS`; the platform refuses any other
+   * number). Resolves once the countdown has started, not when the Capture arrives. The editor hides at
+   * once so the screen can be arranged, a countdown badge follows the mouse pointer, and then the
+   * capture overlay opens like after the hotkey.
+   */
+  startDelayedCapture(seconds: number): Promise<void>;
+  /** The number the countdown badge shows now, or null when no countdown is running. */
+  getCountdown(): Promise<number | null>;
+  /** The countdown number changed (null: it is over). Returns an unsubscribe function. */
+  onCountdown(handler: (remaining: number | null) => void): Promise<() => void>;
   /**
    * Receive Captures, whether they came from the hotkey, the tray or `startCapture`. A Capture
    * taken before the handler was registered (editor window still loading) is delivered too.
@@ -149,6 +163,22 @@ export interface PlatformBridge {
   purgeHistoryBefore(cutoffMs: number): Promise<number>;
   /** Open the Settings window (the editor's gear button). */
   openSettings(): Promise<void>;
+  /** Launch at sign-in (default on): start the app, into the tray, when the user signs in to Windows. */
+  getLaunchAtSignIn(): Promise<boolean>;
+  /** Turn launch at sign-in on or off. Rejects, leaving it as it was, if Windows refuses the change. */
+  setLaunchAtSignIn(enabled: boolean): Promise<void>;
+  /** The Library folder (read-only here: it is where captures are saved, not a setting). */
+  getLibraryFolder(): Promise<string>;
+  /** Show the Library folder in Windows Explorer (made first if it does not exist yet). */
+  openLibraryFolder(): Promise<void>;
+  /**
+   * Reset tool styles: forget every tool's sticky style and its "return to Select" choice, so each tool
+   * starts from its default again. The stored styles are cleared and every window that holds some
+   * (the editor) is told through `onToolStylesReset`.
+   */
+  resetToolStyles(): Promise<void>;
+  /** The stored tool styles were reset (from any window). Returns an unsubscribe function. */
+  onToolStylesReset(handler: () => void): Promise<() => void>;
 
   // Capture overlay (one window per monitor, each showing its frozen frame).
   /** The frozen frame of monitor `monitor` (its index in the platform's monitor list). */
@@ -159,6 +189,17 @@ export interface PlatformBridge {
    * hit-tests this list; the platform keeps its own copy and never trusts the index it gets back.
    */
   overlayWindows(monitor: number): Promise<OverlayRect[]>;
+  /**
+   * Overlay windows are created at startup and kept hidden (ADR 0003), so a page cannot assume that
+   * it was opened for a capture. The capture attempt this overlay should show now, or null while it
+   * sits idle and hidden. Ask once when the page has loaded; later changes arrive via `onOverlayAttempt`.
+   */
+  overlayAttempt(): Promise<number | null>;
+  /**
+   * A capture began (the attempt number: show your monitor's frame) or ended (null: drop it and go back
+   * to idle). Returns an unsubscribe function.
+   */
+  onOverlayAttempt(handler: (attempt: number | null) => void): Promise<() => void>;
   /** The overlay of `monitor` has its frame on screen; the platform may now show the window. */
   overlayReady(monitor: number): Promise<void>;
   /** Finish the capture. The platform closes every overlay and delivers the Capture via `onCapture`. */

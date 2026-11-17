@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Permissions for the Settings, editor and capture overlay windows. App commands (app_version, open_url, start_capture, take_capture, copy_image, library_save, library_discard, library_update, library_open_latest, history_read, history_write, history_delete, history_purge_before, open_settings, save_png_as, get_hotkey, set_hotkey, get_print_screen_notice, settings_log, dismiss_print_screen_notice, open_keyboard_settings, overlay_frame, overlay_windows, overlay_ready, overlay_log, overlay_finish, get_magnifier, set_magnifier) are always allowed.",
-  "windows": ["settings", "editor", "overlay-*"],
+  "description": "Permissions for the Settings, editor, capture overlay and countdown badge windows. App commands (every #[tauri::command] registered in lib.rs, e.g. start_capture, start_delayed_capture, take_capture, library_*, history_*, open_settings, get_launch_at_sign_in, overlay_attempt, overlay_frame, countdown_remaining) are always allowed.",
+  "windows": ["settings", "editor", "overlay-*", "countdown"],
   "permissions": ["core:default"]
 }

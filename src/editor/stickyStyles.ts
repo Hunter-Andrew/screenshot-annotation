@@ -52,6 +52,30 @@ export function useStickyStyles(
     };
   }, [bridge, setToolStyles, setBehavior]);
 
+  // Settings > Reset tool styles: every tool starts from its default again. What this window still held
+  // (and any change waiting for its short pause) must not be written back over the reset.
+  useEffect(() => {
+    let off: (() => void) | undefined;
+    let cancelled = false;
+    void bridge
+      .onToolStylesReset(() => {
+        if (timer.current !== null) clearTimeout(timer.current);
+        timer.current = null;
+        dirty.current = false;
+        stored.current = {};
+        setToolStyles({});
+        setBehavior({});
+      })
+      .then((unsubscribe) => {
+        if (cancelled) unsubscribe();
+        else off = unsubscribe;
+      });
+    return () => {
+      cancelled = true;
+      off?.();
+    };
+  }, [bridge, setToolStyles, setBehavior]);
+
   // A change not yet stored is not lost when the window is hidden or closed.
   useEffect(() => {
     const onHide = () => document.visibilityState === "hidden" && flush();
