@@ -214,14 +214,22 @@ async function savedImages(page: Page): Promise<SavedImage[]> {
 }
 const onlyImage = async (page: Page) => (await savedImages(page))[0]!;
 
+/** The live editor canvas pixel, or null while the canvas is being rebuilt (after reopening an image): poll until it is there. */
 async function livePixel(page: Page, x: number, y: number) {
   return page.evaluate(
     ({ x, y }) => {
-      const canvas = document.querySelector<HTMLCanvasElement>(".lower-canvas")!;
-      return Array.from(canvas.getContext("2d")!.getImageData(x, y, 1, 1).data);
+      const canvas = document.querySelector<HTMLCanvasElement>(".lower-canvas");
+      const context = canvas?.getContext("2d");
+      return context ? Array.from(context.getImageData(x, y, 1, 1).data) : null;
     },
     { x, y },
   );
+}
+
+/** True once the live canvas exists and its pixel differs from `plain` (the image is drawn over the Capture). */
+async function liveDiffersFrom(page: Page, x: number, y: number, plain: number[]) {
+  const pixel = await livePixel(page, x, y);
+  return pixel !== null && pixel.some((v, i) => v !== plain[i]);
 }
 
 async function copiedPixels(page: Page) {
@@ -328,7 +336,7 @@ test.describe("pasting an image in the editor", () => {
     await expect.poll(async () => (await onlyImage(page)).opacity.value, { timeout: 6000 }).toBe(0.5);
     await captureWithPattern(page, W, H, new Date(2026, 10, 16, 11, 0, 0));
     await page.getByRole("region", { name: "Library Strip" }).getByRole("button", { name: "Open image from 16 Nov 2026 10:00:00" }).click();
-    await expect.poll(() => livePixel(page, left + 10, top + 30), { timeout: 6000 }).not.toEqual(pattern(left + 10, top + 30));
+    await expect.poll(() => liveDiffersFrom(page, left + 10, top + 30, pattern(left + 10, top + 30)), { timeout: 6000 }).toBe(true);
     const reopened = (await page.locator(".stage").boundingBox())!; // the layout may have shifted
     await page.mouse.click(reopened.x + left + 30, reopened.y + top + 30);
     await expect(page.getByRole("region", { name: "Border" })).toBeVisible();
@@ -337,7 +345,7 @@ test.describe("pasting an image in the editor", () => {
     await page.keyboard.press("Control+z");
     await expect.poll(async () => (await savedImages(page)).length, { timeout: 6000 }).toBe(1);
     // The pixels came back with it.
-    await expect.poll(() => livePixel(page, left + 10, top + 30), { timeout: 6000 }).not.toEqual(pattern(left + 10, top + 30));
+    await expect.poll(() => liveDiffersFrom(page, left + 10, top + 30, pattern(left + 10, top + 30)), { timeout: 6000 }).toBe(true);
   });
 
   test("a Blur drawn over a pasted image pixelates it on the live canvas and in the Copy", async ({ page }) => {
