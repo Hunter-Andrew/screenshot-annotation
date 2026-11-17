@@ -18,3 +18,12 @@ Windows Smart App Control (unlike SmartScreen) blocks an unsigned installer with
 ## Update 2026-11-15 (later): unsigned releases are acceptable for now
 
 The unsigned CI installer installs and runs on Andrew's work laptop without being blocked by Smart App Control (observed on the M2 builds), so releases may be published unsigned. CI therefore signs when all six signing values are configured and otherwise builds unsigned with a warning (the artifact is named plainly, `Screenshot-Annotation-Setup`); a partly configured setup is still an error. The earlier block was not reproduced on these builds, and Smart App Control behavior can differ per machine and over time, so signing stays the upgrade path if IT ever blocks the installer.
+
+## Update 2026-11-16: no paid signing; verify the download instead
+
+A paid certificate or service is not wanted, and a self-signed certificate would not help: Smart App Control and SmartScreen treat it like no signature (only a certificate from a CA in Microsoft's Trusted Root Program counts). The free open-source route (SignPath Foundation) was considered and not pursued. Releases therefore stay unsigned, and the Azure Trusted Signing path in CI stays as the optional upgrade. To make an unsigned download checkable, the release job now attaches a `SHA256SUMS.txt` and records a GitHub build provenance attestation for the installer (free for public repositories), and the Release notes say how to check both. This proves the file is the one this workflow built from the tag; it does not make Windows trust it.
+
+
+## Update 2026-11-17: Smart App Control blocked some unsigned builds; resolved for now
+
+Andrew's PC (a personal machine, not a managed laptop) has Smart App Control on. It allowed unsigned CI installers up to run #61 and blocked the unsigned installers of runs #65 to #67, though nothing about signing, the runner image or the Rust code had changed between them (only web UI code and the icon source). The cause was never found. Andrew has worked around it ("fixed for now"). Smart App Control can judge an unsigned file differently from one build to the next, so unsigned releases are best-effort: the checksum and provenance steps above are the only assurance, and Azure Trusted Signing stays the upgrade path if blocks come back.

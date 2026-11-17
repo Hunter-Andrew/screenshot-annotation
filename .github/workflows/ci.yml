@@ -19,7 +19,7 @@ jobs:
       - uses: actions/checkout@v4
 
       # Signing is optional. Unsigned builds are flagged with a warning and a run summary note (some
-      # machines' Smart App Control may block unsigned installers; Andrew's laptop currently does not),
+      # machines' Smart App Control may block unsigned installers; it has blocked some CI builds on Andrew's PC and allowed others),
       # and release tags (v*) may be published unsigned. Half-configured signing is an error, so a
       # typo in one secret cannot silently produce an unsigned release.
       - name: Check signing configuration
@@ -121,6 +121,9 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      # For the build provenance attestation below (free for public repositories).
+      id-token: write
+      attestations: write
     steps:
       - uses: actions/checkout@v4
 
@@ -139,9 +142,27 @@ jobs:
           name: Screenshot-Annotation-Setup
           path: dist-release
 
+      # The installer is not code-signed by a certificate authority (ADR 0006), so what is offered instead is a
+      # way to check that the file is exactly what this workflow built from this tag: a SHA-256 list, and a
+      # GitHub build provenance attestation (verifiable with `gh attestation verify`).
+      - name: Checksums
+        working-directory: dist-release
+        run: sha256sum *.exe > SHA256SUMS.txt && cat SHA256SUMS.txt
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: dist-release/*.exe
+
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release create "$GITHUB_REF_NAME" dist-release/*.exe \
-            --title "$GITHUB_REF_NAME" --generate-notes --verify-tag
+          cat > release-intro.md <<'EOF'
+          Install: download the `*-setup.exe` below and run it (per user, no admin needed). Windows SmartScreen may say "Windows protected your PC": choose **More info, then Run anyway**. The installer is not code-signed (ADR 0006).
+
+          To check the download is the file this release built, compare its SHA-256 with `SHA256SUMS.txt` (PowerShell: `Get-FileHash <file> -Algorithm SHA256`), or run `gh attestation verify <file> --repo ${{ github.repository }}`.
+
+          EOF
+          gh release create "$GITHUB_REF_NAME" dist-release/*.exe dist-release/SHA256SUMS.txt \
+            --title "$GITHUB_REF_NAME" --notes-file release-intro.md --generate-notes --verify-tag

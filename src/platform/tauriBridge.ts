@@ -1,10 +1,12 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { formatStamp } from "../shared/stamp";
+import { watchLibrary } from "./libraryWatch";
 import type {
   CaptureResult,
   HotkeyState,
   LibraryFile,
+  LibraryItem,
   OverlayFrame,
   OverlayRect,
   PlatformBridge,
@@ -42,8 +44,8 @@ function asBuffer(reply: unknown): ArrayBuffer {
 }
 
 /**
- * Decode `library_open_latest` (see `pack_library_file` in src-tauri/src/library.rs): u32 LE byte
- * length of the path, the path as UTF-8, then the PNG. Empty means the Library has no image.
+ * Decode `library_read` (see `pack_library_file` in src-tauri/src/library.rs): u32 LE byte
+ * length of the path, the path as UTF-8, then the PNG. Empty means no file.
  */
 export function unpackLibraryFile(reply: ArrayBuffer): LibraryFile | null {
   const body = asBuffer(reply);
@@ -103,7 +105,18 @@ export function createTauriBridge(): PlatformBridge {
     // The path travels in a header, which cannot carry arbitrary characters: percent-encode it.
     updateLibraryFile: (path, png) =>
       invoke<void>("library_update", png, { headers: { "x-library-path": encodeURIComponent(path) } }),
-    openLatestLibraryImage: async () => unpackLibraryFile(await invoke<ArrayBuffer>("library_open_latest")),
+    listLibrary: () => invoke<LibraryItem[]>("library_list"),
+    readLibraryFile: async (path) => {
+      const file = unpackLibraryFile(await invoke<ArrayBuffer>("library_read", { path }));
+      if (!file) throw new Error("not a file in the Library");
+      return file;
+    },
+    getThumbnail: async (path) => new Uint8Array(asBuffer(await invoke<ArrayBuffer>("library_thumbnail", { path }))),
+    trashLibraryFiles: (paths) => invoke<string[]>("library_trash", { paths }),
+    restoreLibraryFiles: (paths) => invoke<{ from: string; to: string }[]>("library_restore", { paths }),
+    forgetTrashedFiles: (paths) => invoke<void>("library_forget", { paths }),
+    onLibraryChanged: async (handler) =>
+      watchLibrary({ readSignature: () => invoke<string>("library_signature"), onChange: handler }),
     readHistory: (key) => invoke<string | null>("history_read", { key }),
     writeHistory: (key, text) => invoke<void>("history_write", { key, text }),
     deleteHistory: (key) => invoke<void>("history_delete", { key }),

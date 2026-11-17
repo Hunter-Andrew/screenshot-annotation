@@ -52,6 +52,11 @@ export interface Persister {
   flush(): Promise<void>;
   /** Cancel auto-save, wait for any write in flight, and move the file to the Recycle Bin. Rejects (and keeps saving) if that fails. */
   discard(): Promise<void>;
+  /**
+   * The file is gone already (deleted in Explorer): stop for good, with no write and no Recycle Bin call.
+   * Edits made to the image since the last save are lost with it.
+   */
+  abandon(): void;
 }
 
 export function createPersister(options: PersisterOptions): Persister {
@@ -132,6 +137,11 @@ export function createPersister(options: PersisterOptions): Persister {
     flush() {
       clearTimer();
       return enqueue(writeIfDirty);
+    },
+    abandon() {
+      discarding = true; // never cleared: nothing is written for this image again
+      dirty = false;
+      clearTimer();
     },
     async discard() {
       discarding = true;

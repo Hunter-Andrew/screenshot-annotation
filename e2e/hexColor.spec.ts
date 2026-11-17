@@ -91,7 +91,7 @@ test.describe("hex color field", () => {
     const [r] = await savedShapes(page);
     const [x, y, w, h] = [Math.round(r!.x), Math.round(r!.y), Math.round(r!.width), Math.round(r!.height)];
 
-    await page.getByRole("button", { name: "Copy" }).click();
+    await page.getByRole("button", { name: "Copy", exact: true }).click();
     await expect.poll(() => page.evaluate(() => (window as unknown as InPage).__fakeBridge.copiedImages.length)).toBe(1);
     const png = Uint8Array.from(await page.evaluate(() => Array.from((window as unknown as InPage).__fakeBridge.copiedImages[0]!)));
     const out = decodePixels(png);

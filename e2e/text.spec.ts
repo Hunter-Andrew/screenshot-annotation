@@ -11,7 +11,7 @@ interface Text {
   y: number;
   width: number;
   text: string;
-  font: { size: number; bold: boolean; italic: boolean; color: string };
+  font: { size: number; bold: boolean; italic: boolean; color: string; align?: string };
   textOutline: { enabled: boolean; color: string; width: number };
 }
 interface Bridge {
@@ -300,7 +300,7 @@ test("the Export has the text burned in, pixel for pixel as on the canvas", asyn
     const { data } = canvas.getContext("2d")!.getImageData(0, 0, canvas.width, canvas.height);
     return { width: canvas.width, height: canvas.height, data: Array.from(data) };
   });
-  await page.getByRole("button", { name: "Copy" }).click();
+  await page.getByRole("button", { name: "Copy", exact: true }).click();
   await expect.poll(() => page.evaluate(() => (window as unknown as InPage).__fakeBridge.copiedImages.length)).toBe(1);
   const png = Uint8Array.from(await page.evaluate(() => Array.from((window as unknown as InPage).__fakeBridge.copiedImages[0]!)));
   expect(hasChunk(png, "snAP")).toBe(false); // a plain PNG (ADR 0004)
@@ -344,7 +344,7 @@ test("the outline is painted first with a doubled width (letters stay solid, out
   await page.getByRole("spinbutton", { name: "Outline width" }).fill("10");
   await expectSaved(page, ([t]) => t?.font.size === 100 && t.textOutline.width === 10, "styled");
   await page.mouse.click(view.at(280, 180).x, view.at(280, 180).y);
-  await page.getByRole("button", { name: "Copy" }).click();
+  await page.getByRole("button", { name: "Copy", exact: true }).click();
   await expect.poll(() => page.evaluate(() => (window as unknown as InPage).__fakeBridge.copiedImages.length)).toBe(1);
   const png = Uint8Array.from(await page.evaluate(() => Array.from((window as unknown as InPage).__fakeBridge.copiedImages[0]!)));
   const { width, rgba } = decodePixels(png);
@@ -451,9 +451,10 @@ async function pressAndMove(page: Page, from: { x: number; y: number }, to: { x:
 }
 
 /** Bounds of the red letters in the Export (the Copy button's PNG), or null if there are none. */
-async function exportedRedBounds(page: Page) {
-  await page.getByRole("button", { name: "Copy" }).click();
-  await expect.poll(() => page.evaluate(() => (window as unknown as InPage).__fakeBridge.copiedImages.length)).toBeGreaterThan(0);
+async function exportedRedBounds(page: Page, copiesBefore = 0) {
+  await page.getByRole("button", { name: "Copy", exact: true }).click();
+  // A new copy, not an earlier one.
+  await expect.poll(() => page.evaluate(() => (window as unknown as InPage).__fakeBridge.copiedImages.length)).toBeGreaterThan(copiesBefore);
   const png = Uint8Array.from(
     await page.evaluate(() => Array.from((window as unknown as InPage).__fakeBridge.copiedImages.at(-1)!)),
   );
@@ -631,4 +632,186 @@ test("Text set to keep drawing: drag out one box, click away, drag out another",
   await page.keyboard.press("Escape"); // Esc ends it and returns to Select, as always
   await expectSaved(page, (texts) => texts.length === 2, "second text created");
   expectArea((await saved(page))[1], { x: 300, y: 150, width: 200, minHeight: 50 });
+});
+
+// --- M3 testing notes: the drag preview, all eight handles, and alignment -----------------------------
+
+test("Text: the live dashed area runs from the press to the pointer, in any direction, not out from the press point", async ({ page }) => {
+  await page.goto("/");
+  await capture(page, 600, 300);
+  const view = await atActualSize(page, 600);
+  await page.keyboard.press("t");
+
+  await pressAndMove(page, view.at(200, 120), view.at(320, 200));
+  // On the area's top and left edges...
+  expect(await canvasHasInk(page, 230, 118, 60, 4)).toBe(true);
+  expect(await canvasHasInk(page, 198, 140, 4, 40)).toBe(true);
+  // ...and nothing on the other side of the press point, where the old centred preview reached.
+  expect(await canvasHasInk(page, 60, 60, 130, 120)).toBe(false);
+  await page.keyboard.press("Escape"); // cancels the drag; nothing is made
+  await page.mouse.up();
+
+  // Up and to the left works the same way: the area is between the press and the pointer.
+  await page.keyboard.press("t");
+  await pressAndMove(page, view.at(400, 220), view.at(300, 160));
+  expect(await canvasHasInk(page, 310, 158, 60, 4)).toBe(true);
+  expect(await canvasHasInk(page, 410, 230, 150, 60)).toBe(false);
+  await page.mouse.up();
+  await expect(page.locator("textarea")).toBeFocused();
+});
+
+type Handle = "tl" | "mt" | "tr" | "ml" | "mr" | "bl" | "mb" | "br";
+interface Box {
+  x: number;
+  y: number;
+  width: number;
+  minHeight?: number;
+}
+
+/** Where a handle is, from the saved model: a short text keeps the dragged height, so the box is x..x+width+4, y..y+minHeight+4 (4 px outline). */
+function handlePoint(t: Box, name: Handle, view: { at(x: number, y: number): { x: number; y: number } }) {
+  const pad = 4;
+  const left = t.x;
+  const right = t.x + t.width + pad;
+  const top = t.y;
+  const bottom = t.y + (t.minHeight ?? 30) + pad;
+  const x = name.endsWith("l") ? left : name.endsWith("r") ? right : (left + right) / 2;
+  const y = name === "mt" || name.startsWith("t") ? top : name === "mb" || name.startsWith("b") ? bottom : (top + bottom) / 2;
+  return view.at(x, y);
+}
+
+test("Text: all eight handles resize or move the box and never change the font size", async ({ page }) => {
+  await page.goto("/");
+  await capture(page, 900, 500);
+  const view = await atActualSize(page, 900);
+  await page.keyboard.press("t");
+  await pressAndMove(page, view.at(200, 150), view.at(500, 270)); // 300 x 120
+  await page.mouse.up();
+  await page.keyboard.type("Hi");
+  await page.keyboard.press("Escape");
+  await expectSaved(page, ([t]) => t?.text === "Hi", "created");
+  const first = (await saved(page))[0]! as Text & Box;
+  expectArea(first, { x: 200, y: 150, width: 300, minHeight: 120 });
+
+  async function dragHandle(name: Handle, dx: number, dy: number): Promise<Text & Box> {
+    const before = (await saved(page))[0]! as Text & Box;
+    const from = handlePoint(before, name, view);
+    await drag(page, from, { x: from.x + dx, y: from.y + dy });
+    await expectSaved(
+      page,
+      ([t]) => !!t && (Math.abs(t.x - before.x) > 5 || Math.abs(t.y - before.y) > 5 || Math.abs(t.width - before.width) > 5 || Math.abs(((t as Box).minHeight ?? 0) - (before.minHeight ?? 0)) > 5),
+      `${name} moved the box`,
+    );
+    const after = (await saved(page))[0]! as Text & Box;
+    expect(after.font, `${name} left the font alone`).toEqual(first.font);
+    expect(after.text).toBe("Hi");
+    return after;
+  }
+  const right = (t: Box) => t.x + t.width;
+  const bottom = (t: Box) => t.y + (t.minHeight ?? 0);
+
+  // Right and left sides: width changes; the opposite edge stays.
+  let t = await dragHandle("mr", 80, 0);
+  expect(close(t.width, 380)).toBe(true);
+  expect(close(t.x, 200) && close(t.y, 150) && close(t.minHeight ?? 0, 120)).toBe(true);
+  t = await dragHandle("ml", -60, 0);
+  expect(close(t.x, 140) && close(right(t), 580)).toBe(true);
+  // Bottom and top: the height changes; the top handle keeps the bottom edge.
+  t = await dragHandle("mb", 0, 50);
+  expect(close(t.minHeight ?? 0, 170) && close(t.y, 150)).toBe(true);
+  t = await dragHandle("mt", 0, -40);
+  expect(close(t.y, 110) && close(bottom(t), 320) && close(t.minHeight ?? 0, 210)).toBe(true);
+  // Corners do both axes.
+  t = await dragHandle("br", 30, 20);
+  expect(close(right(t), 610) && close(bottom(t), 340) && close(t.x, 140) && close(t.y, 110)).toBe(true);
+  t = await dragHandle("tl", -20, -10);
+  expect(close(t.x, 120) && close(t.y, 100) && close(right(t), 610) && close(bottom(t), 340)).toBe(true);
+  t = await dragHandle("tr", -40, 30);
+  expect(close(t.x, 120) && close(right(t), 570) && close(bottom(t), 340) && close(t.y, 130)).toBe(true);
+  t = await dragHandle("bl", 40, -30);
+  expect(close(t.x, 160) && close(right(t), 570) && close(t.y, 130) && close(bottom(t), 310)).toBe(true);
+});
+
+test("Text: the handles also work when the picture is shown smaller than 100%", async ({ page }) => {
+  await page.goto("/");
+  await capture(page, 1600, 900); // wider than the window: shown fitted
+  const fitted = await mapper(page, 1600);
+  expect(fitted.scale).toBeLessThan(0.9);
+  await page.keyboard.press("t");
+  await pressAndMove(page, fitted.at(300, 200), fitted.at(700, 320));
+  await page.mouse.up();
+  await page.keyboard.type("Hi");
+  await page.keyboard.press("Escape");
+  await expectSaved(page, ([t]) => t?.text === "Hi", "created");
+
+  const before = (await saved(page))[0]! as Text & Box;
+  const from = handlePoint(before, "br", fitted);
+  await drag(page, from, { x: from.x + 100 * fitted.scale, y: from.y + 60 * fitted.scale });
+  await expectSaved(page, ([t]) => !!t && t.width > before.width + 60, "the corner resized it at a fitted zoom");
+  const after = (await saved(page))[0]! as Text & Box;
+  expect(close(after.width, before.width + 100, 4)).toBe(true);
+  expect(close(after.minHeight ?? 0, (before.minHeight ?? 0) + 60, 4)).toBe(true);
+  expect(close(after.x, before.x) && close(after.y, before.y)).toBe(true);
+});
+
+test("Text: a box cannot be dragged narrower than a few letters or flipped over", async ({ page }) => {
+  await page.goto("/");
+  await capture(page, 900, 500);
+  const view = await atActualSize(page, 900);
+  await page.keyboard.press("t");
+  await pressAndMove(page, view.at(200, 150), view.at(400, 230));
+  await page.mouse.up();
+  await page.keyboard.type("Hi");
+  await page.keyboard.press("Escape");
+  await expectSaved(page, ([t]) => t?.text === "Hi", "created");
+  const before = (await saved(page))[0]! as Text & Box;
+  const from = handlePoint(before, "mr", view);
+  await drag(page, from, { x: from.x - 400, y: from.y }); // far past the left edge
+  await expectSaved(page, ([t]) => !!t && t.width < before.width - 100, "narrowed");
+  const after = (await saved(page))[0]! as Text & Box;
+  expect(after.width).toBeGreaterThanOrEqual(20);
+  expect(close(after.x, before.x)).toBe(true);
+});
+
+test("Text: alignment left, centre and right moves the lines inside the box, in the canvas and in the Export", async ({ page }) => {
+  await page.goto("/");
+  await capture(page, 700, 300);
+  const view = await atActualSize(page, 700);
+  await page.keyboard.press("t");
+  await pressAndMove(page, view.at(100, 80), view.at(600, 160)); // a 500 wide box
+  await page.mouse.up();
+  await page.keyboard.type("Hi");
+  await page.keyboard.press("Escape");
+  await expectSaved(page, ([t]) => t?.text === "Hi", "created");
+  expect(((await saved(page))[0] as Text).font).toMatchObject({ align: "left" });
+
+  const inkOf = async () => {
+    await page.mouse.click(view.at(650, 280).x, view.at(650, 280).y); // deselect: no handles in the picture
+    const copies = await page.evaluate(() => (window as unknown as InPage).__fakeBridge.copiedImages.length);
+    const b = await exportedRedBounds(page, copies);
+    await page.mouse.click(view.at(110, 90).x, view.at(110, 90).y); // select it again
+    return b!;
+  };
+  const left = await inkOf();
+  expect(left.left).toBeLessThan(140); // by the left edge (100)
+
+  await page.getByRole("button", { name: "Align center" }).click();
+  await expectSaved(page, ([t]) => t?.font.align === "center", "centre saved");
+  const centre = await inkOf();
+  expect(centre.left).toBeGreaterThan(300);
+  expect(centre.right).toBeLessThan(400); // around the middle (350)
+
+  await page.getByRole("button", { name: "Align right" }).click();
+  await expectSaved(page, ([t]) => t?.font.align === "right", "right saved");
+  const right = await inkOf();
+  expect(right.right).toBeGreaterThan(560); // by the right edge (600)
+  expect(right.left).toBeGreaterThan(centre.left);
+
+  // The choice shows as pressed, sticks for the next text, and survives a reload.
+  await expect(page.getByRole("button", { name: "Align right" })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByRole("button", { name: "Align left" })).toHaveAttribute("aria-pressed", "false");
+  await page.reload();
+  await expect(page.getByRole("img", { name: "Capture" })).toBeVisible();
+  await page.mouse.click(view.at(590, 100).x, view.at(590, 100).y);
+  expect(((await saved(page))[0] as Text).font.align).toBe("right");
 });

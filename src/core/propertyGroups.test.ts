@@ -55,6 +55,14 @@ describe("sanitizeStyle (what a settings.json from anywhere may hold)", () => {
     expect(sanitizeStyle({ fill: { mode: "semi", color: "#000000", opacity: 1.5 } })).toEqual({});
   });
 
+  it("keeps a text alignment, treats a missing one as the stored style it is, and drops an unknown one", () => {
+    const font = { size: 24, bold: false, italic: false, color: "#e02424" };
+    expect(sanitizeStyle({ font: { ...font, align: "center" } })).toEqual({ font: { ...font, align: "center" } });
+    expect(sanitizeStyle({ font })).toEqual({ font }); // saved before alignment existed
+    expect(sanitizeStyle({ font: { ...font, align: "justify" } })).toEqual({ font });
+    expect(sanitizeStyle({ font: { ...font, align: 3 } })).toEqual({ font });
+  });
+
   it("gives nothing for something that is not an object", () => {
     expect(sanitizeStyle(null)).toEqual({});
     expect(sanitizeStyle("x")).toEqual({});

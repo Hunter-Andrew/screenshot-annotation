@@ -166,7 +166,7 @@ describe("undo and redo", () => {
     expect(bridge.historyFiles.size).toBe(0);
   });
 
-  it("each image keeps its own history, and Discard deletes it", async () => {
+  it("each image keeps its own history, which Undo of a Discard brings back", async () => {
     const bridge = createFakeBridge();
     const kit = await openEditor(bridge);
     await capture(bridge, FIRST);
@@ -181,7 +181,13 @@ describe("undo and redo", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "Discard" }));
     await waitFor(() => expect(bridge.libraryFiles).toHaveLength(0));
-    await waitFor(() => expect(bridge.historyFiles.size).toBe(0));
+    // Kept while the Undo notice is up, so Undo gives the image back with its history.
+    expect(bridge.historyFiles.size).toBe(1);
+
+    await userEvent.click(screen.getByRole("button", { name: "Undo delete" }));
+    await waitFor(() => expect(bridge.libraryFiles).toHaveLength(1));
+    await waitFor(() => expect(undoButton()).toBeEnabled());
+    expect(bridge.historyFiles.size).toBe(1);
   });
 
   it("leaves Ctrl+Z to a text field: typing in the thickness box never undoes the canvas", async () => {

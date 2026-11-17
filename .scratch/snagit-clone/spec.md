@@ -146,6 +146,7 @@ The app makes no network calls. Updates are manual installs from public GitHub R
 107. As Andrew, I want an image saved by a newer app version to open read-only in an older version, so that nothing gets corrupted when versions differ.
 108. As Andrew, I want Settings to show every keyboard shortcut (the capture hotkey, the capture-overlay keys such as Space for the whole monitor, Esc to cancel and M for the magnifier, and the editor's tool and action keys) and let me remap each one, so that the app fits my hands and avoids clashes with other software. *(M5, after v1.0.0; added 2026-11-15 after M1 testing.)*
 109. As Andrew, I want to extend the canvas beyond the Capture, by drawing past its edge or by dragging its edges outward like a rectangle (crop in reverse), with a per-image transparent, white or dark background and a configurable default, so that I can add arrows and notes that sit outside the screenshot. *(M4 with Crop; added 2026-11-15 after M2 testing.)*
+110. As Andrew, I want to paste an image from the clipboard into the canvas with Ctrl+V and move it, resize it, and give it a border and an opacity, so that I can add another screenshot or picture next to my annotations. *(M4; ticket 38; added 2026-11-16 after M3 testing.)*
 
 ## Implementation Decisions
 
@@ -187,8 +188,8 @@ The app makes no network calls. Updates are manual installs from public GitHub R
 **Annotation model** (ADR 0005)
 - An app-owned, versioned format, never Fabric's serialization.
 - Each Annotation is `{ id, type, …geometry, …property groups }`.
-- **Types:** arrow, line, pen, rect, ellipse, text, callout, highlight, blur.
-- **Property groups:** Stroke, Fill, Font, Text outline and Arrowheads; each tool opts into the groups it uses.
+- **Types:** arrow, line, pen, rect, ellipse, text, callout, highlight, blur, image (pasted, ticket 38).
+- **Property groups:** Stroke, Fill, Font, Text outline and Arrowheads; each tool opts into the groups it uses. The pasted `image` Annotation adds Border and Opacity (ticket 38).
 
 | Group | Contents |
 | --- | --- |
@@ -197,6 +198,8 @@ The app makes no network calls. Updates are manual installs from public GitHub R
 | Font | size 8–200, bold, italic; Segoe UI only |
 | Text outline | on, color, width |
 | Arrowheads | end or both |
+| Border (image) | on, color, width 1–30; drawn inside the edge |
+| Opacity (image) | 10–100% |
 
 - **Callout:** adds `tail { on, x, y }`.
 - **Blur:** adds a pixelate strength.

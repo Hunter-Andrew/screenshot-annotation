@@ -147,7 +147,7 @@ test("Copy has the arrow burned in, and is still a plain PNG", async ({ page }) 
   await drag(page, view.at(50, 150), view.at(350, 150));
   await expectSaved(page, ([a]) => !!a, "drawn");
 
-  await page.getByRole("button", { name: "Copy" }).click();
+  await page.getByRole("button", { name: "Copy", exact: true }).click();
 
   await expect.poll(() => page.evaluate(() => (window as unknown as InPage).__fakeBridge.copiedImages.length)).toBe(1);
   const png = Uint8Array.from(await page.evaluate(() => Array.from((window as unknown as InPage).__fakeBridge.copiedImages[0]!)));

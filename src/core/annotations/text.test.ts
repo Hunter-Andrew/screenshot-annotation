@@ -9,7 +9,7 @@ import { clampFontSize, FONT_SIZE_PRESETS, textAreaFromDrag, textKind, type Text
 describe("Text kind", () => {
   it("is red with a white outline by default (spec: tools > Text)", () => {
     expect(textKind.defaultStyle).toEqual({
-      font: { size: 24, bold: false, italic: false, color: "#e02424" },
+      font: { size: 24, bold: false, italic: false, color: "#e02424", align: "left" },
       textOutline: { enabled: true, color: "#ffffff", width: 2 },
     });
   });
@@ -31,7 +31,7 @@ describe("Text kind", () => {
       y: 50,
       width: 240,
       text: "",
-      font: { size: 24, bold: false, italic: false, color: "#e02424" },
+      font: { size: 24, bold: false, italic: false, color: "#e02424", align: "left" },
       textOutline: { enabled: true, color: "#ffffff", width: 2 },
     });
   });

@@ -57,6 +57,28 @@ describe("Font group", () => {
     expect(onChange).toHaveBeenLastCalledWith("font", { ...textKind.defaultStyle.font, italic: true });
   });
 
+  it("has Align left, centre and right: the current one pressed, left for a text saved before alignment existed", async () => {
+    const onChange = panel();
+    const left = screen.getByRole("button", { name: "Align left" });
+    expect(left).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Align center" })).toHaveAttribute("aria-pressed", "false");
+
+    await userEvent.click(screen.getByRole("button", { name: "Align center" }));
+    expect(onChange).toHaveBeenLastCalledWith("font", { ...textKind.defaultStyle.font, align: "center" });
+    await userEvent.click(screen.getByRole("button", { name: "Align right" }));
+    expect(onChange).toHaveBeenLastCalledWith("font", { ...textKind.defaultStyle.font, align: "right" });
+  });
+
+  it("shows no alignment pressed wrongly for an older text without one, and the chosen one for a new text", () => {
+    const { align: _gone, ...older } = textKind.defaultStyle.font!;
+    const { unmount } = render(<StylePanel kind={textKind} style={{ ...textKind.defaultStyle, font: older }} onChange={vi.fn()} />);
+    expect(screen.getByRole("button", { name: "Align left" })).toHaveAttribute("aria-pressed", "true");
+    unmount();
+    render(<StylePanel kind={textKind} style={{ ...textKind.defaultStyle, font: { ...older, align: "right" } }} onChange={vi.fn()} />);
+    expect(screen.getByRole("button", { name: "Align right" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Align left" })).toHaveAttribute("aria-pressed", "false");
+  });
+
   it("changes the text color from the palette", async () => {
     const onChange = panel();
 

@@ -142,24 +142,7 @@ pub fn percent_decode(text: &str) -> Option<String> {
     String::from_utf8(out).ok()
 }
 
-/// The most recently written `.png` in the Library (one folder level down, plus the root itself),
-/// or None if there is none. Ties go to the greater path. This is what the editor reopens on start.
-pub fn latest_png(root: &Path) -> Option<PathBuf> {
-    let mut dirs = vec![root.to_path_buf()];
-    if let Ok(entries) = std::fs::read_dir(root) {
-        dirs.extend(entries.flatten().map(|e| e.path()).filter(|p| p.is_dir()));
-    }
-    dirs.iter()
-        .filter_map(|dir| std::fs::read_dir(dir).ok())
-        .flat_map(|entries| entries.flatten())
-        .map(|e| e.path())
-        .filter(|p| p.extension().is_some_and(|e| e.eq_ignore_ascii_case("png")) && p.is_file())
-        .filter_map(|p| Some((p.metadata().ok()?.modified().ok()?, p)))
-        .max()
-        .map(|(_, path)| path)
-}
-
-/// The reply of `library_open_latest`: u32 LE byte length of the path, the path (UTF-8), then the PNG.
+/// The reply of `library_read`: u32 LE byte length of the path, the path (UTF-8), then the PNG.
 /// `unpackLibraryFile` in src/platform/tauriBridge.ts reads it.
 pub fn pack_library_file(path: &Path, png: &[u8]) -> Vec<u8> {
     let path = path.to_string_lossy();
@@ -372,11 +355,6 @@ mod tests {
         let _ = std::fs::remove_dir_all(&outside_dir);
     }
 
-    fn set_mtime(path: &Path, secs: u64) {
-        let file = std::fs::OpenOptions::new().write(true).open(path).unwrap();
-        file.set_modified(std::time::UNIX_EPOCH + std::time::Duration::from_secs(secs)).unwrap();
-    }
-
     #[test]
     fn update_existing_replaces_a_library_file_atomically() {
         let root = scratch("update");
@@ -425,36 +403,6 @@ mod tests {
         for bad in ["%", "%4", "%zz", "%FF%FE"] {
             assert_eq!(percent_decode(bad), None, "{bad:?}");
         }
-    }
-
-    #[test]
-    fn the_latest_image_is_the_most_recently_written_png_in_any_month_folder() {
-        let root = scratch("latest");
-        let older = root.join("2026-10").join("2026-10-31 090000.png");
-        let newer = root.join("2026-11").join("2026-11-01 090000.png");
-        let edited_later = root.join("2026-10").join("2026-10-30 090000.png");
-        for (file, secs) in [(&older, 100), (&newer, 200), (&edited_later, 300)] {
-            touch(file);
-            set_mtime(file, secs);
-        }
-        touch(&root.join("2026-11").join("notes.txt"));
-        set_mtime(&root.join("2026-11").join("notes.txt"), 900);
-        touch(&root.join("2026-11").join(".2026-11-02 090000.png.tmp"));
-        set_mtime(&root.join("2026-11").join(".2026-11-02 090000.png.tmp"), 900);
-
-        assert_eq!(latest_png(&root), Some(edited_later.clone()));
-
-        set_mtime(&newer, 400);
-        assert_eq!(latest_png(&root), Some(newer));
-        let _ = std::fs::remove_dir_all(&root);
-    }
-
-    #[test]
-    fn there_is_no_latest_image_in_an_empty_or_missing_library() {
-        let root = scratch("latest-empty");
-        assert_eq!(latest_png(&root), None);
-        assert_eq!(latest_png(&root.join("does-not-exist")), None);
-        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]

@@ -2,33 +2,35 @@
 
 A Windows desktop app for capturing and annotating screenshots, in the style of Snagit (images only, no video). It installs per-user, with no admin rights needed.
 
-> **Status:** Planning complete; building milestone M0 (skeleton). Decisions are recorded in [.scratch/snagit-clone/map.md](.scratch/snagit-clone/map.md) and [docs/adr/](docs/adr/); terms are in [GLOSSARY.md](GLOSSARY.md).
+> **Status:** Milestones M0 to M2 are built. M3 (Library) is built (the Library Strip, the full-window grid, delete with Undo and the folder as the source of truth) and is at version 0.4.0 in the code; it is not released until the [release checklist](docs/release-checklist.md) has passed on the Windows test PC. M4 (Callout, Highlighter, Blur, Crop and polish) is next. Decisions are recorded in [.scratch/snagit-clone/map.md](.scratch/snagit-clone/map.md) and [docs/adr/](docs/adr/); terms are in [GLOSSARY.md](GLOSSARY.md).
 
 ## Roadmap
 
-| Milestone | Version | Adds |
-| --- | --- | --- |
-| M0 · Skeleton | v0.1 | Per-user installer, tray icon, Settings/About, CI and Releases |
-| M1 · Capture → Copy | v0.2 | Hotkey, capture overlay, editor view, Copy, Save as PNG; captures saved to the Library |
-| M2 · Annotate | v0.3 | Arrow, Line, Pen, Rectangle, Ellipse, Text; select/edit; undo; sticky styles |
-| M3 · Library | v0.4 | Library Strip, full-window grid, reopen and edit, delete with Undo |
-| M4 · Complete | v1.0 | Callout, Highlighter, Blur, Crop and canvas expansion, delay timer, startup and polish |
-| M5 · Shortcuts | v1.1 | After v1.0: Settings lists and remaps all keyboard shortcuts |
+| Milestone | Version | State | Adds |
+| --- | --- | --- | --- |
+| M0 · Skeleton | v0.1 | Built | Per-user installer, tray icon, Settings/About, CI and Releases |
+| M1 · Capture → Copy | v0.2 | Built | Hotkey, capture overlay, editor view, Copy, Save as PNG; captures saved to the Library |
+| M2 · Annotate | v0.3 | Built | Arrow, Line, Pen, Rectangle, Ellipse, Text; select/edit; undo; sticky styles |
+| M3 · Library | v0.4 | Built; awaiting the release checklist | Library Strip, full-window grid, reopen and edit, delete with Undo, the folder as the source of truth |
+| M4 · Complete | v1.0 | Planned | Callout, Highlighter, Blur, Crop and canvas expansion, paste images into the canvas, delay timer, startup and polish |
+| M5 · Shortcuts | v1.1 | Planned | After v1.0: Settings lists and remaps all keyboard shortcuts |
 
 ## Workflow
 
 1. **Capture**: press Print Screen (fallback `Ctrl+Shift+S`). Drag a region, click a window, or press Space for the whole monitor. There's an optional 3/5/10 s delay. The editor opens instantly.
 2. **Annotate**: text, callouts, arrows, lines, freehand pen, rectangles, ellipses, highlighter, pixelate blur, and crop. Everything stays editable.
 3. **Copy**: one click puts the finished image on the clipboard. "Save as PNG…" is also available.
-4. **Library**: a strip of thumbnails along the bottom of the editor (expandable to a full grid) to browse every past capture, reopen it with annotations still editable, and delete in one step. Each image is one PNG in `Pictures\Screenshot Annotation` that opens anywhere and stays editable in the app.
+4. **Library**: a strip of thumbnails along the bottom of the editor, newest on the left, to browse every past capture; "All captures" opens a full-window grid grouped by date. Click a thumbnail to reopen it with its annotations still editable. Hover a thumbnail for Copy and ✕; Ctrl or Shift+click picks several and Delete removes them. Deleting moves files to the Recycle Bin with no confirmation, and an Undo notice (about 8 seconds) brings them back. Each image is one PNG in `Pictures\Screenshot Annotation\<year-month>` that opens anywhere and stays editable in the app. The folder is the source of truth: delete a file in Explorer and it leaves the Library, drop a PNG in and it appears with no annotations. Thumbnails are a disposable cache under `%LOCALAPPDATA%`, never in Pictures.
 
 ## Stack
 
-[Tauri 2](docs/adr/0001-tauri-2-per-user-nsis.md): a React + TypeScript UI with a Fabric.js canvas, and Rust for the Windows integration, shipped as a per-user NSIS installer (no admin). Builds run on GitHub Actions; the work laptop only downloads and installs.
+[Tauri 2](docs/adr/0001-tauri-2-per-user-nsis.md): a React + TypeScript UI with a Fabric.js canvas, and Rust for the Windows integration, shipped as a per-user NSIS installer (no admin). Builds run on GitHub Actions; the Windows test PC only downloads and installs.
 
 ## Install and update
 
 Once released (see the [release checklist](docs/release-checklist.md) for how each version is checked): download the latest `Setup.exe` from [Releases](https://github.com/Hunter-Andrew/screenshot-annotation/releases) and run it. No admin is needed. Windows SmartScreen may say "Windows protected your PC"; choose **More info → Run anyway**. To update, run the newer setup over the old one; your Library and settings are kept. The app never connects to the internet.
+
+The installer is not code-signed. To check a download is exactly what the release built, compare its SHA-256 with `SHA256SUMS.txt` on the Release (PowerShell: `Get-FileHash .\<file> -Algorithm SHA256`), or run `gh attestation verify <file> --repo Hunter-Andrew/screenshot-annotation` (GitHub's build provenance record).
 
 ## Architecture decisions
 
@@ -40,14 +42,32 @@ Once released (see the [release checklist](docs/release-checklist.md) for how ea
 | [0004](docs/adr/0004-single-png-with-embedded-editable-data.md) | One PNG per Annotated Image, with editable data embedded | Accepted |
 | [0005](docs/adr/0005-app-owned-annotation-model.md) | Annotations use an app-owned model | Accepted |
 | [0006](docs/adr/0006-manual-updates-unsigned-no-network.md) | Manual updates from public GitHub Releases; unsigned; no network | Accepted |
+| [0007](docs/adr/0007-print-screen-via-raw-input.md) | Bare Print Screen is watched through Raw Input, not RegisterHotKey | Accepted |
+| [0008](docs/adr/0008-undo-of-delete-restores-from-a-kept-copy.md) | Undo of a delete writes the file back from a copy the app keeps | Accepted |
 
 ## Development
 
-Setup instructions will be added once implementation begins.
+You need Node 22 and, for the desktop app itself, a Rust toolchain and the Windows build tools (the same as [Tauri 2](https://v2.tauri.app/start/prerequisites/)).
+
+```bash
+npm ci               # install JavaScript dependencies
+npm run dev          # the UI in a browser at http://localhost:1420 with an in-memory fake of the platform
+npm run typecheck    # TypeScript
+npm test             # unit and component tests (Vitest)
+npm run test:e2e     # end-to-end tests in Chromium against the fake platform (Playwright)
+npm run tauri dev    # the real desktop app (Windows)
+```
+
+```bash
+cd src-tauri
+cargo test           # Rust tests (CI runs them on Windows)
+```
+
+The UI only talks to the operating system through the Platform bridge (`src/platform/bridge.ts`): `tauriBridge.ts` is the real one, `fakeBridge.ts` the in-memory one the tests and `npm run dev` use. The browser build keeps its fake Library and settings in `localStorage`, so a reload behaves like a restart. Work is tracked as local markdown tickets under `.scratch/` (see [docs/agents/issue-tracker.md](docs/agents/issue-tracker.md)).
 
 ## Releasing
 
-Pushing a `vX.Y.Z` tag runs the same tests and build as every push, then publishes a GitHub Release with the setup `.exe` attached; a failing test blocks the Release. The tag must match the version in `package.json` and `src-tauri/tauri.conf.json`. Before tagging, run the manual [release checklist](docs/release-checklist.md) on the work laptop.
+Pushing a `vX.Y.Z` tag runs the same tests and build as every push, then publishes a GitHub Release with the setup `.exe` attached; a failing test blocks the Release. The tag must match the version in `package.json` and `src-tauri/tauri.conf.json`. Before tagging, run the manual [release checklist](docs/release-checklist.md) on the Windows test PC.
 
 ## License
 

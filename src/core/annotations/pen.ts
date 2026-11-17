@@ -12,7 +12,7 @@ export interface PenAnnotation extends Pick<PropertyGroups, "stroke"> {
   points: Point[];
 }
 
-/** A stroke that travels less than this (a click, a twitch) is not kept. */
+/** A stroke that travels less than this (a click, a twitch) is a dot at where it began. */
 const MIN_TRAVEL = 4;
 /** Captured points closer than this to the last kept one are dropped. */
 const MIN_POINT_DISTANCE = 2;
@@ -68,9 +68,13 @@ export const penKind: AnnotationKind<PenAnnotation> = {
   groups: ["stroke"],
   defaultStyle: { stroke: { color: "#e02424", width: 4 } },
   fromPath(id, points, style: Style) {
+    const first = points[0];
+    if (!first) return null;
+    const stroke = style.stroke ?? penKind.defaultStyle.stroke!;
     const kept = decimate(points, MIN_POINT_DISTANCE);
-    if (kept.length < 2 || travel(kept) < MIN_TRAVEL) return null;
-    return { id, type: "pen", points: kept, stroke: style.stroke ?? penKind.defaultStyle.stroke! };
+    // A quick click (or a twitch) makes a dot: two identical points, which the round line caps draw as a disc.
+    if (kept.length < 2 || travel(kept) < MIN_TRAVEL) return { id, type: "pen", points: [{ ...first }, { ...first }], stroke };
+    return { id, type: "pen", points: kept, stroke };
   },
   fromDrag(id, from, to, style: Style) {
     return penKind.fromPath!(id, [from, to], style);

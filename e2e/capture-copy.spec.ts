@@ -41,7 +41,7 @@ test("a capture appears in the editor, is saved to the Library, and Copy writes 
   expect(decodePixels(library).rgba).toEqual(PIXELS);
   await expect(page.getByText(/Saved to/)).toBeVisible();
 
-  await page.getByRole("button", { name: "Copy" }).click();
+  await page.getByRole("button", { name: "Copy", exact: true }).click();
 
   const copied = await page.evaluate(() => window.__fakeBridge.copiedImages.map((b) => Array.from(b)));
   expect(copied).toHaveLength(1);
@@ -54,7 +54,7 @@ test("a capture appears in the editor, is saved to the Library, and Copy writes 
 
 test("the Capture button asks the platform to capture", async ({ page }) => {
   await page.goto("/");
-  await page.getByRole("button", { name: "Capture" }).click();
+  await page.getByRole("button", { name: "Capture", exact: true }).click();
   await expect(page.getByRole("img", { name: "Capture" })).toBeVisible();
 });
 
