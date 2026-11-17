@@ -26,6 +26,7 @@ type InPage = { __fakeBridge: Bridge };
 test.use({ viewport: { width: 1100, height: 760 } });
 
 async function capture(page: Page, width: number, height: number) {
+  await page.waitForFunction(() => Boolean((window as unknown as { __fakeBridge?: unknown }).__fakeBridge)); // the app installs the fake bridge a moment after load
   await page.evaluate(
     ({ width, height }) => {
       const rgba = new Uint8Array(width * height * 4).fill(200);

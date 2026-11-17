@@ -14,6 +14,7 @@ interface Bridge {
 type InPage = { __fakeBridge: Bridge };
 
 async function capture(page: Page, at: Date, shade: number) {
+  await page.waitForFunction(() => Boolean((window as unknown as { __fakeBridge?: unknown }).__fakeBridge)); // the app installs the fake bridge a moment after load
   const before = await page.evaluate(() => (window as unknown as InPage).__fakeBridge.libraryFiles.length);
   await page.evaluate(
     ({ at, shade }) => {
