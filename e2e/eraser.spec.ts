@@ -24,6 +24,7 @@ const RED = [224, 36, 36, 255];
 
 async function openCapture(page: Page) {
   await page.goto("/");
+  await page.waitForFunction(() => Boolean((window as unknown as { __fakeBridge?: unknown }).__fakeBridge)); // the app installs the fake bridge a moment after load
   await page.evaluate(
     ({ W, H }) => {
       const rgba = new Uint8Array(W * H * 4).fill(200);
