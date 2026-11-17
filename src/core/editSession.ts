@@ -3,7 +3,8 @@
 // (ticket 13) hooks in here: `apply` records each edit's inverse (src/core/history.ts) and
 // undo/redo replay those through the same `applyEdit`.
 import type { AnnotatedImage } from "./annotatedImage";
-import type { Annotation } from "./annotation";
+import type { Annotation, Crop } from "./annotation";
+import { sameCrop } from "./crop";
 import { emptyHistory, invert, popRedo, popUndo, record, type HistoryState } from "./history";
 
 export type Edit =
@@ -13,8 +14,9 @@ export type Edit =
   | { kind: "update"; id: string; patch: Partial<Annotation> }
   | { kind: "delete"; id: string }
   /** Move to back-to-front position `to` (clamped): `to` one higher is "bring forward". */
-  | { kind: "reorder"; id: string; to: number };
-  // | { kind: "setCrop"; crop } (ticket 21)
+  | { kind: "reorder"; id: string; to: number }
+  /** The visible area in Capture pixels; null shows the whole Capture again (ticket 21). */
+  | { kind: "setCrop"; crop: Crop | null };
 
 /** The image after `edit`. Returns the same image when the edit changes nothing (unknown id). */
 export function applyEdit(image: AnnotatedImage, edit: Edit): AnnotatedImage {
@@ -46,6 +48,8 @@ export function applyEdit(image: AnnotatedImage, edit: Edit): AnnotatedImage {
       annotations.splice(to, 0, moved!);
       return { ...image, model: { ...model, annotations } };
     }
+    case "setCrop":
+      return sameCrop(model.crop, edit.crop) ? image : { ...image, model: { ...model, crop: edit.crop } };
     default:
       return image;
   }

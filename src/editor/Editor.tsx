@@ -31,7 +31,7 @@ import { createHistoryStore } from "./historyStore";
 import { actionForKeyEvent, allowedWhileTyping, defaultBindings, isTypingTarget, keyLabel } from "./shortcuts";
 import { Stage } from "./Stage";
 import { StylePanel } from "./StylePanel";
-import { SELECT_TOOL, TOOLS } from "./tools";
+import { CROP_TOOL, SELECT_TOOL, TOOLS } from "./tools";
 import { returnsToSelect } from "./toolBehavior";
 import { ToolColumn } from "./ToolColumn";
 import { DelayCapture } from "./DelayCapture";
@@ -282,6 +282,11 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
       setSelectedId(annotation.id);
     },
     onUpdate: (id, patch) => current?.session.apply({ kind: "update", id, patch }),
+    onCrop: (crop) => {
+      if (!current) return;
+      current.session.apply({ kind: "setCrop", crop });
+      if (returnsToSelect(CROP_TOOL.id, behavior)) setTool(SELECT_TOOL.id);
+    },
     onSelect: (id) => {
       setSelectedId(id);
       if (id !== null) setSelection(NO_SELECTION); // working on an Annotation: Delete means it, not the picked thumbnails
@@ -334,6 +339,12 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
   const moveSelected = (by: 1 | -1) => {
     if (!current || readOnly || selectedIndex < 0) return;
     current.session.apply({ kind: "reorder", id: selectedId!, to: selectedIndex + by });
+  };
+
+  /** Widen back to the whole Capture. A step of its own, so Undo brings the crop back. */
+  const removeCrop = () => {
+    if (!current || readOnly) return;
+    current.session.apply({ kind: "setCrop", crop: null });
   };
 
   const copy = async () => {
@@ -568,6 +579,7 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
               size={size}
               scale={view.scale}
               interactive={!readOnly}
+              crop={image.model.crop}
               events={events}
               onCanvas={setCanvas}
             />
@@ -579,6 +591,11 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
           kind={readOnly ? null : (styledKind ?? null)}
           style={panelStyle}
           onChange={restyle}
+          crop={
+            readOnly || (tool !== CROP_TOOL.id && !image?.model.crop)
+              ? null
+              : { active: tool === CROP_TOOL.id, hasCrop: !!image?.model.crop, onRemove: removeCrop }
+          }
           toolOption={
             // About the ACTIVE TOOL (never the selected Annotation): only while a drawing tool is picked.
             readOnly || !styledKind

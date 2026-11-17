@@ -46,6 +46,8 @@ function isEdit(value: unknown): value is Edit {
       return isString(value.id);
     case "reorder":
       return isString(value.id) && isNumber(value.to);
+    case "setCrop":
+      return value.crop === null || (isObject(value.crop) && ["x", "y", "width", "height"].every((k) => isNumber((value.crop as Record<string, unknown>)[k])));
     default:
       return false;
   }
