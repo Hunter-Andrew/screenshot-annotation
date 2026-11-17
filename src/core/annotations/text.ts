@@ -5,6 +5,7 @@
 // a plain click), which means no minimum.
 import type { PropertyGroups, Style } from "../propertyGroups";
 import type { AnnotationKind, Point, Size } from "./kind";
+import type { Run } from "./runs";
 
 export interface TextAnnotation extends Pick<PropertyGroups, "font" | "textOutline"> {
   id: string;
@@ -17,6 +18,11 @@ export interface TextAnnotation extends Pick<PropertyGroups, "font" | "textOutli
   minHeight?: number;
   /** The words, with "\n" between lines. */
   text: string;
+  /**
+   * Per-selection styling (see ./runs.ts): ranges of characters that override some of `font`. Absent when no
+   * part of the text is styled on its own (every older image, and every box styled as a whole).
+   */
+  runs?: Run[];
 }
 
 export const FONT_SIZE_PRESETS = [10, 12, 14, 18, 24, 32, 48, 72] as const;

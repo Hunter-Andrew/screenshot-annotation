@@ -368,7 +368,7 @@ test("the outline is painted first with a doubled width (letters stay solid, out
   expect(stemLeft - Math.min(...whiteLeft)).toBeLessThanOrEqual(11);
 });
 
-test("clicking a Style panel control while typing keeps the typed words and applies the style", async ({ page }) => {
+test("clicking a Font control while typing keeps the typed words and the edit going, and applies the style", async ({ page }) => {
   await page.goto("/");
   await capture(page, 400, 200);
   const view = await atActualSize(page, 400);
@@ -378,7 +378,18 @@ test("clicking a Style panel control while typing keeps the typed words and appl
 
   await page.getByRole("button", { name: "Bold" }).click(); // the box has not been left with Esc or a click on the image
 
-  await expectSaved(page, ([t]) => t?.text === "Still typing" && t.font.bold === true, "words and style both saved");
+  // Since styled text (M4) the Font group works on the box being typed in: the edit goes on, and the keys still type.
+  await expect(page.locator("textarea")).toBeFocused();
+  await page.keyboard.type("!");
+  await page.keyboard.press("Escape");
+  await expectSaved(page, ([t]) => t?.text === "Still typing!" && t.font.bold === true, "words and style both saved");
+  await expect(page.locator("textarea")).toHaveCount(0);
+
+  // A control of another group (the Text outline) still ends the typing, as before.
+  await page.keyboard.press("t");
+  await page.mouse.click(view.at(40, 120).x, view.at(40, 120).y);
+  await page.keyboard.type("Second");
+  await page.getByRole("checkbox", { name: "Outline" }).click();
   await expect(page.locator("textarea")).toHaveCount(0);
 });
 

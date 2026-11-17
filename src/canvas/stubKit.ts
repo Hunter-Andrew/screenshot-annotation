@@ -3,8 +3,9 @@
 // the user's gestures. The real canvas is exercised by the Playwright tests in e2e/.
 import type { Annotation, AnnotationModel, Crop } from "../core/annotation";
 import type { Point } from "../core/annotations";
+import type { RunFont } from "../core/annotations/runs";
 import type { Style } from "../core/propertyGroups";
-import type { AnnotationCanvas, CanvasEvents, CanvasKit, CanvasLayout, MountOptions } from "./types";
+import type { AnnotationCanvas, CanvasEvents, CanvasKit, CanvasLayout, MountOptions, TextSelection } from "./types";
 
 export interface StubCanvas extends AnnotationCanvas {
   readonly events: CanvasEvents;
@@ -33,6 +34,12 @@ export interface StubCanvas extends AnnotationCanvas {
   erase(path: Point[], radius: number): void;
   /** The user clicks an Annotation (or empty space, with null). */
   click(id: string | null): void;
+  /** The characters the user selects while typing in a box (null: a caret only, or the edit ended). */
+  selectText(selection: TextSelection | null): void;
+  /** Every `styleTextSelection` the editor asked for, in order. */
+  textStyled: RunFont[];
+  /** How many times the editor handed the keyboard back to the text. */
+  textFocused: number;
 }
 
 export interface StubKit extends CanvasKit {
@@ -66,6 +73,8 @@ export function createStubKit(): StubKit {
         layout,
         interactive: true,
         disposed: false,
+        textStyled: [],
+        textFocused: 0,
         sync(model, images) {
           canvas.model = model;
           canvas.images = images;
@@ -89,6 +98,12 @@ export function createStubKit(): StubKit {
         setLayout(next) {
           canvas.layout = next;
         },
+        styleTextSelection(patch) {
+          canvas.textStyled.push(patch);
+        },
+        focusText() {
+          canvas.textFocused++;
+        },
         setInteractive(interactive) {
           canvas.interactive = interactive;
         },
@@ -99,6 +114,7 @@ export function createStubKit(): StubKit {
         dragCrop: (crop, how) => events.onCrop(crop, how),
         edit: (id, patch, bounds) => events.onUpdate(id, patch, bounds),
         erase: (path, radius) => events.onErase(path, radius),
+        selectText: (selection) => events.onTextSelection?.(selection),
         click(id) {
           canvas.selected = id;
           events.onSelect(id);

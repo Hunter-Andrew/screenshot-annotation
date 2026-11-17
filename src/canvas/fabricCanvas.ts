@@ -14,6 +14,7 @@ import { CALLOUT_TAIL_PERCENT } from "../shared/imageSettings";
 import { Backdrop } from "./backdrop";
 import { CropFrame, OutsideDim } from "./chrome";
 import type { AnnotationCanvas, CanvasLayout, MountOptions } from "./types";
+import { watchTextSelection } from "./textSelection";
 import { adapterFor, ImageShape, type ShapeAssets } from "./shapes";
 
 const SELECT = "select";
@@ -166,6 +167,9 @@ export function createFabricCanvas(host: HTMLElement, { events, imageUrl, layout
 
   /** A new text box being typed into: not an Annotation until it has words (see `startTyping`). */
   let pending: FabricObject | null = null;
+  /** The Font the box being typed in should show when the Style panel changes it (it is not in the model yet). */
+  let restylePending: ((font: NonNullable<Style["font"]>) => void) | null = null;
+  const textStyling = watchTextSelection(canvas, (selection) => events.onTextSelection?.(selection));
 
   // --- the Pen's Eraser mode ---------------------------------------------------------------------
   /** Eraser mode is on: the Pen tool is active and its Mode group says Eraser. */
@@ -349,10 +353,12 @@ export function createFabricCanvas(host: HTMLElement, { events, imageUrl, layout
     const kind = kindOf(annotation.type);
     const object = adapter.create(annotation);
     pending = object;
+    restylePending = (font) => adapter.update(object, { ...annotation, font } as Annotation);
     canvas.add(object);
     (object as unknown as { once(event: string, handler: () => void): void }).once("editing:exited", () => {
       const typed = { ...annotation, ...adapter.read(object) } as Annotation;
       pending = null;
+      restylePending = null;
       const bounds = boundsOf(object);
       silently(() => canvas.remove(object));
       // Whether the tool then goes back to Select is the editor's call (the per-tool option, in `onCreate`).
@@ -505,8 +511,11 @@ export function createFabricCanvas(host: HTMLElement, { events, imageUrl, layout
       refreshMode();
       canvas.requestRenderAll();
     },
+    styleTextSelection: (patch) => textStyling.style(patch),
+    focusText: () => textStyling.focus(),
     setDrawStyle(style) {
       drawStyle = style;
+      if (style.font) restylePending?.(style.font);
       // Changing the mode (or the size) mid-gesture cancels an erase drag; the circle follows the new size.
       if (!erasing()) clearErase();
       refreshMode();

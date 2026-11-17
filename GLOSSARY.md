@@ -40,6 +40,10 @@ _Avoid_: Rubber, undo brush
 An Annotation of boxed text with an optional pointer tail that can be dragged to point anywhere. Resizing the box never moves where the tail points. It may have no text: an empty Callout stays (a Text Annotation with no text is not made).
 _Avoid_: Speech bubble, note
 
+**Styled text** (run):
+Part of the text of a Text or Callout that has its own size, Bold, Italic, Underline or color, chosen while editing the box with the characters selected. Each such range of characters is a run (stored in the Annotation's `runs`, the text itself stays plain) and overrides only the properties it names; the rest follows the box's Font. Alignment and the Text outline always belong to the whole box. A change of the whole box's size, Bold, Italic, Underline or color clears that property on every run, so "make everything 24 px" does what it says. A bigger run makes its line taller.
+_Avoid_: Rich text (in code and docs), span, formatting, mixed font
+
 **Pasted image**:
 A picture pasted from the clipboard into an Annotated Image as an Annotation of its own, which can be moved, resized, given a border and made translucent. It is not part of the Capture.
 _Avoid_: Sticker, overlay image

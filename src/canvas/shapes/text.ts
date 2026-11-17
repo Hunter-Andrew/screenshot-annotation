@@ -9,6 +9,6 @@ export const textAdapter: ShapeAdapter<TextAnnotation> = {
   beginEdit: (object) => (object as TextShape).beginEditing(),
   read: (object) => {
     const { x, y, width, text, minHeight, font } = (object as TextShape).toModel();
-    return { x, y, width, text, font, ...(minHeight !== undefined ? { minHeight } : {}) };
+    return { x, y, width, text, font, ...(object as TextShape).runsPatch(), ...(minHeight !== undefined ? { minHeight } : {}) };
   },
 };

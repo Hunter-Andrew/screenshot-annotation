@@ -65,6 +65,7 @@ export function Stage({ kit, imageUrl, size, area, background, darkness, showOut
           onSelect: (id) => latest.current.events.onSelect(id),
           onCrop: (crop, how) => latest.current.events.onCrop(crop, how),
           onLimit: () => latest.current.events.onLimit?.(),
+          onTextSelection: (selection) => latest.current.events.onTextSelection?.(selection),
         },
       })
       .then((mounted) => {

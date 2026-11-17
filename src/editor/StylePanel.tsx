@@ -2,6 +2,7 @@ import type { Background } from "../core/annotation";
 import type { AnnotationKind } from "../core/annotations";
 import { BACKGROUND_LABELS, BACKGROUNDS } from "../core/area";
 import type { GroupId, PropertyGroups, Style } from "../core/propertyGroups";
+import type { RunFont, SelectionFont } from "../core/annotations/runs";
 import { GROUP_EDITORS, type GroupEditor } from "./style/groups";
 
 /** What the Arrange section does to the selected Annotation (ticket 13). */
@@ -13,6 +14,19 @@ export interface Arrange {
   onDelete(): void;
   /** Tooltips, with the shortcut keys. */
   titles: { forward: string; back: string; delete: string };
+}
+
+/**
+ * A Text or Callout is being typed in. Its Font section then keeps the edit going when it takes the focus, and with
+ * characters selected (`selection` set) changes those characters only.
+ */
+export interface TextEditing {
+  /** What the selected characters look like; null with a caret only. */
+  selection: { font: SelectionFont } | null;
+  /** Style the selected characters only. */
+  onStyle(patch: RunFont): void;
+  /** Put the keyboard back into the text, keeping the selection (after a button or a preset changed something). */
+  focusText(): void;
 }
 
 interface Props {
@@ -30,11 +44,12 @@ interface Props {
   crop?: { active: boolean; hasCrop: boolean; onRemove(): void } | null;
   toolOption?: { label: string; checked: boolean; onChange(value: boolean): void; hidden?: boolean } | null;
   /** The Image section (ticket 37 and M4 polish B): the background outside the Capture, and whether the editor shows what is outside the canvas. Null: not shown. */
+  textEditing?: TextEditing | null;
   image?: { background: Background; onChange(background: Background): void; showOutside: boolean; onShowOutside(show: boolean): void } | null;
 }
 
 /** The Style panel (right column): one section per property group the kind opts into. */
-export function StylePanel({ kind, style, onChange, toolGroups = [], arrange = null, crop = null, toolOption = null, image = null }: Props) {
+export function StylePanel({ kind, style, onChange, toolGroups = [], arrange = null, crop = null, toolOption = null, image = null, textEditing = null }: Props) {
   return (
     <aside className="style-panel" aria-label="Style">
       <h2>Style</h2>
@@ -92,10 +107,26 @@ export function StylePanel({ kind, style, onChange, toolGroups = [], arrange = n
           const value = style[group];
           if (!value) return null;
           const editor = GROUP_EDITORS[group] as GroupEditor<typeof group>;
+          // The Font section of a Text or Callout: using it must not end the text edit or lose the selection.
+          const keepsEditing = group === "font" && kind.typedInPlace === true;
+          const typing = keepsEditing ? textEditing : null;
           return (
-            <section key={group} className="group" aria-label={editor.title}>
+            <section
+              key={group}
+              className="group"
+              aria-label={editor.title}
+              {...(keepsEditing ? { "data-keeps-text-editing": "" } : {})}
+              // A press on a button must not move the focus off the text (that would drop the selection).
+              onMouseDown={typing ? (e) => (e.target as Element).closest("button") && e.preventDefault() : undefined}
+              onClick={typing ? (e) => (e.target as Element).closest("button") && typing.focusText() : undefined}
+              onChange={typing ? (e) => ((e.target as Element).tagName === "SELECT" || (e.target as HTMLInputElement).type === "color") && typing.focusText() : undefined}
+            >
               <h3>{editor.title}</h3>
-              <editor.Editor value={value} onChange={(next) => onChange(group, next)} />
+              <editor.Editor
+                value={value}
+                onChange={(next) => onChange(group, next)}
+                selection={typing?.selection ? { font: typing.selection.font, onStyle: typing.onStyle } : null}
+              />
             </section>
           );
         })

@@ -48,7 +48,11 @@ export function invert(before: AnnotatedImage, edit: Edit): Edit | null {
       const current = list.find((a) => a.id === edit.id);
       if (!current) return null;
       const patch: Record<string, unknown> = {};
-      for (const key of Object.keys(edit.patch)) patch[key] = (current as unknown as Record<string, unknown>)[key];
+      for (const key of Object.keys(edit.patch)) {
+        const before = (current as unknown as Record<string, unknown>)[key];
+        // A box with no styled ranges has no `runs`; the saved history file cannot hold "absent", so it says "no ranges".
+        patch[key] = before === undefined && key === "runs" ? [] : before;
+      }
       return { kind: "update", id: edit.id, patch };
     }
     case "delete": {

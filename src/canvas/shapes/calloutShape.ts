@@ -79,7 +79,7 @@ export class CalloutShape extends TextShape {
   /** The Annotation as it is on screen now: its box, words and tail tip. */
   toCallout(): CalloutAnnotation {
     const { type: _type, ...text } = this.toModel();
-    const { tip: _old, ...kept } = this.callout;
+    const { tip: _old, runs: _runs, ...kept } = this.callout;
     return { ...kept, ...text, type: "callout", ...(this.tip ? { tip: { x: this.tip.x, y: this.tip.y } } : {}) };
   }
 

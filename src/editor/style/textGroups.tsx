@@ -20,27 +20,30 @@ function NumberBox({
   label,
   onValid,
 }: {
-  value: number;
+  /** "mixed": the selection has several sizes; the box is empty and says so. */
+  value: number | "mixed";
   min: number;
   max: number;
   label: string;
   onValid(next: number): void;
 }) {
-  const [text, setText] = useState(String(value));
-  useEffect(() => setText(String(value)), [value]);
+  const shown = value === "mixed" ? "" : String(value);
+  const [text, setText] = useState(shown);
+  useEffect(() => setText(shown), [shown]);
   return (
     <input
       type="number"
       min={min}
       max={max}
       aria-label={label}
+      placeholder={value === "mixed" ? "mixed" : undefined}
       value={text}
       onChange={(e) => {
         setText(e.target.value);
         const next = Math.round(Number(e.target.value));
         if (e.target.value !== "" && next >= min && next <= max) onValid(next);
       }}
-      onBlur={() => setText(String(value))}
+      onBlur={() => setText(shown)}
     />
   );
 }
@@ -71,25 +74,26 @@ function VerticalAlignIcon({ valign }: { valign: VerticalAlign }) {
   );
 }
 
-export function FontEditor({ value, onChange }: GroupEditorProps<"font">) {
-  const preset = (FONT_SIZE_PRESETS as readonly number[]).includes(value.size) ? String(value.size) : "";
+export function FontEditor({ value, onChange, selection }: GroupEditorProps<"font">) {
+  // With characters selected the size, B, I, U and color show and change the selection only; the alignments never do.
+  const look = selection?.font ?? { size: value.size, bold: value.bold, italic: value.italic, underline: isUnderlined(value), color: value.color };
+  const size = look.size;
+  const preset = typeof size === "number" && (FONT_SIZE_PRESETS as readonly number[]).includes(size) ? String(size) : "";
+  const setSize = (next: number) => (selection ? selection.onStyle({ size: clampFontSize(next) }) : onChange({ ...value, size: clampFontSize(next) }));
+  /** A toggle: all on turns off; off, or mixed, turns on (Word's rule). */
+  const toggle = (property: "bold" | "italic" | "underline") => {
+    const on = look[property] !== true;
+    if (selection) selection.onStyle({ [property]: on });
+    else onChange({ ...value, [property]: on });
+  };
+  const pressed = (property: "bold" | "italic" | "underline") => (look[property] === "mixed" ? "mixed" : look[property] === true);
   return (
     <>
       <label className="row">
         Size
-        <NumberBox
-          label="Font size"
-          min={MIN_FONT_SIZE}
-          max={MAX_FONT_SIZE}
-          value={value.size}
-          onValid={(size) => onChange({ ...value, size: clampFontSize(size) })}
-        />
+        <NumberBox label="Font size" min={MIN_FONT_SIZE} max={MAX_FONT_SIZE} value={size} onValid={setSize} />
         px
-        <select
-          aria-label="Font size presets"
-          value={preset}
-          onChange={(e) => e.target.value && onChange({ ...value, size: Number(e.target.value) })}
-        >
+        <select aria-label="Font size presets" value={preset} onChange={(e) => e.target.value && setSize(Number(e.target.value))}>
           <option value="">Presets</option>
           {FONT_SIZE_PRESETS.map((size) => (
             <option key={size} value={size}>
@@ -99,32 +103,13 @@ export function FontEditor({ value, onChange }: GroupEditorProps<"font">) {
         </select>
       </label>
       <div className="presets" role="group" aria-label="Style">
-        <button
-          type="button"
-          aria-pressed={value.bold}
-          aria-label="Bold"
-          style={{ fontWeight: 700 }}
-          onClick={() => onChange({ ...value, bold: !value.bold })}
-        >
+        <button type="button" aria-pressed={pressed("bold")} aria-label="Bold" style={{ fontWeight: 700 }} title="Bold (Ctrl+B while typing)" onClick={() => toggle("bold")}>
           B
         </button>
-        <button
-          type="button"
-          aria-pressed={value.italic}
-          aria-label="Italic"
-          style={{ fontStyle: "italic" }}
-          onClick={() => onChange({ ...value, italic: !value.italic })}
-        >
+        <button type="button" aria-pressed={pressed("italic")} aria-label="Italic" style={{ fontStyle: "italic" }} title="Italic (Ctrl+I while typing)" onClick={() => toggle("italic")}>
           I
         </button>
-        <button
-          type="button"
-          aria-pressed={isUnderlined(value)}
-          aria-label="Underline"
-          title="Underline (Ctrl+U while typing)"
-          style={{ textDecoration: "underline" }}
-          onClick={() => onChange({ ...value, underline: !isUnderlined(value) })}
-        >
+        <button type="button" aria-pressed={pressed("underline")} aria-label="Underline" title="Underline (Ctrl+U while typing)" style={{ textDecoration: "underline" }} onClick={() => toggle("underline")}>
           U
         </button>
       </div>
@@ -154,7 +139,13 @@ export function FontEditor({ value, onChange }: GroupEditorProps<"font">) {
           </button>
         ))}
       </div>
-      <ColorField label="Text color" swatchLabel="Color" color={value.color} onPick={(color) => onChange({ ...value, color })} />
+      <ColorField
+        label="Text color"
+        swatchLabel="Color"
+        color={look.color === "mixed" ? value.color : look.color}
+        mixed={look.color === "mixed"}
+        onPick={(color) => (selection ? selection.onStyle({ color }) : onChange({ ...value, color }))}
+      />
     </>
   );
 }

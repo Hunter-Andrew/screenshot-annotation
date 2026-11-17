@@ -1,6 +1,6 @@
 import { type CSSProperties, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { fabricKit } from "../canvas/kit";
-import type { AnnotationCanvas, CanvasEvents, CanvasKit } from "../canvas/types";
+import type { AnnotationCanvas, CanvasEvents, CanvasKit, TextSelection } from "../canvas/types";
 import {
   type AnnotatedImage,
   createFromCapture,
@@ -11,6 +11,7 @@ import {
 } from "../core/annotatedImage";
 import { type Annotation, type Background, type Crop, emptyModel, newAnnotationId } from "../core/annotation";
 import { eraseEdit } from "../core/annotations/erase";
+import { changedRunKeys, resetRunKeys } from "../core/annotations/runs";
 import { AREA_LIMIT_MESSAGE, followAreaEdit, setAreaEdit } from "../core/area";
 import type { Edit } from "../core/editSession";
 import { DEFAULT_IMAGE_SETTINGS, type ImageSettings } from "../shared/imageSettings";
@@ -20,7 +21,7 @@ import { checkPastedImage, placeImage } from "../core/pasteImage";
 import { createEditSession, type EditSession } from "../core/editSession";
 import type { HistoryState } from "../core/history";
 import { readSize } from "../core/png";
-import type { GroupId, PropertyGroups, Style } from "../core/propertyGroups";
+import type { Font, GroupId, PropertyGroups, Style } from "../core/propertyGroups";
 import type { PlatformBridge } from "../platform/bridge";
 import { LibraryGrid } from "../library/LibraryGrid";
 import { fileName, type LibraryImage, neighbourAfterRemoval, toLibraryImages } from "../library/libraryModel";
@@ -107,6 +108,8 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
   // Last-used style per tool: loaded from the settings at start, stored again (after a short pause) when changed.
   const [toolStyles, setToolStyles] = useState<Record<string, Style>>({});
   const [canvas, setCanvas] = useState<AnnotationCanvas | null>(null);
+  /** What the characters selected in the Text or Callout being typed in look like (null: none selected, or not typing). */
+  const [textSelection, setTextSelection] = useState<TextSelection | null>(null);
   // The user's own "return to Select after drawing" choice per tool (sticky too); a tool not in here uses its default.
   const [behavior, setBehavior] = useState<Record<string, boolean>>({});
   const stickyStyles = useStickyStyles(bridge, setToolStyles, setBehavior);
@@ -370,6 +373,7 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
     },
     // A drag went further than the image may grow: it stopped at the limit (the edit it made was applied first).
     onLimit: () => report(AREA_LIMIT_MESSAGE),
+    onTextSelection: setTextSelection,
     onSelect: (id) => {
       setSelectedId(id);
       if (id !== null) setSelection(NO_SELECTION); // working on an Annotation: Delete means it, not the picked thumbnails
@@ -395,7 +399,14 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
     }
     // A tool-only group (the Pen's Mode) is never part of a stroke.
     if (selected && !readOnly && !styledKind.toolGroups?.includes(group)) {
-      current?.session.apply({ kind: "update", id: selected.id, patch: { [group]: value } as Partial<Annotation> });
+      const patch: Record<string, unknown> = { [group]: value };
+      // A change of the whole box's size, Bold, Italic, Underline or color means all of the text, so no character keeps
+      // its own value of what changed. It is one edit, so one undo step restores both.
+      if (group === "font" && (selected.type === "text" || selected.type === "callout") && selected.runs?.length) {
+        const kept = resetRunKeys(selected.runs, changedRunKeys(selected.font, value as Font));
+        if (JSON.stringify(kept) !== JSON.stringify(selected.runs)) patch.runs = kept;
+      }
+      current?.session.apply({ kind: "update", id: selected.id, patch: patch as Partial<Annotation> });
     }
   };
 
@@ -744,6 +755,11 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
           kind={readOnly ? null : (styledKind ?? null)}
           style={panelStyle}
           onChange={restyle}
+          textEditing={
+            canvas && styledKind?.typedInPlace
+              ? { selection: textSelection, onStyle: (patch) => canvas.styleTextSelection(patch), focusText: () => canvas.focusText() }
+              : null
+          }
           toolGroups={!selected && tool !== SELECT_TOOL.id ? styledKind?.toolGroups : undefined}
           image={
             // With the Select tool and nothing selected, and while the Crop tool is on: the image's own settings.
