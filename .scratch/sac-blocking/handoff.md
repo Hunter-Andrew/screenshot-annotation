@@ -82,3 +82,10 @@ Runs #62 to #64 failed before building because `icons.test.ts` rejected Andrew's
 - **Run #69** rebuilt `371711e` (the #61 commit, unchanged) on the throwaway branch `test/rebuild-61`. Artifact 14262459759, 2,701,645 bytes. Andrew ran it at 6:16 PM on 2026-11-16: **blocked** (3077 and 3033, same SAC policy `{0283ac0f-…}`).
 - Conclusion: the verdict flipped on Microsoft's side (or on Andrew's PC), not because of anything in the repo, some time between the first run of the #61 file (evening of 2026-11-15) and #65 (03:42 UTC 2026-11-16). The old #61 file still runs because that exact file already has a verdict. New unsigned builds are now blocked whatever they contain, so the web-code bisect is pointless.
 - What remains for a free fix: a trusted signature (SignPath Foundation), or Microsoft Store distribution as MSIX (individual registration is free since Sept 2025; Store MSIX packages are signed by Microsoft). Turning SAC off is the other option. Self-signing does not work.
+
+## Update 2026-11-17: a blocked file became allowed later
+
+- Andrew installed a Windows update and restarted; afterwards an installer that SAC had blocked ran. A newer CI build (more code changes) was then blocked again.
+- Reading: SAC judges each file on its own. A new unsigned file starts with no verdict and is blocked; the same file can be allowed later once Microsoft's cloud has processed it (Microsoft: "the code's reputation might change as the service processes new signals"). That also explains the old #61 file staying allowed.
+- Not yet separated: whether the fix was the elapsed time, the restart (clearing a cached block verdict) or the update itself. Next blocked build: retry the same file after some hours with no restart, then after a restart, before installing updates.
+- Working practice until signed: don't rebuild to get past a block; keep the blocked file and retry it later. Fewer, deliberate builds for installing.
