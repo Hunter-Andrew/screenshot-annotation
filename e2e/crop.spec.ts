@@ -17,6 +17,7 @@ const W = 600;
 const H = 400;
 
 async function capture(page: Page) {
+  await page.waitForFunction(() => Boolean((window as unknown as { __fakeBridge?: unknown }).__fakeBridge)); // the app installs the fake bridge a moment after load
   await page.evaluate(
     ({ width, height }) => {
       const rgba = new Uint8Array(width * height * 4).fill(200);
