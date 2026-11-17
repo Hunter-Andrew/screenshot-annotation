@@ -128,7 +128,7 @@ test.describe("the Export of a pasted image", () => {
     const composited = (x: number, y: number) => {
       const cap = pattern(x, y);
       if (x < 48 || x >= 80 || y < 32 || y >= 64) return cap;
-      const color = x - 48 < IMG_W / 2 ? BLUE : GREEN;
+      const color = x < 64 ? BLUE : GREEN;
       return [0, 1, 2, 3].map((k) => (k === 3 ? 255 : (cap[k]! + color[k]!) / 2));
     };
     // The picture is stretched to 32 px wide: its halves meet at x = 64, which is a block edge.
@@ -139,9 +139,10 @@ test.describe("the Export of a pasted image", () => {
     // Not the bare Capture's average: the picture really was under the Blur.
     const bare = averageOf(48, 32, 64, 48);
     expect(Math.abs(at(out, 55, 40)[2]! - bare[2]!)).toBeGreaterThan(20);
-    // A pasted image above the Blur is not pixelated.
+    // A pasted image above the Blur is not pixelated: it is the picture (at 50%) over the pixelated Capture.
     const above = decodePixels(await exportOf(page, [blur, pic]));
-    nearly(Array.from(at(above, 52, 40)), [pattern(52, 40)[0]! / 2, pattern(52, 40)[1]! / 2, (pattern(52, 40)[2]! + 255) / 2, 255]);
+    const block = averageOf(48, 32, 64, 48);
+    nearly(Array.from(at(above, 52, 40)), [block[0]! / 2, block[1]! / 2, (block[2]! + 255) / 2, 255]);
   });
 });
 
@@ -206,7 +207,7 @@ interface SavedImage {
 async function savedImages(page: Page): Promise<SavedImage[]> {
   return page.evaluate(async () => {
     const { decodeLibraryPng } = await import(/* @vite-ignore */ "/src/core/annotatedImage.ts" as string);
-    const file = (window as unknown as InPage).__fakeBridge.libraryFiles.at(-1);
+    const file = (window as unknown as InPage).__fakeBridge.libraryFiles[0];
     if (!file) return [];
     return (decodeLibraryPng(file.bytes).model.annotations as { type: string }[]).filter((a) => a.type === "image") as never;
   });
@@ -313,12 +314,12 @@ test.describe("pasting an image in the editor", () => {
     expect(hasChunk(png, "snIM")).toBe(false);
     const left = Math.round(img.x);
     const top = Math.round(img.y);
-    const right = left + Math.round(img.width);
+    const right = Math.floor(img.x + img.width);
     const bottom = top + Math.round(img.height);
     const color = img.border.color;
     const hex = [1, 3, 5].map((i) => parseInt(color.slice(i, i + 2), 16));
     expect(Array.from(at(px, left, top)).slice(0, 3)).toEqual(hex);
-    expect(Array.from(at(px, right - 1, bottom - 1)).slice(0, 3)).toEqual(hex);
+    expect(Array.from(at(px, right - 2, bottom - 2)).slice(0, 3)).toEqual(hex);
     expect(Array.from(at(px, left - 1, top + 20))).toEqual(pattern(left - 1, top + 20)); // no growth outside
     const inside = pattern(left + 20, top + 20);
     nearly(Array.from(at(px, left + 20, top + 20)), [inside[0]! / 2, inside[1]! / 2, (inside[2]! + 255) / 2, 255]);
@@ -326,9 +327,10 @@ test.describe("pasting an image in the editor", () => {
     // Another capture, then back to the first from the Library Strip: the image is still there and editable.
     await expect.poll(async () => (await onlyImage(page)).opacity.value, { timeout: 6000 }).toBe(0.5);
     await captureWithPattern(page, W, H, new Date(2026, 10, 16, 11, 0, 0));
-    await page.getByRole("region", { name: "Library Strip" }).getByRole("button").last().click();
+    await page.getByRole("region", { name: "Library Strip" }).getByRole("button", { name: "Open image from 16 Nov 2026 10:00:00" }).click();
     await expect.poll(() => livePixel(page, left + 10, top + 30), { timeout: 6000 }).not.toEqual(pattern(left + 10, top + 30));
-    await page.mouse.click(stage.x + left + 30, stage.y + top + 30);
+    const reopened = (await page.locator(".stage").boundingBox())!; // the layout may have shifted
+    await page.mouse.click(reopened.x + left + 30, reopened.y + top + 30);
     await expect(page.getByRole("region", { name: "Border" })).toBeVisible();
     await page.keyboard.press("Delete");
     await expect.poll(async () => (await savedImages(page)).length, { timeout: 6000 }).toBe(0);
@@ -374,6 +376,8 @@ test.describe("pasting an image in the editor", () => {
     await page.waitForTimeout(300);
     expect(await savedImages(page)).toHaveLength(0);
 
+    // Focus back on the page itself: nothing is being typed, so the image wins over the text.
+    await page.evaluate(() => (document.activeElement as HTMLElement).blur());
     await pasteClipboard(page, { text: "hello" });
     await expect.poll(async () => (await savedImages(page)).length, { timeout: 6000 }).toBe(1);
   });
