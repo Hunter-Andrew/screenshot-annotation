@@ -10,6 +10,12 @@ describe("Callout", () => {
     expect(calloutKind.typedInPlace).toBe(true);
   });
 
+  it("is still a Callout with no text (a Text Annotation is not)", async () => {
+    expect(calloutKind.keepsEmptyText).toBe(true);
+    const { textKind } = await import("./text");
+    expect(textKind.keepsEmptyText).toBeFalsy();
+  });
+
   it("starts as an empty text box at the click with the default look and no tip yet", () => {
     const a = calloutKind.fromDrag("c", { x: 50, y: 60 }, { x: 50, y: 60 }, {}, { width: 600, height: 400 })!;
     expect(a).toMatchObject({ type: "callout", x: 50, y: 60, text: "", tail: { enabled: true } });

@@ -18,6 +18,7 @@ export class CalloutShape extends TextShape {
 
   constructor(annotation: CalloutAnnotation) {
     super({ ...annotation, type: "text" });
+    this.keepsEmptyText = true;
     this.padding = CALLOUT_PAD;
     this.controls = {
       ...this.controls,

@@ -80,6 +80,7 @@ export const calloutKind: AnnotationKind<CalloutAnnotation> = {
     tail: { enabled: true },
   },
   typedInPlace: true,
+  keepsEmptyText: true,
   fromDrag(id, from, to, style: Style, area, options) {
     const base = calloutKind.defaultStyle;
     const capture = area ?? { width: Infinity, height: Infinity };

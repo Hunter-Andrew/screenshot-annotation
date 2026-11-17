@@ -336,6 +336,7 @@ export function createFabricCanvas(host: HTMLElement, { events, imageUrl, layout
   const startTyping = (annotation: Annotation) => {
     const adapter = adapterFor(annotation.type);
     if (!adapter?.beginEdit) return;
+    const kind = kindOf(annotation.type);
     const object = adapter.create(annotation);
     pending = object;
     canvas.add(object);
@@ -347,7 +348,8 @@ export function createFabricCanvas(host: HTMLElement, { events, imageUrl, layout
       // Whether the tool then goes back to Select is the editor's call (the per-tool option, in `onCreate`).
       refreshMode();
       canvas.requestRenderAll();
-      if ("text" in typed && typed.text.trim() !== "") events.onCreate(typed, bounds);
+      // No empty Text Annotation; a Callout stays with no text (its speech box and tail still say something).
+      if ("text" in typed && (typed.text.trim() !== "" || kind?.keepsEmptyText)) events.onCreate(typed, bounds);
     });
     refreshMode();
     silently(() => canvas.setActiveObject(object));

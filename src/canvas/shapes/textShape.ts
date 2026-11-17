@@ -38,6 +38,8 @@ export class TextShape extends Textbox {
   declare private areaMinHeight?: number;
   /** Where the text sits when the box is taller than its lines. Fabric's Textbox has no such thing: see `_getTopOffset`. */
   private valign: VerticalAlign = "top";
+  /** True for a Callout: an edit that leaves no words leaves it empty instead of restoring the old words. */
+  protected keepsEmptyText = false;
   /** Ctrl+U was pressed in this edit (it changes the Annotation's font, which Fabric does not know about). */
   private underlineToggled = false;
 
@@ -88,8 +90,8 @@ export class TextShape extends Textbox {
         this.underlineToggled = false;
         if (this.canvas && this.text === (this as unknown as { _textBeforeEdit: string })._textBeforeEdit) this.canvas.fire("object:modified", { target: this });
       }
-      // An edit that leaves no words keeps the previous ones (there is no empty Text Annotation).
-      if (this.annotation.text.trim() !== "" && this.text.trim() === "") this.set({ text: this.annotation.text });
+      // An edit that leaves no words keeps the previous ones (there is no empty Text Annotation; a Callout may be empty).
+      if (!this.keepsEmptyText && this.annotation.text.trim() !== "" && this.text.trim() === "") this.set({ text: this.annotation.text });
     });
   }
 

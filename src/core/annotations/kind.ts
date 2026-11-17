@@ -51,6 +51,11 @@ export interface AnnotationKind<A extends Annotation = Annotation> {
    * it becomes an Annotation only once something has been typed.
    */
   readonly typedInPlace?: boolean;
+  /**
+   * True when the Annotation stays with no text (the Callout: a speech box and tail are worth keeping empty); a
+   * typed-in Annotation without it (Text) is not made when nothing was typed, and keeps its old words when cleared.
+   */
+  readonly keepsEmptyText?: boolean;
   /** True for an Annotation that is pasted rather than drawn (the image): no tool-column button, no shortcut. */
   readonly pasted?: boolean;
 }
