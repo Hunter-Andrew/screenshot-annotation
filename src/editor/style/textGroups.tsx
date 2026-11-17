@@ -8,7 +8,7 @@ import {
   MIN_FONT_SIZE,
   MIN_OUTLINE_WIDTH,
 } from "../../core/annotations/text";
-import { TEXT_ALIGNS, type TextAlign } from "../../core/propertyGroups";
+import { isUnderlined, TEXT_ALIGNS, type TextAlign, VERTICAL_ALIGNS, type VerticalAlign, valignOf } from "../../core/propertyGroups";
 import { ColorField } from "./ColorField";
 import type { GroupEditorProps } from "./groups";
 
@@ -54,6 +54,19 @@ function AlignIcon({ align }: { align: TextAlign }) {
         const x1 = align === "left" ? 1 : align === "right" ? 15 - length : 8 - length / 2;
         return <path key={i} d={`M${x1} ${3 + i * 3.4}h${length}`} />;
       })}
+    </svg>
+  );
+}
+
+/** A text block of three lines at the top, the middle or the bottom of a frame. */
+function VerticalAlignIcon({ valign }: { valign: VerticalAlign }) {
+  const y = valign === "top" ? 4 : valign === "middle" ? 7 : 10;
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+      <path d="M1.5 1h13M1.5 15h13" strokeWidth="1" opacity="0.5" />
+      {[0, 2.6, 5.2].map((dy, i) => (
+        <path key={i} d={`M3 ${y + dy}h${i === 2 ? 6 : 10}`} />
+      ))}
     </svg>
   );
 }
@@ -104,6 +117,16 @@ export function FontEditor({ value, onChange }: GroupEditorProps<"font">) {
         >
           I
         </button>
+        <button
+          type="button"
+          aria-pressed={isUnderlined(value)}
+          aria-label="Underline"
+          title="Underline (Ctrl+U while typing)"
+          style={{ textDecoration: "underline" }}
+          onClick={() => onChange({ ...value, underline: !isUnderlined(value) })}
+        >
+          U
+        </button>
       </div>
       <div className="presets" role="group" aria-label="Alignment">
         {TEXT_ALIGNS.map((align) => (
@@ -116,6 +139,18 @@ export function FontEditor({ value, onChange }: GroupEditorProps<"font">) {
             onClick={() => onChange({ ...value, align })}
           >
             <AlignIcon align={align} />
+          </button>
+        ))}
+        {VERTICAL_ALIGNS.map((valign) => (
+          <button
+            key={valign}
+            type="button"
+            aria-pressed={valignOf(value) === valign}
+            aria-label={`Align ${valign}`}
+            title={`Align ${valign}`}
+            onClick={() => onChange({ ...value, valign })}
+          >
+            <VerticalAlignIcon valign={valign} />
           </button>
         ))}
       </div>

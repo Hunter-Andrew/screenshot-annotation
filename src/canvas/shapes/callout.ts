@@ -8,7 +8,7 @@ export const calloutAdapter: ShapeAdapter<CalloutAnnotation> = {
   update: (object, annotation) => (object as CalloutShape).setCallout(annotation),
   beginEdit: (object) => (object as CalloutShape).beginEditing(),
   read: (object) => {
-    const { x, y, width, text, minHeight, tip } = (object as CalloutShape).toCallout();
-    return { x, y, width, text, ...(minHeight !== undefined ? { minHeight } : {}), ...(tip ? { tip } : {}) };
+    const { x, y, width, text, minHeight, tip, font } = (object as CalloutShape).toCallout();
+    return { x, y, width, text, font, ...(minHeight !== undefined ? { minHeight } : {}), ...(tip ? { tip } : {}) };
   },
 };

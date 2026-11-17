@@ -52,7 +52,8 @@ async function exportOf(page: Page, annotations: unknown[]) {
   return decodePixels(Uint8Array.from(png));
 }
 
-const px = (p: { width: number; rgba: Uint8Array }, x: number, y: number) => Array.from(p.rgba.slice((y * p.width + x) * 4, (y * p.width + x) * 4 + 4));
+const px = (p: { width: number; rgba: ArrayLike<number> }, x: number, y: number) =>
+  [0, 1, 2, 3].map((k) => p.rgba[(y * p.width + x) * 4 + k]!);
 
 test.describe("the Highlighter's multiply blend", () => {
   test.use({ viewport: { width: 760, height: 560 } });
@@ -126,7 +127,7 @@ test.describe("the Highlighter's multiply blend", () => {
     expect(px(copied, 50, 100)).toEqual(BLACK);
     expect(px(copied, 220, 100)).toEqual(YELLOW);
 
-    const savedHighlights = () => page.evaluate(async () => {
+    const savedHighlights = (): Promise<Record<string, unknown>[]> => page.evaluate(async () => {
       const { decodeLibraryPng } = await import(/* @vite-ignore */ "/src/core/annotatedImage.ts" as string);
       const file = (window as unknown as InPage).__fakeBridge.libraryFiles.at(-1);
       return file ? (decodeLibraryPng(file.bytes).model.annotations as never) : [];

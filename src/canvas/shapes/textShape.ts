@@ -13,6 +13,10 @@
 import { controlsUtils, Textbox } from "fabric";
 import { FONT_FAMILY, type TextAnnotation } from "../../core/annotations/text";
 import { dragTextBox, HANDLES, type HandleName } from "../../core/annotations/textBox";
+import { isUnderlined, type VerticalAlign, valignOf } from "../../core/propertyGroups";
+
+/** How much of the spare height (the box minus the lines) sits above the text for each vertical alignment. */
+const SPARE_ABOVE: Record<VerticalAlign, number> = { top: 0, middle: 0.5, bottom: 1 };
 
 const CURSORS: Record<HandleName, string> = {
   tl: "nwse-resize",
@@ -32,6 +36,10 @@ export class TextShape extends Textbox {
   private annotation!: TextAnnotation;
   /** The lowest height of the box (the area the user dragged out); read while Fabric lays the text out. */
   declare private areaMinHeight?: number;
+  /** Where the text sits when the box is taller than its lines. Fabric's Textbox has no such thing: see `_getTopOffset`. */
+  private valign: VerticalAlign = "top";
+  /** Ctrl+U was pressed in this edit (it changes the Annotation's font, which Fabric does not know about). */
+  private underlineToggled = false;
 
   constructor(annotation: TextAnnotation) {
     super(annotation.text, {
@@ -75,6 +83,11 @@ export class TextShape extends Textbox {
       if (!this.isEditing && this.canvas) this.beginEditing();
     });
     this.on("editing:exited", () => {
+      // Ctrl+U alone changes no words, so Fabric reports nothing: tell the canvas the Annotation was modified.
+      if (this.underlineToggled) {
+        this.underlineToggled = false;
+        if (this.canvas && this.text === (this as unknown as { _textBeforeEdit: string })._textBeforeEdit) this.canvas.fire("object:modified", { target: this });
+      }
       // An edit that leaves no words keeps the previous ones (there is no empty Text Annotation).
       if (this.annotation.text.trim() !== "" && this.text.trim() === "") this.set({ text: this.annotation.text });
     });
@@ -86,6 +99,7 @@ export class TextShape extends Textbox {
     const { font, textOutline } = annotation;
     const outlined = textOutline.enabled && textOutline.width > 0;
     this.areaMinHeight = annotation.minHeight ?? 0;
+    this.valign = valignOf(font);
     this.set({
       left: annotation.x,
       top: annotation.y,
@@ -95,6 +109,7 @@ export class TextShape extends Textbox {
       fontStyle: font.italic ? "italic" : "normal",
       fill: font.color,
       textAlign: font.align ?? "left",
+      underline: isUnderlined(font),
       stroke: outlined ? textOutline.color : null,
       // Doubled: the stroke is centred on the letter edge and the fill covers its inner half.
       strokeWidth: outlined ? textOutline.width * 2 : 0,
@@ -110,6 +125,95 @@ export class TextShape extends Textbox {
     return Math.max(super.calcTextHeight(), this.areaMinHeight ?? 0);
   }
 
+  /**
+   * Where the first line starts, from the box's middle. Fabric draws text from the top of its box; a box taller than
+   * its lines (a dragged-out area, a resized box) moves the text down by its spare height times the vertical
+   * alignment. The lines, the caret, the selection, the underline and a click's position all start from here, so
+   * they stay in step with one another.
+   */
+  override _getTopOffset(): number {
+    const spare = Math.max(0, this.height - super.calcTextHeight());
+    return super._getTopOffset() + spare * SPARE_ABOVE[this.valign];
+  }
+
+  /**
+   * Wraps like Word: words wrap at spaces, and a word wider than the whole box is broken across lines by letter
+   * (Fabric's own wrapping widens the box to the longest word instead, so it could not be narrowed). The width
+   * the user chose is never exceeded unless one letter alone is wider than it.
+   */
+  override _wrapLine(lineIndex: number, desiredWidth: number, { wordsData }: Parameters<Textbox["_wrapLine"]>[2], reservedSpace = 0): string[][] {
+    const maxWidth = Math.max(1, desiredWidth - reservedSpace);
+    const lines: string[][] = [];
+    let line: string[] = [];
+    let lineWidth = 0;
+    let offset = 0;
+    let infixWidth = 0;
+    let started = false;
+    for (const { word, width } of wordsData[lineIndex] ?? []) {
+      const wordStart = offset;
+      offset += word.length;
+      const fits = lineWidth + infixWidth + width <= maxWidth;
+      if (started && fits) {
+        line.push(" ", ...word);
+        lineWidth += infixWidth + width;
+      } else {
+        if (started) lines.push(line);
+        line = [];
+        lineWidth = 0;
+        if (width <= maxWidth) {
+          line = [...word];
+          lineWidth = width;
+        } else {
+          // Too long for any line: fill lines letter by letter; the last piece stays open for the words that follow.
+          let previous: string | undefined;
+          word.forEach((letter, i) => {
+            const advance = this._getGraphemeBox(letter, lineIndex, wordStart + i, previous, true).kernedWidth;
+            if (line.length > 0 && lineWidth + advance > maxWidth) {
+              lines.push(line);
+              line = [];
+              lineWidth = 0;
+              previous = undefined;
+            }
+            line.push(letter);
+            lineWidth += advance;
+            previous = letter;
+          });
+        }
+      }
+      started = true;
+      infixWidth = this._measureWord([" "], lineIndex, offset);
+      offset++;
+    }
+    if (started) lines.push(line);
+    return lines;
+  }
+
+  /**
+   * Whether the break after wrapped line `lineIndex` used up a character of the text: a hard line break and the space
+   * a break at a space swallows do (1); a break inside a long word does not (0). Fabric assumes the first for every
+   * line unless it splits by letter, and the caret and a click's position are counted with it.
+   */
+  override missingNewlineOffset(lineIndex: number): 0 | 1 {
+    const here = this._styleMap?.[lineIndex];
+    const next = this._styleMap?.[lineIndex + 1];
+    if (!here || !next || next.line !== here.line) return 1;
+    return next.offset - here.offset > (this._textLines[lineIndex]?.length ?? 0) ? 1 : 0;
+  }
+
+  /** Ctrl+U underlines the whole text, like the Style panel's U (Fabric has no such key). */
+  override onKeyDown(e: KeyboardEvent): void {
+    if (this.isEditing && (e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === "u") {
+      e.preventDefault();
+      e.stopPropagation();
+      this.underlineToggled = true;
+      this.set({ underline: !this.underline });
+      this.dirty = true;
+      this.canvas?.requestRenderAll();
+      return;
+    }
+    super.onKeyDown(e);
+  }
+
   /** The Annotation as it is on screen now: its box and its words. */
   toModel(): TextAnnotation {
     const { minHeight: _previous, ...rest } = this.annotation;
@@ -117,7 +221,10 @@ export class TextShape extends Textbox {
     // Absent when there never was a minimum; an explicit 0 when there was one and the box was resized without it
     // (a saved patch or an undo can then put the box back).
     const keep = minHeight > 0 ? { minHeight } : _previous !== undefined ? { minHeight: 0 } : {};
-    return { ...rest, x: this.left, y: this.top, width: this.width, text: this.text, ...keep };
+    // The underline is the one font setting that can change on the canvas (Ctrl+U while typing).
+    const underline = !!this.underline;
+    const font = isUnderlined(this.annotation.font) === underline ? this.annotation.font : { ...this.annotation.font, underline };
+    return { ...rest, x: this.left, y: this.top, width: this.width, text: this.text, font, ...keep };
   }
 
   /**

@@ -309,6 +309,10 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
   const styleOf = (type: string, annotation: Annotation | null): Style => {
     const kind = kindOf(type);
     const base = { ...kind?.defaultStyle, ...toolStyles[type] };
+    // A tool style stored before vertical alignment existed still starts NEW boxes in the default alignment
+    // (an older saved text keeps Top: its own font is read below, as stored).
+    const defaultValign = kind?.defaultStyle.font?.valign;
+    if (base.font && defaultValign && base.font.valign === undefined) base.font = { ...base.font, valign: defaultValign };
     if (!annotation) return base;
     const own: Style = {};
     for (const group of kind?.groups ?? []) (own as Record<string, unknown>)[group] = annotation[group as keyof Annotation];

@@ -108,3 +108,47 @@ describe("the Text tool in the editor", () => {
     expect(screen.getByRole("button", { name: "Fit" })).toHaveAttribute("aria-pressed", "false");
   });
 });
+
+describe("vertical alignment and underline in the editor", () => {
+  it("a new Text starts Middle and not underlined", async () => {
+    const kit = await openWithCapture(createFakeBridge());
+    await userEvent.keyboard("t");
+    expect(kit.latest.drawStyle.font).toMatchObject({ valign: "middle", underline: false });
+    expect(screen.getByRole("button", { name: "Align middle" })).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("a tool style stored before vertical alignment existed starts new boxes Middle too, keeping what it had", async () => {
+    const bridge = createFakeBridge();
+    await bridge.setToolStyles({ text: { font: { size: 40, bold: true, italic: false, color: "#2563eb" } } });
+    const kit = await openWithCapture(bridge);
+    await userEvent.keyboard("t");
+    await waitFor(() => expect(kit.latest.drawStyle.font).toMatchObject({ size: 40, bold: true, valign: "middle" }));
+    expect(screen.getByRole("button", { name: "Align middle" })).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("an older saved Text without a vertical alignment shows Top, and Bottom can be chosen for it", async () => {
+    const bridge = createFakeBridge();
+    const kit = await openWithCapture(bridge);
+    await act(async () => kit.latest.draw(TEXT));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Align top" })).toHaveAttribute("aria-pressed", "true"));
+
+    await userEvent.click(screen.getByRole("button", { name: "Align bottom" }));
+    await autosave();
+
+    expect((savedModel(bridge).annotations[0] as TextAnnotation).font.valign).toBe("bottom");
+  });
+
+  it("the U button underlines the selected Text and is saved", async () => {
+    const bridge = createFakeBridge();
+    const kit = await openWithCapture(bridge);
+    await act(async () => kit.latest.draw(TEXT));
+    const underline = await screen.findByRole("button", { name: "Underline" });
+    expect(underline).toHaveAttribute("aria-pressed", "false");
+
+    await userEvent.click(underline);
+    await autosave();
+
+    expect(screen.getByRole("button", { name: "Underline" })).toHaveAttribute("aria-pressed", "true");
+    expect((savedModel(bridge).annotations[0] as TextAnnotation).font.underline).toBe(true);
+  });
+});

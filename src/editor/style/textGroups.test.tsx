@@ -79,6 +79,36 @@ describe("Font group", () => {
     expect(screen.getByRole("button", { name: "Align left" })).toHaveAttribute("aria-pressed", "false");
   });
 
+  it("has an Underline toggle next to Bold and Italic", async () => {
+    const onChange = panel();
+    const underline = screen.getByRole("button", { name: "Underline" });
+    expect(underline).toHaveAttribute("aria-pressed", "false");
+    expect(underline.parentElement).toBe(screen.getByRole("button", { name: "Bold" }).parentElement);
+
+    await userEvent.click(underline);
+    expect(onChange).toHaveBeenLastCalledWith("font", { ...textKind.defaultStyle.font, underline: true });
+  });
+
+  it("has Align top, middle and bottom beside the horizontal alignment: Middle for a new text, Top for an older one", async () => {
+    const onChange = panel();
+    expect(screen.getByRole("button", { name: "Align middle" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Align top" })).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByRole("button", { name: "Align top" }).parentElement).toBe(screen.getByRole("button", { name: "Align left" }).parentElement);
+
+    await userEvent.click(screen.getByRole("button", { name: "Align bottom" }));
+    expect(onChange).toHaveBeenLastCalledWith("font", { ...textKind.defaultStyle.font, valign: "bottom" });
+    await userEvent.click(screen.getByRole("button", { name: "Align top" }));
+    expect(onChange).toHaveBeenLastCalledWith("font", { ...textKind.defaultStyle.font, valign: "top" });
+  });
+
+  it("shows Top pressed for an older text with no vertical alignment stored", () => {
+    const { valign: _gone, underline: _u, ...older } = textKind.defaultStyle.font!;
+    render(<StylePanel kind={textKind} style={{ ...textKind.defaultStyle, font: older }} onChange={vi.fn()} />);
+    expect(screen.getByRole("button", { name: "Align top" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Align middle" })).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByRole("button", { name: "Underline" })).toHaveAttribute("aria-pressed", "false");
+  });
+
   it("changes the text color from the palette", async () => {
     const onChange = panel();
 
