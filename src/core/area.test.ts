@@ -2,7 +2,7 @@
 import { describe, expect, it } from "vitest";
 import { createFromCapture, decodeLibraryPng, encodeLibraryPng, exportPng } from "./annotatedImage";
 import type { RectAnnotation } from "./annotation";
-import { AREA_LIMIT_MESSAGE, followAreaEdit, limitArea, MAX_AREA_SIDE, setAreaEdit, visibleAreaOf } from "./area";
+import { AREA_LIMIT_MESSAGE, followAreaEdit, limitArea, limitPoint, MAX_AREA_SIDE, setAreaEdit, shiftIntoLimit, visibleAreaOf } from "./area";
 import { createEditSession } from "./editSession";
 import { parseHistory, serializeHistory } from "./historyFile";
 import { encodeRgbaPng } from "./png";
@@ -108,6 +108,37 @@ describe("the 8192 px limit", () => {
     expect(result.limited).toBe(true);
     session.apply(result.edit!);
     expect(session.image.model.crop!.width).toBe(8192);
+  });
+});
+
+describe("how far a drag may reach (M4 fixes C)", () => {
+  const area = { x: 0, y: 0, width: W, height: H };
+
+  it("a pointer anywhere that keeps the area within the limit is left where it is, however far from the area", () => {
+    expect(limitPoint(area, { x: 5000, y: -3000 })).toEqual({ point: { x: 5000, y: -3000 }, limited: false });
+    expect(limitPoint(area, { x: -(MAX_AREA_SIDE - W), y: MAX_AREA_SIDE })).toEqual({
+      point: { x: -(MAX_AREA_SIDE - W), y: MAX_AREA_SIDE },
+      limited: false,
+    });
+  });
+
+  it("a pointer further than that is stopped at the limit on that side, and the drag says so", () => {
+    expect(limitPoint(area, { x: 50000, y: 10 })).toEqual({ point: { x: MAX_AREA_SIDE, y: 10 }, limited: true });
+    expect(limitPoint(area, { x: -50000, y: -9000 })).toEqual({ point: { x: W - MAX_AREA_SIDE, y: H - MAX_AREA_SIDE }, limited: true });
+  });
+
+  it("an area that is already wider than the limit is not pushed further out", () => {
+    const wide = { x: 0, y: 0, width: 10000, height: 100 };
+    expect(limitPoint(wide, { x: 12000, y: 50 }).point).toEqual({ x: 10000, y: 50 });
+    expect(limitPoint(wide, { x: -5, y: 50 })).toEqual({ point: { x: 0, y: 50 }, limited: true });
+    expect(limitPoint(wide, { x: 9000, y: 50 })).toEqual({ point: { x: 9000, y: 50 }, limited: false });
+  });
+
+  it("a moved Annotation is shifted back just enough to keep the area within the limit, and only along the axis that needs it", () => {
+    const box = { x: 9000, y: 10, width: 40, height: 20 };
+    expect(shiftIntoLimit(area, box)).toEqual({ dx: MAX_AREA_SIDE - 9040, dy: 0 });
+    expect(shiftIntoLimit(area, { x: -9000, y: -9000, width: 40, height: 20 })).toEqual({ dx: W - MAX_AREA_SIDE + 9000, dy: H - MAX_AREA_SIDE + 9000 });
+    expect(shiftIntoLimit(area, { x: 50, y: 10, width: 40, height: 20 })).toEqual({ dx: 0, dy: 0 });
   });
 });
 

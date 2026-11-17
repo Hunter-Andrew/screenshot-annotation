@@ -37,7 +37,7 @@ A mode of the Pen tool (chosen in its Style panel's Mode group, with a size of 4
 _Avoid_: Rubber, undo brush
 
 **Callout**:
-An Annotation of boxed text with an optional pointer tail that can be dragged to point anywhere. Resizing the box never moves where the tail points.
+An Annotation of boxed text with an optional pointer tail that can be dragged to point anywhere. Resizing the box never moves where the tail points. It may have no text: an empty Callout stays (a Text Annotation with no text is not made).
 _Avoid_: Speech bubble, note
 
 **Pasted image**:

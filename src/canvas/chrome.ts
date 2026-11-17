@@ -52,7 +52,12 @@ export class CropFrame extends Rect {
 
   constructor(area: Crop) {
     super({
-      ...area,
+      // Fabric places an object by `left` and `top` (a spread of the area's own `x` and `y` set nothing, which left a
+      // frame made while the area did not start at the Capture's corner sitting at 0, 0 until the next layout change).
+      left: area.x,
+      top: area.y,
+      width: area.width,
+      height: area.height,
       originX: "left",
       originY: "top",
       fill: "transparent",

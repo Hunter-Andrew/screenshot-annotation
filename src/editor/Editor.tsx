@@ -368,6 +368,8 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
       // Dragging a handle leaves the Crop tool on, to fine-tune the other edges; a fresh rectangle follows the tool's option.
       if (how !== "handle" && returnsToSelect(CROP_TOOL.id, behavior)) setTool(SELECT_TOOL.id);
     },
+    // A drag went further than the image may grow: it stopped at the limit (the edit it made was applied first).
+    onLimit: () => report(AREA_LIMIT_MESSAGE),
     onSelect: (id) => {
       setSelectedId(id);
       if (id !== null) setSelection(NO_SELECTION); // working on an Annotation: Delete means it, not the picked thumbnails

@@ -149,6 +149,31 @@ test.describe("the Crop tool's handles follow the visible area", () => {
   });
 });
 
+test.describe("the Crop tool's handles when the area does not start at the Capture's corner", () => {
+  test("after an ellipse drawn out to the left grew the area leftwards, once the view has settled", async ({ page }) => {
+    await page.goto("/");
+    await capture(page, 500, 300);
+    await page.keyboard.press("e");
+    await drag(page, { x: 478, y: 397 }, { x: 121, y: 238 }); // from inside the Capture out over the toolbar column
+    await expect.poll(async () => Number.parseInt((await page.getByLabel("Zoom level").textContent())!, 10)).toBeLessThan(90); // Fit re-fitted the bigger image
+    await page.waitForTimeout(600); // nothing changes after this: the handles must be right without any later layout change
+    await page.keyboard.press("c");
+    await expectHandlesOnArea(page);
+  });
+
+  test("after a crop that starts inside the Capture, when the Crop tool is chosen again", async ({ page }) => {
+    await page.goto("/");
+    await capture(page, 500, 300);
+    const stage = await stageBox(page);
+    await page.keyboard.press("c");
+    await drag(page, { x: stage.x + 100, y: stage.y + 50 }, { x: stage.x + 400, y: stage.y + 250 });
+    await expect(page.getByRole("button", { name: /^Select/ })).toHaveAttribute("aria-pressed", "true");
+    await page.waitForTimeout(600);
+    await page.keyboard.press("c");
+    await expectHandlesOnArea(page);
+  });
+});
+
 test.describe("the Crop tool's corner handles never lock the aspect ratio", () => {
   for (const shift of [false, true]) {
     test(`a diagonal drag resizes the area freely in both axes${shift ? " with Shift held" : ""}`, async ({ page }) => {

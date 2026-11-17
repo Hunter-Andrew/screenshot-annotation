@@ -3,7 +3,7 @@
 // ./shapes, and follows the model (`sync`). User gestures leave through `CanvasEvents` as model edits;
 // the canvas never keeps state of its own that the model does not have.
 import { Canvas, type FabricObject, FabricImage, Rect } from "fabric";
-import { backgroundFill } from "../core/area";
+import { backgroundFill, limitPoint, shiftIntoLimit } from "../core/area";
 import { kindOf } from "../core/annotations";
 import { erasePieces } from "../core/annotations/erase";
 import type { Point } from "../core/annotations";
@@ -108,14 +108,33 @@ export function createFabricCanvas(host: HTMLElement, { events, imageUrl, layout
   canvas.overlayImage = dim;
   canvas.controlsAboveOverlay = true;
 
-  /** Gestures may reach into the margin around the visible area (the whole workspace), not further. */
-  const reachOf = () => layout.workspace;
-  const clampToReach = (p: { x: number; y: number }) => {
-    const reach = reachOf();
-    return {
-      x: Math.min(Math.max(p.x, reach.x), reach.x + reach.width),
-      y: Math.min(Math.max(p.y, reach.y), reach.y + reach.height),
-    };
+  /**
+   * How far a drag reaches (M4 fixes C): once a press has started on the canvas it follows the pointer wherever that goes
+   * (Fabric tracks the document, not just the canvas element, until the button is let go), as far as the image's 8192 px
+   * limit and no further. The Canvas margin only decides what is shown, not how far a drag may go.
+   * `held` is whether a pointer or an Annotation was held back at the limit in the gesture in progress: the editor says so
+   * in the status line when the gesture is done.
+   */
+  let held = false;
+  /** `p` held back at the limit of the visible area extended by `anchor` (where the gesture started). */
+  const reach = (p: Point, anchor?: Point): Point => {
+    const area = layout.area;
+    const base = anchor
+      ? {
+          x: Math.min(area.x, anchor.x),
+          y: Math.min(area.y, anchor.y),
+          width: Math.max(area.x + area.width, anchor.x) - Math.min(area.x, anchor.x),
+          height: Math.max(area.y + area.height, anchor.y) - Math.min(area.y, anchor.y),
+        }
+      : area;
+    const limited = limitPoint(base, p);
+    held ||= limited.limited;
+    return limited.point;
+  };
+  /** Report that the gesture just ended was held back at the limit (after its own edit, so the message stays). */
+  const endGesture = () => {
+    if (held) events.onLimit?.();
+    held = false;
   };
 
   /** What `object` covers, in Capture pixels (its stroke included). */
@@ -257,17 +276,14 @@ export function createFabricCanvas(host: HTMLElement, { events, imageUrl, layout
     const annotation = id ? applied.get(id) : undefined;
     if (!id || !annotation) return;
     events.onUpdate(id, adapterFor(annotation.type)!.read(target), boundsOf(target));
+    endGesture();
   });
-  // An Annotation may be moved into the margin around the visible area (growing it), but not off into nowhere.
+  // An Annotation may be moved anywhere the pointer goes, until the visible area would pass the 8192 px limit.
   canvas.on("object:moving", ({ target }) => {
     if (!target || target === frame || !idOf.has(target)) return;
-    const reach = reachOf();
-    const box = boundsOf(target);
-    const shift = (start: number, length: number, from: number, extent: number) =>
-      length >= extent ? 0 : start < from ? from - start : start + length > from + extent ? from + extent - (start + length) : 0;
-    const dx = shift(box.x, box.width, reach.x, reach.width);
-    const dy = shift(box.y, box.height, reach.y, reach.height);
+    const { dx, dy } = shiftIntoLimit(layout.area, boundsOf(target));
     if (dx !== 0 || dy !== 0) {
+      held = true;
       target.set({ left: target.left + dx, top: target.top + dy });
       target.setCoords();
     }
@@ -275,14 +291,8 @@ export function createFabricCanvas(host: HTMLElement, { events, imageUrl, layout
 
   /** A handle of the Crop tool's frame was released: the dragged rectangle is the new area (a step of its own). */
   const finishHandleDrag = (dragged: CropFrame) => {
-    const reach = reachOf();
-    const next = dragged.dragged();
-    // The pointer may have gone further than a gesture may reach.
-    const x1 = Math.max(next.x, Math.round(reach.x));
-    const y1 = Math.max(next.y, Math.round(reach.y));
-    const x2 = Math.min(next.x + next.width, Math.round(reach.x + reach.width));
-    const y2 = Math.min(next.y + next.height, Math.round(reach.y + reach.height));
-    const area = { x: x1, y: y1, width: x2 - x1, height: y2 - y1 };
+    // Wherever the pointer went (the editor stops the area at the 8192 px limit and says so).
+    const area = dragged.dragged();
     // Back to the committed area at once; the editor's new layout moves the frame again if the drag counts.
     dragged.place(layout.area);
     if (area.width >= MIN_CROP && area.height >= MIN_CROP) events.onCrop(area, "handle");
@@ -361,7 +371,8 @@ export function createFabricCanvas(host: HTMLElement, { events, imageUrl, layout
     if (!interactive || tool === SELECT || pending || (event.e as MouseEvent).button > 0) return;
     // A press on one of the Crop frame's handles is Fabric's to resize, not the start of a new rectangle.
     if (event.target) return;
-    const from = clampToReach(canvas.getScenePoint(event.e));
+    held = false;
+    const from = canvas.getScenePoint(event.e);
     if (erasing()) {
       erase = { path: [from], pieces: new Map(), previews: new Map(), hidden: new Set() };
       return eraseSegment(erase, from, from); // a click cuts a hole
@@ -372,17 +383,17 @@ export function createFabricCanvas(host: HTMLElement, { events, imageUrl, layout
     if (erasing() && interactive) {
       pointer = canvas.getScenePoint(event.e);
       if (!erase) return canvas.requestRenderAll();
-      const to = clampToReach(pointer);
+      const to = pointer;
       const last = erase.path.at(-1)!;
       erase.path.push(to);
       return eraseSegment(erase, last, to);
     }
     // The Crop tool previews its rectangle like Text's box (same dashed preview).
-    if (drag && tool === CROP) return previewArea(drag, clampToReach(canvas.getScenePoint(event.e)));
+    if (drag && tool === CROP) return previewArea(drag, reach(canvas.getScenePoint(event.e), drag.from));
     const kind = kindOf(tool);
     const adapter = adapterFor(tool);
     if (!drag || !kind || !adapter) return;
-    const to = clampToReach(canvas.getScenePoint(event.e));
+    const to = reach(canvas.getScenePoint(event.e), drag.from);
     // A Callout with its tail on previews the speech box and tail as they will be; other typed-in tools, a dashed area.
     const showsShape = kind.type === "callout" && drawStyle.tail?.enabled !== false;
     if (kind.typedInPlace && !showsShape) return previewArea(drag, to);
@@ -403,7 +414,7 @@ export function createFabricCanvas(host: HTMLElement, { events, imageUrl, layout
   canvas.on("mouse:up", (event) => {
     if (erase) {
       const gesture = erase;
-      const to = clampToReach(canvas.getScenePoint(event.e));
+      const to = canvas.getScenePoint(event.e);
       const last = gesture.path.at(-1)!;
       if (to.x !== last.x || to.y !== last.y) gesture.path.push(to);
       // The preview stays until the editor has applied the edit and the model is synced (no flash of the whole stroke).
@@ -416,16 +427,16 @@ export function createFabricCanvas(host: HTMLElement, { events, imageUrl, layout
     if (gesture && tool === CROP) {
       if (gesture.ghost) canvas.remove(gesture.ghost);
       canvas.requestRenderAll();
-      const crop = cropFromDrag(gesture.from, clampToReach(canvas.getScenePoint(event.e)));
+      const crop = cropFromDrag(gesture.from, reach(canvas.getScenePoint(event.e), gesture.from));
       // The frame lost the selection when the press landed on empty space: its handles come back.
       showFrame(true);
       if (crop) events.onCrop(crop);
-      return;
+      return endGesture();
     }
     const kind = kindOf(tool);
     if (!gesture || !kind) return;
     if (gesture.ghost) canvas.remove(gesture.ghost);
-    const to = clampToReach(canvas.getScenePoint(event.e));
+    const to = reach(canvas.getScenePoint(event.e), gesture.from);
     const annotation = kind.fromPath
       ? kind.fromPath(newAnnotationId(), pathFor(kind, { ...gesture, path: [...gesture.path, to] }, to, (event.e as MouseEvent).shiftKey), drawStyle)
       : kind.fromDrag(newAnnotationId(), gesture.from, to, drawStyle, layout.area, { tailPercent: calloutTailPercent });
@@ -433,6 +444,7 @@ export function createFabricCanvas(host: HTMLElement, { events, imageUrl, layout
     if (!annotation) return;
     if (kind.typedInPlace) startTyping(annotation);
     else events.onCreate(annotation, boundsOfAnnotation(annotation));
+    endGesture();
   });
 
   /** The canvas element covers the workspace; scene coordinates stay Capture pixels. */

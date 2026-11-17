@@ -47,6 +47,11 @@ export interface CanvasEvents {
    * Capture. `how` is "handle" for a drag of one of the eight handles, otherwise a fresh rectangle was drawn.
    */
   onCrop(crop: Crop, how?: "handle"): void;
+  /**
+   * A drag was held back at the image's 8192 px limit (the pointer went further than the image may grow): sent after the
+   * edit the gesture made, so the editor can say so in the status line.
+   */
+  onLimit?(): void;
 }
 
 export interface AnnotationCanvas {

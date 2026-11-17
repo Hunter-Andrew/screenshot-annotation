@@ -12,7 +12,7 @@
 // the area explicitly (the Crop tool) makes it the final base and clears the record.
 import type { AnnotatedImage } from "./annotatedImage";
 import type { Background, Crop, GrowCause } from "./annotation";
-import { sameCrop } from "./crop";
+import { type Point, sameCrop } from "./crop";
 import { type Edit, type Growth, growthOf, sameGrowth } from "./editSession";
 import { readSize } from "./png";
 
@@ -53,6 +53,35 @@ function limitAxis(start: number, end: number, prevStart: number, prevEnd: numbe
   const middle = Math.round((prevStart + prevEnd) / 2 - max / 2);
   const from = Math.max(start, Math.min(middle, end - max));
   return [from, from + max];
+}
+
+/**
+ * How far along one axis a span `[start, end]` must move so that, together with the span `[from, to]` it is added to, it
+ * stays within the limit (an area that is already longer than the limit may not get longer): 0 when it does.
+ */
+function shiftAxis(from: number, to: number, start: number, end: number): number {
+  const max = Math.max(MAX_AREA_SIDE, to - from);
+  if (Math.max(to, end) - Math.min(from, start) <= max) return 0;
+  const past = (end > to ? 1 : 0) + (start < from ? 1 : 0);
+  if (past !== 1) return 0; // past both sides (longer than the limit by itself) or neither: nothing to give way to
+  return start < from ? to - max - start : from + max - end;
+}
+
+/**
+ * How far to move `box` (an Annotation being dragged) so that the visible area `area` plus `box` stays within the
+ * 8192 px limit; 0 along an axis that already does. Drags may reach as far as that and no further (M4 fixes C).
+ */
+export function shiftIntoLimit(area: Crop, box: Crop): { dx: number; dy: number } {
+  return {
+    dx: shiftAxis(area.x, area.x + area.width, box.x, box.x + box.width),
+    dy: shiftAxis(area.y, area.y + area.height, box.y, box.y + box.height),
+  };
+}
+
+/** `point` held back at the limit: the furthest it may be from `area` (which it extends) with the area within 8192 px; and whether it was held back. */
+export function limitPoint(area: Crop, point: Point): { point: Point; limited: boolean } {
+  const { dx, dy } = shiftIntoLimit(area, { x: point.x, y: point.y, width: 0, height: 0 });
+  return { point: { x: point.x + dx, y: point.y + dy }, limited: dx !== 0 || dy !== 0 };
 }
 
 /** `area` cut to the limit, keeping the edges that did not move out (compared with `previous`), and whether it was cut. */
