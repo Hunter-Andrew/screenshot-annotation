@@ -32,19 +32,22 @@ export interface ColorFieldProps {
   swatchLabel?: string;
   /** Show the 8-color palette (default true). */
   palette?: boolean;
+  /** The characters being styled have different colors: nothing is picked and the field says "mixed". `color` is then only a fallback for the picker. */
+  mixed?: boolean;
 }
 
-export function ColorField({ label, color, onPick, swatchLabel = label, palette = true }: ColorFieldProps) {
-  const [draft, setDraft] = useState(color);
-  useEffect(() => setDraft(color), [color]);
+export function ColorField({ label, color, onPick, swatchLabel = label, palette = true, mixed = false }: ColorFieldProps) {
+  const shown = mixed ? "" : color;
+  const [draft, setDraft] = useState(shown);
+  useEffect(() => setDraft(shown), [shown]);
   const errorId = useId();
-  const invalid = parseHexColor(draft) === null;
+  const invalid = !(mixed && draft === "") && parseHexColor(draft) === null;
 
   const apply = (text: string) => {
     const parsed = parseHexColor(text);
     if (parsed === null) return false;
     setDraft(parsed);
-    if (parsed !== color.toLowerCase()) onPick(parsed);
+    if (mixed || parsed !== color.toLowerCase()) onPick(parsed);
     return true;
   };
 
@@ -59,7 +62,7 @@ export function ColorField({ label, color, onPick, swatchLabel = label, palette 
               className="swatch"
               style={{ background: swatch }}
               aria-label={`${swatchLabel} ${swatch}`}
-              aria-pressed={color.toLowerCase() === swatch}
+              aria-pressed={!mixed && color.toLowerCase() === swatch}
               onClick={() => onPick(swatch)}
             />
           ))}
@@ -79,6 +82,7 @@ export function ColorField({ label, color, onPick, swatchLabel = label, palette 
           spellCheck={false}
           autoComplete="off"
           maxLength={32}
+          placeholder={mixed ? "mixed" : undefined}
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => {
@@ -87,14 +91,14 @@ export function ColorField({ label, color, onPick, swatchLabel = label, palette 
               apply(draft);
             } else if (e.key === "Escape") {
               e.preventDefault();
-              setDraft(color);
+              setDraft(shown);
             }
           }}
           onPaste={(e) => {
             if (apply(e.clipboardData.getData("text"))) e.preventDefault();
           }}
           onBlur={() => {
-            if (!apply(draft)) setDraft(color);
+            if (!apply(draft)) setDraft(shown);
           }}
         />
       </div>

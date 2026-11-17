@@ -4,6 +4,7 @@
 // undo/redo replay those through the same `applyEdit`.
 import type { AnnotatedImage } from "./annotatedImage";
 import type { Annotation, AnnotationModel, Background, Crop, GrowCause } from "./annotation";
+import { tidyRuns } from "./annotations/runs";
 import { sameCrop } from "./crop";
 import { emptyHistory, invert, popRedo, popUndo, record, type HistoryState } from "./history";
 
@@ -38,13 +39,13 @@ export function applyEdit(image: AnnotatedImage, edit: Edit): AnnotatedImage {
   switch (edit.kind) {
     case "add":
       const annotations = model.annotations.slice();
-      annotations.splice(edit.index ?? annotations.length, 0, edit.annotation);
+      annotations.splice(edit.index ?? annotations.length, 0, tidyRuns(edit.annotation));
       return { ...image, model: { ...model, annotations } };
     case "update": {
       const index = model.annotations.findIndex((a) => a.id === edit.id);
       if (index < 0) return image;
       const current = model.annotations[index]!;
-      const updated = { ...current, ...edit.patch, id: current.id, type: current.type } as Annotation;
+      const updated = tidyRuns({ ...current, ...edit.patch, id: current.id, type: current.type } as Annotation);
       const annotations = model.annotations.slice();
       annotations[index] = updated;
       return { ...image, model: { ...model, annotations } };

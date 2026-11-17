@@ -11,12 +11,22 @@ import {
   MIN_OPACITY,
   MIN_STRENGTH,
   MIN_STROKE_WIDTH, type GroupId, type PropertyGroups } from "../../core/propertyGroups";
+import type { RunFont, SelectionFont } from "../../core/annotations/runs";
 import { ColorField, PALETTE } from "./ColorField";
 import { FontEditor, TextOutlineEditor } from "./textGroups";
+
+/** The Font group while characters are selected in a Text or Callout being typed in: what they look like, and how to restyle them. */
+export interface SelectionEdit {
+  font: SelectionFont;
+  /** Style the selected characters only. */
+  onStyle(patch: RunFont): void;
+}
 
 export interface GroupEditorProps<K extends GroupId> {
   value: PropertyGroups[K];
   onChange(next: PropertyGroups[K]): void;
+  /** Only the Font editor reads it: set while characters are selected, so B, I, U, size and color change those characters only. */
+  selection?: SelectionEdit | null;
 }
 
 export interface GroupEditor<K extends GroupId> {

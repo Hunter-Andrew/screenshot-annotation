@@ -5,6 +5,7 @@
 import type { FinishedRenderer } from "../core/annotatedImage";
 import type { Annotation, AnnotationModel, Background, Crop } from "../core/annotation";
 import type { Point } from "../core/annotations";
+import type { RunFont, SelectionFont } from "../core/annotations/runs";
 import type { Style } from "../core/propertyGroups";
 
 export interface Size {
@@ -24,6 +25,11 @@ export interface CanvasLayout {
   darkness: number;
   /** False: nothing of the cropped-out Capture or of Annotations outside the area is drawn (the outside is only the dark fill). */
   showOutside: boolean;
+}
+
+/** The characters selected while a Text or Callout is typed in: what they look like (a property's value, or "mixed"). */
+export interface TextSelection {
+  font: SelectionFont;
 }
 
 /** What the canvas tells the editor. The editor applies the change to the model through the edit session. */
@@ -47,6 +53,11 @@ export interface CanvasEvents {
    * Capture. `how` is "handle" for a drag of one of the eight handles, otherwise a fresh rectangle was drawn.
    */
   onCrop(crop: Crop, how?: "handle"): void;
+  /**
+   * The selection inside a Text or Callout being typed in changed: what the selected characters look like, or null
+   * when there is no selection any more (a caret only, or the edit ended). The Style panel's Font group follows it.
+   */
+  onTextSelection?(selection: TextSelection | null): void;
 }
 
 export interface AnnotationCanvas {
@@ -68,6 +79,14 @@ export interface AnnotationCanvas {
   setScale(scale: number): void;
   /** The visible area, its margin and the background changed (a Crop, an expansion, auto-grow, Undo...). */
   setLayout(layout: CanvasLayout): void;
+  /**
+   * Style the characters selected in the Text or Callout being typed in (Bold, Italic, Underline, size, color): they
+   * keep their own value over the box's. Nothing happens without a selection. The change is saved with the box when
+   * the edit ends (one step together with the typing), and the selection is reported again.
+   */
+  styleTextSelection(patch: RunFont): void;
+  /** Put the keyboard back into the text being typed in, keeping its selection (after a Style panel button was used). */
+  focusText(): void;
   /** False for a read-only image: nothing can be drawn or selected. */
   setInteractive(interactive: boolean): void;
   dispose(): void;

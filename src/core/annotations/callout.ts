@@ -6,6 +6,7 @@ import type { PropertyGroups, Style } from "../propertyGroups";
 import { CALLOUT_TAIL_PERCENT, clampToRange } from "../../shared/imageSettings";
 import { CALLOUT_PAD } from "./calloutGeometry";
 import type { AnnotationKind, Point, Size } from "./kind";
+import type { Run } from "./runs";
 import { CLICK_SLOP, DEFAULT_WIDTH, MIN_AREA_WIDTH, textAreaFromDrag } from "./text";
 
 export interface CalloutAnnotation extends Pick<PropertyGroups, "font" | "textOutline" | "stroke" | "fill" | "tail"> {
@@ -18,6 +19,8 @@ export interface CalloutAnnotation extends Pick<PropertyGroups, "font" | "textOu
   /** Lowest height of the text box (a dragged-out area); optional, as for Text. */
   minHeight?: number;
   text: string;
+  /** Per-selection styling, as for Text (see ./runs.ts); absent when none. */
+  runs?: Run[];
   /** Tail tip as an offset from (x, y); absent until the user drags the tail. */
   tip?: Point;
 }

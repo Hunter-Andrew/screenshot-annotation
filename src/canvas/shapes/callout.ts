@@ -9,6 +9,6 @@ export const calloutAdapter: ShapeAdapter<CalloutAnnotation> = {
   beginEdit: (object) => (object as CalloutShape).beginEditing(),
   read: (object) => {
     const { x, y, width, text, minHeight, tip, font } = (object as CalloutShape).toCallout();
-    return { x, y, width, text, font, ...(minHeight !== undefined ? { minHeight } : {}), ...(tip ? { tip } : {}) };
+    return { x, y, width, text, font, ...(object as CalloutShape).runsPatch(), ...(minHeight !== undefined ? { minHeight } : {}), ...(tip ? { tip } : {}) };
   },
 };
