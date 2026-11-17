@@ -3,6 +3,7 @@ import type { PlatformBridge } from "../platform/bridge";
 import { MAIN_STYLE, RELEASES_URL } from "../shared/constants";
 import { HotkeyRecorder } from "./HotkeyRecorder";
 import { LaunchAtSignIn } from "./LaunchAtSignIn";
+import { ImageSettingsSection } from "./ImageSettingsSection";
 import { LibraryFolder } from "./LibraryFolder";
 import { MagnifierSetting } from "./MagnifierSetting";
 import { ResetToolStyles } from "./ResetToolStyles";
@@ -20,6 +21,7 @@ export function Settings({ bridge }: { bridge: PlatformBridge }) {
       <HotkeyRecorder bridge={bridge} />
       <PrintScreenNotice bridge={bridge} />
       <MagnifierSetting bridge={bridge} />
+      <ImageSettingsSection bridge={bridge} />
       <LaunchAtSignIn bridge={bridge} />
       <LibraryFolder bridge={bridge} />
       <ResetToolStyles bridge={bridge} />

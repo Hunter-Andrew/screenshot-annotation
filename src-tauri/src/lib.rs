@@ -273,6 +273,44 @@ fn set_magnifier(app: AppHandle, state: tauri::State<'_, AppSettings>, enabled: 
     let _ = app.emit(overlay::MAGNIFIER_EVENT, enabled);
 }
 
+const IMAGE_SETTINGS_EVENT: &str = "image-settings";
+
+/// The default background for new images and the transparency checkerboard (stored in settings.json).
+#[tauri::command]
+fn get_image_settings(state: tauri::State<'_, AppSettings>) -> settings::ImageSettings {
+    state.data.lock().unwrap().image_settings()
+}
+
+/// Stores the default background for new images and tells every window (the editor shows it at once). A
+/// failed write is logged and the value stays in memory for this run; an unknown value is refused.
+#[tauri::command]
+fn set_image_background(app: AppHandle, state: tauri::State<'_, AppSettings>, background: String) -> Result<(), String> {
+    let mut data = state.data.lock().unwrap();
+    let saved = settings::set_image_background(&state.dir, &mut data, &background);
+    if let Err(e) = &saved {
+        diag::log(&format!("image background set to {background}; could not save settings.json (kept in memory): {e}"));
+    }
+    let now = data.image_settings();
+    drop(data);
+    let _ = app.emit(IMAGE_SETTINGS_EVENT, now);
+    // A refused value is the only error the page needs to hear about; a failed write is only logged.
+    saved.or_else(|e| if e.kind() == std::io::ErrorKind::InvalidInput { Err(e.to_string()) } else { Ok(()) })
+}
+
+/// Stores the transparency checkerboard choice; same rules as `set_image_background`.
+#[tauri::command]
+fn set_checkerboard(app: AppHandle, state: tauri::State<'_, AppSettings>, theme: String) -> Result<(), String> {
+    let mut data = state.data.lock().unwrap();
+    let saved = settings::set_transparency_checkerboard(&state.dir, &mut data, &theme);
+    if let Err(e) = &saved {
+        diag::log(&format!("checkerboard set to {theme}; could not save settings.json (kept in memory): {e}"));
+    }
+    let now = data.image_settings();
+    drop(data);
+    let _ = app.emit(IMAGE_SETTINGS_EVENT, now);
+    saved.or_else(|e| if e.kind() == std::io::ErrorKind::InvalidInput { Err(e.to_string()) } else { Ok(()) })
+}
+
 /// Each drawing tool's last style, as stored in settings.json (the editor reads and checks it).
 #[tauri::command]
 fn get_tool_styles(state: tauri::State<'_, AppSettings>) -> serde_json::Map<String, serde_json::Value> {
@@ -1004,7 +1042,10 @@ pub fn run() {
             overlay::overlay_log,
             overlay::overlay_finish,
             get_magnifier,
-            set_magnifier
+            set_magnifier,
+            get_image_settings,
+            set_image_background,
+            set_checkerboard
         ])
         .setup(|app| {
             app.handle().plugin(

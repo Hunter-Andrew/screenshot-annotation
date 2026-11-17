@@ -1,4 +1,5 @@
 import { encodeRgbaPng, readSize } from "../core/png";
+import { DEFAULT_IMAGE_SETTINGS, type ImageSettings, sanitizeImageSettings } from "../shared/imageSettings";
 import { formatStamp } from "../shared/stamp";
 import type { CaptureResult, LibraryFile, LibraryItem, OverlayOutcome, OverlayRect, PlatformBridge } from "./bridge";
 
@@ -94,6 +95,8 @@ export interface FakeBridge extends PlatformBridge {
   readonly printScreenNoticeDismissed: boolean;
   /** The stored magnifier setting (`fake.magnifier` in the fake storage; on for a fresh fake). */
   readonly magnifier: boolean;
+  /** The stored image settings (`fake.imageSettings` in the fake storage; Transparent and Dark for a fresh fake). */
+  readonly imageSettings: ImageSettings;
   /** The stored tool styles (`fake.toolStyles` in the fake storage; empty for a fresh fake). */
   readonly toolStyles: Record<string, unknown>;
 }
@@ -168,6 +171,18 @@ export function createFakeBridge(
   let toolStylesResets = 0;
   const toolStylesResetHandlers = new Set<() => void>();
   const magnifierHandlers = new Set<(enabled: boolean) => void>();
+  const imageSettingsHandlers = new Set<(settings: ImageSettings) => void>();
+  const readImageSettings = (): ImageSettings => {
+    try {
+      return sanitizeImageSettings(JSON.parse(store.getItem("fake.imageSettings") ?? "null"));
+    } catch {
+      return DEFAULT_IMAGE_SETTINGS;
+    }
+  };
+  const writeImageSettings = (settings: ImageSettings) => {
+    store.setItem("fake.imageSettings", JSON.stringify(settings));
+    imageSettingsHandlers.forEach((handler) => handler(settings));
+  };
   const openedUrls: string[] = [];
   const copiedImages: Uint8Array[] = [];
   const libraryFiles: { path: string; bytes: Uint8Array }[] = [];
@@ -560,6 +575,22 @@ export function createFakeBridge(
       magnifierHandlers.add(handler);
       return () => {
         magnifierHandlers.delete(handler);
+      };
+    },
+    get imageSettings() {
+      return readImageSettings();
+    },
+    getImageSettings: async () => readImageSettings(),
+    setImageBackground: async (background) => {
+      writeImageSettings({ ...readImageSettings(), background });
+    },
+    setCheckerboard: async (checkerboard) => {
+      writeImageSettings({ ...readImageSettings(), checkerboard });
+    },
+    onImageSettings: async (handler) => {
+      imageSettingsHandlers.add(handler);
+      return () => {
+        imageSettingsHandlers.delete(handler);
       };
     },
     get toolStyles() {

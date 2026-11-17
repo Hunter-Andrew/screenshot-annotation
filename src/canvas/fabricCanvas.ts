@@ -3,17 +3,22 @@
 // ./shapes, and follows the model (`sync`). User gestures leave through `CanvasEvents` as model edits;
 // the canvas never keeps state of its own that the model does not have.
 import { Canvas, type FabricObject, FabricImage, Rect } from "fabric";
+import { backgroundFill, reachOf } from "../core/area";
 import { kindOf } from "../core/annotations";
-import { cropFromDrag } from "../core/crop";
-import { newAnnotationId, type Annotation, type AnnotationModel } from "../core/annotation";
+import { cropFromDrag, MIN_CROP } from "../core/crop";
+import { newAnnotationId, type Annotation, type AnnotationModel, type Crop } from "../core/annotation";
 import type { Style } from "../core/propertyGroups";
-import type { AnnotationCanvas, MountOptions } from "./types";
+import { Backdrop } from "./backdrop";
+import { CropFrame, OutsideDim } from "./chrome";
+import type { AnnotationCanvas, CanvasLayout, MountOptions } from "./types";
 import { adapterFor, ImageShape, type ShapeAssets } from "./shapes";
 
 const SELECT = "select";
 const CROP = "crop";
 
-export function createFabricCanvas(host: HTMLElement, { size, events, imageUrl }: MountOptions): AnnotationCanvas {
+export function createFabricCanvas(host: HTMLElement, { events, imageUrl, layout: firstLayout }: MountOptions): AnnotationCanvas {
+  let layout = firstLayout;
+  let scale = 1;
   // Its own mount point, so that tearing one canvas down (React StrictMode mounts, unmounts and
   // mounts again) never removes another canvas that was mounted into the same host meanwhile.
   const mountPoint = document.createElement("div");
@@ -25,8 +30,8 @@ export function createFabricCanvas(host: HTMLElement, { size, events, imageUrl }
   // Fabric asks the element for the same context, so it gets this one.
   element.getContext("2d", { willReadFrequently: true });
   const canvas = new Canvas(element, {
-    width: size.width,
-    height: size.height,
+    width: layout.workspace.width,
+    height: layout.workspace.height,
     selection: false, // no rubber-band multi-select: one Annotation at a time for now
     preserveObjectStacking: true,
     stopContextMenu: true,
@@ -37,15 +42,17 @@ export function createFabricCanvas(host: HTMLElement, { size, events, imageUrl }
   // The wrapper sits over the Capture image, which the editor lays out underneath.
   Object.assign(canvas.wrapperEl.style, { position: "absolute", left: "0", top: "0" });
 
-  // The Capture is the canvas's first drawn layer, under every Annotation, exactly as the Export draws
-  // it: a Blur pixelates what has been drawn beneath it, which has to include the Capture.
+  // The background fill and the Capture are the canvas's first drawn layer, under every Annotation,
+  // exactly as the Export draws them: a Blur pixelates what has been drawn beneath it, which has to
+  // include the Capture and the fill.
   let disposed = false;
+  let backdrop: Backdrop | null = null;
   if (imageUrl) {
     FabricImage.fromURL(imageUrl).then(
       (capture) => {
         if (disposed) return;
-        capture.set({ originX: "left", originY: "top" });
-        canvas.backgroundImage = capture;
+        backdrop = new Backdrop(capture.getElement() as HTMLImageElement, layout.area, backgroundFill(layout.background));
+        canvas.backgroundImage = backdrop;
         canvas.requestRenderAll();
       },
       // The image was swapped (and its URL revoked) before this canvas could load it: it is being
@@ -87,10 +94,48 @@ export function createFabricCanvas(host: HTMLElement, { size, events, imageUrl }
     );
   };
 
-  const clampToImage = (p: { x: number; y: number }) => ({
-    x: Math.min(Math.max(p.x, 0), size.width),
-    y: Math.min(Math.max(p.y, 0), size.height),
-  });
+  // Everything outside the visible area is drawn very dark, over the Annotations but under the selection handles.
+  const dim = new OutsideDim();
+  dim.area = layout.area;
+  dim.workspace = layout.workspace;
+  canvas.overlayImage = dim;
+  canvas.controlsAboveOverlay = true;
+
+  /** Gestures may reach into the margin around the visible area, not further. */
+  const clampToReach = (p: { x: number; y: number }) => {
+    const reach = reachOf(layout.area);
+    return {
+      x: Math.min(Math.max(p.x, reach.x), reach.x + reach.width),
+      y: Math.min(Math.max(p.y, reach.y), reach.y + reach.height),
+    };
+  };
+
+  /** What `object` covers, in Capture pixels (its stroke included). */
+  const boundsOf = (object: FabricObject): Crop => {
+    object.setCoords();
+    const { left, top, width, height } = object.getBoundingRect();
+    return { x: left, y: top, width, height };
+  };
+  const boundsOfAnnotation = (annotation: Annotation): Crop | undefined => {
+    const adapter = adapterFor(annotation.type);
+    return adapter ? boundsOf(adapter.create(annotation, assets)) : undefined;
+  };
+
+  // The Crop tool's eight handles on the visible area (inward crops, outward expands).
+  let frame: CropFrame | null = null;
+  const showFrame = (on: boolean) => {
+    if (!on) {
+      if (frame) silently(() => canvas.remove(frame!));
+      frame = null;
+      return;
+    }
+    if (!frame) {
+      frame = new CropFrame(layout.area);
+      canvas.add(frame);
+    } else frame.place(layout.area);
+    const active = frame;
+    silently(() => canvas.setActiveObject(active));
+  };
 
   /** A new text box being typed into: not an Annotation until it has words (see `startTyping`). */
   let pending: FabricObject | null = null;
@@ -98,7 +143,10 @@ export function createFabricCanvas(host: HTMLElement, { size, events, imageUrl }
   const refreshMode = () => {
     const drawing = interactive && tool !== SELECT;
     // While typing into a new box the pointer must reach it (to place the caret, to click away).
-    canvas.skipTargetFind = !interactive || (drawing && pending === null);
+    const cropping = interactive && tool === CROP;
+    // The Crop tool needs its handles to take the pointer; the Annotations then stay out of the way.
+    canvas.skipTargetFind = !interactive || (drawing && !cropping && pending === null);
+    for (const object of objectsById.values()) object.evented = !cropping;
     canvas.defaultCursor = drawing ? "crosshair" : "default";
     canvas.hoverCursor = drawing ? "crosshair" : "move";
   };
@@ -119,11 +167,42 @@ export function createFabricCanvas(host: HTMLElement, { size, events, imageUrl }
   canvas.on("selection:updated", (e) => quiet || events.onSelect(idOf.get(e.selected[0]!) ?? null));
   canvas.on("selection:cleared", () => quiet || events.onSelect(null));
   canvas.on("object:modified", ({ target }) => {
+    if (target && target === frame) return finishHandleDrag(frame);
     const id = target && idOf.get(target);
     const annotation = id ? applied.get(id) : undefined;
     if (!id || !annotation) return;
-    events.onUpdate(id, adapterFor(annotation.type)!.read(target));
+    events.onUpdate(id, adapterFor(annotation.type)!.read(target), boundsOf(target));
   });
+  // An Annotation may be moved into the margin around the visible area (growing it), but not off into nowhere.
+  canvas.on("object:moving", ({ target }) => {
+    if (!target || target === frame || !idOf.has(target)) return;
+    const reach = reachOf(layout.area);
+    const box = boundsOf(target);
+    const shift = (start: number, length: number, from: number, extent: number) =>
+      length >= extent ? 0 : start < from ? from - start : start + length > from + extent ? from + extent - (start + length) : 0;
+    const dx = shift(box.x, box.width, reach.x, reach.width);
+    const dy = shift(box.y, box.height, reach.y, reach.height);
+    if (dx !== 0 || dy !== 0) {
+      target.set({ left: target.left + dx, top: target.top + dy });
+      target.setCoords();
+    }
+  });
+
+  /** A handle of the Crop tool's frame was released: the dragged rectangle is the new area (a step of its own). */
+  const finishHandleDrag = (dragged: CropFrame) => {
+    const reach = reachOf(layout.area);
+    const next = dragged.dragged();
+    // The pointer may have gone further than a gesture may reach.
+    const x1 = Math.max(next.x, Math.round(reach.x));
+    const y1 = Math.max(next.y, Math.round(reach.y));
+    const x2 = Math.min(next.x + next.width, Math.round(reach.x + reach.width));
+    const y2 = Math.min(next.y + next.height, Math.round(reach.y + reach.height));
+    const area = { x: x1, y: y1, width: x2 - x1, height: y2 - y1 };
+    // Back to the committed area at once; the editor's new layout moves the frame again if the drag counts.
+    dragged.place(layout.area);
+    if (area.width >= MIN_CROP && area.height >= MIN_CROP) events.onCrop(area, "handle");
+    canvas.requestRenderAll();
+  };
 
   // Drawing: press, drag (a live preview built from the same adapter), release.
   /** The points a freehand drag turns into a stroke: with Shift on a Highlighter, a straight horizontal run from the press. */
@@ -178,11 +257,12 @@ export function createFabricCanvas(host: HTMLElement, { size, events, imageUrl }
     (object as unknown as { once(event: string, handler: () => void): void }).once("editing:exited", () => {
       const typed = { ...annotation, ...adapter.read(object) } as Annotation;
       pending = null;
+      const bounds = boundsOf(object);
       silently(() => canvas.remove(object));
       // Whether the tool then goes back to Select is the editor's call (the per-tool option, in `onCreate`).
       refreshMode();
       canvas.requestRenderAll();
-      if ("text" in typed && typed.text.trim() !== "") events.onCreate(typed);
+      if ("text" in typed && typed.text.trim() !== "") events.onCreate(typed, bounds);
     });
     refreshMode();
     silently(() => canvas.setActiveObject(object));
@@ -192,16 +272,18 @@ export function createFabricCanvas(host: HTMLElement, { size, events, imageUrl }
 
   canvas.on("mouse:down", (event) => {
     if (!interactive || tool === SELECT || pending || (event.e as MouseEvent).button > 0) return;
-    const from = clampToImage(canvas.getScenePoint(event.e));
+    // A press on one of the Crop frame's handles is Fabric's to resize, not the start of a new rectangle.
+    if (event.target) return;
+    const from = clampToReach(canvas.getScenePoint(event.e));
     drag = { from, path: [from], ghost: null };
   });
   canvas.on("mouse:move", (event) => {
     // The Crop tool previews its rectangle like Text's box (same dashed preview).
-    if (drag && tool === CROP) return previewArea(drag, clampToImage(canvas.getScenePoint(event.e)));
+    if (drag && tool === CROP) return previewArea(drag, clampToReach(canvas.getScenePoint(event.e)));
     const kind = kindOf(tool);
     const adapter = adapterFor(tool);
     if (!drag || !kind || !adapter) return;
-    const to = clampToImage(canvas.getScenePoint(event.e));
+    const to = clampToReach(canvas.getScenePoint(event.e));
     // A Callout with its tail on previews the speech box and tail as they will be; other typed-in tools, a dashed area.
     const showsShape = kind.type === "callout" && drawStyle.tail?.enabled !== false;
     if (kind.typedInPlace && !showsShape) return previewArea(drag, to);
@@ -225,22 +307,33 @@ export function createFabricCanvas(host: HTMLElement, { size, events, imageUrl }
     if (gesture && tool === CROP) {
       if (gesture.ghost) canvas.remove(gesture.ghost);
       canvas.requestRenderAll();
-      const crop = cropFromDrag(gesture.from, clampToImage(canvas.getScenePoint(event.e)), size);
+      const crop = cropFromDrag(gesture.from, clampToReach(canvas.getScenePoint(event.e)));
+      // The frame lost the selection when the press landed on empty space: its handles come back.
+      showFrame(true);
       if (crop) events.onCrop(crop);
       return;
     }
     const kind = kindOf(tool);
     if (!gesture || !kind) return;
     if (gesture.ghost) canvas.remove(gesture.ghost);
-    const to = clampToImage(canvas.getScenePoint(event.e));
+    const to = clampToReach(canvas.getScenePoint(event.e));
     const annotation = kind.fromPath
       ? kind.fromPath(newAnnotationId(), pathFor(kind, { ...gesture, path: [...gesture.path, to] }, to, (event.e as MouseEvent).shiftKey), drawStyle)
-      : kind.fromDrag(newAnnotationId(), gesture.from, to, drawStyle, size);
+      : kind.fromDrag(newAnnotationId(), gesture.from, to, drawStyle, layout.area);
     canvas.requestRenderAll();
     if (!annotation) return;
     if (kind.typedInPlace) startTyping(annotation);
-    else events.onCreate(annotation);
+    else events.onCreate(annotation, boundsOfAnnotation(annotation));
   });
+
+  /** The canvas element covers the workspace; scene coordinates stay Capture pixels. */
+  const applyView = () => {
+    const { workspace } = layout;
+    canvas.setDimensions({ width: workspace.width * scale, height: workspace.height * scale });
+    canvas.setViewportTransform([scale, 0, 0, scale, -workspace.x * scale, -workspace.y * scale]);
+    canvas.requestRenderAll();
+  };
+  applyView();
 
   return {
     sync(model: AnnotationModel, images) {
@@ -255,6 +348,7 @@ export function createFabricCanvas(host: HTMLElement, { size, events, imageUrl }
         if (!object) {
           object = adapter.create(annotation, assets);
           objectsById.set(annotation.id, object);
+          object.evented = !(interactive && tool === CROP);
           idOf.set(object, annotation.id);
           canvas.add(object);
         } else if (applied.get(annotation.id) !== annotation) {
@@ -282,6 +376,7 @@ export function createFabricCanvas(host: HTMLElement, { size, events, imageUrl }
       dropGhost(); // Esc (or any tool change) during a drag cancels it
       drag = null;
       silently(() => canvas.discardActiveObject());
+      showFrame(interactive && tool === CROP);
       refreshMode();
       canvas.requestRenderAll();
     },
@@ -293,14 +388,25 @@ export function createFabricCanvas(host: HTMLElement, { size, events, imageUrl }
       silently(() => (object ? canvas.setActiveObject(object) : canvas.discardActiveObject()));
       canvas.requestRenderAll();
     },
-    setScale(scale) {
-      canvas.setDimensions({ width: size.width * scale, height: size.height * scale });
-      canvas.setZoom(scale);
-      canvas.requestRenderAll();
+    setScale(next) {
+      scale = next;
+      applyView();
+    },
+    setLayout(next: CanvasLayout) {
+      layout = next;
+      if (backdrop) {
+        backdrop.area = next.area;
+        backdrop.fill = backgroundFill(next.background);
+      }
+      dim.area = next.area;
+      dim.workspace = next.workspace;
+      if (frame) frame.place(next.area);
+      applyView();
     },
     setInteractive(next) {
       interactive = next;
       if (!next) silently(() => canvas.discardActiveObject());
+      showFrame(interactive && tool === CROP);
       refreshMode();
     },
     dispose() {

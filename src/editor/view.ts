@@ -45,8 +45,26 @@ export function zoomStep(scale: number, direction: 1 | -1): number {
   return [...ZOOM_LADDER].reverse().find((z) => z < scale - epsilon) ?? ZOOM_LADDER[0]!;
 }
 
+/** Share of the visible area shown as dark margin around it on each side (ticket 37). */
+const MARGIN_FRACTION = 0.25;
+
+/**
+ * The dark margin around the visible area, in whole screen pixels on each side. In Fit it is as much as the
+ * well has room for (up to a quarter of the area, never under the padding), so the margin never makes the
+ * well scroll; after a manual zoom it is the whole quarter, which the well scrolls to.
+ */
+export function marginPx(area: Size, scale: number, well: Size, mode: ViewMode): { x: number; y: number } {
+  const axis = (length: number, room: number) => {
+    const quarter = length * scale * MARGIN_FRACTION;
+    return Math.max(WELL_PADDING, Math.floor(mode.kind === "fit" ? Math.min(quarter, room) : quarter));
+  };
+  return { x: axis(area.width, (well.width - area.width * scale) / 2), y: axis(area.height, (well.height - area.height * scale) / 2) };
+}
+
 export interface ScrollRequest {
   image: Size;
+  /** The margin around the image at `from` and at `to` (screen pixels); the default is the plain well padding. */
+  padding?: { from: { x: number; y: number }; to: { x: number; y: number } };
   /** The visible part of the well (its client size). */
   view: Size;
   scroll: { left: number; top: number };
@@ -55,16 +73,18 @@ export interface ScrollRequest {
 }
 
 /** The scroll position that keeps whatever is in the middle of the view in the middle after a zoom. */
-export function scrollAfterZoom({ image, view, scroll, from, to }: ScrollRequest): { left: number; top: number } {
-  const axis = (imageLength: number, viewLength: number, scrolled: number) => {
-    const oldContent = imageLength * from + 2 * WELL_PADDING;
+export function scrollAfterZoom({ image, view, scroll, from, to, padding }: ScrollRequest): { left: number; top: number } {
+  const same = { x: WELL_PADDING, y: WELL_PADDING };
+  const [before, after] = [padding?.from ?? same, padding?.to ?? same];
+  const axis = (imageLength: number, viewLength: number, scrolled: number, padFrom: number, padTo: number) => {
+    const oldContent = imageLength * from + 2 * padFrom;
     // Smaller than the view means it was centred, not scrolled: anchor on the image's own middle.
-    const anchor = oldContent <= viewLength ? imageLength / 2 : (scrolled + viewLength / 2 - WELL_PADDING) / from;
-    return Math.max(0, WELL_PADDING + anchor * to - viewLength / 2);
+    const anchor = oldContent <= viewLength ? imageLength / 2 : (scrolled + viewLength / 2 - padFrom) / from;
+    return Math.max(0, padTo + anchor * to - viewLength / 2);
   };
   return {
-    left: axis(image.width, view.width, scroll.left),
-    top: axis(image.height, view.height, scroll.top),
+    left: axis(image.width, view.width, scroll.left, before.x, after.x),
+    top: axis(image.height, view.height, scroll.top, before.y, after.y),
   };
 }
 

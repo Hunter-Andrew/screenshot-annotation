@@ -8,7 +8,7 @@
 // one case to `invert`; `setCrop` inverts to the crop it replaced.
 import type { AnnotatedImage } from "./annotatedImage";
 import { sameCrop } from "./crop";
-import type { Edit } from "./editSession";
+import { applyEdit, type Edit } from "./editSession";
 
 /** Most steps kept per image (spec: undo history, 200 steps). */
 export const HISTORY_CAP = 200;
@@ -62,6 +62,19 @@ export function invert(before: AnnotatedImage, edit: Edit): Edit | null {
     }
     case "setCrop":
       return sameCrop(before.model.crop, edit.crop) ? null : { kind: "setCrop", crop: before.model.crop };
+    case "setBackground":
+      return (before.model.background ?? null) === edit.background ? null : { kind: "setBackground", background: before.model.background ?? null };
+    case "batch": {
+      // Each part is inverted against the image as the parts before it left it; undo runs them in reverse.
+      const inverses: Edit[] = [];
+      let image = before;
+      for (const part of edit.edits) {
+        const inverse = invert(image, part);
+        if (inverse) inverses.unshift(inverse);
+        image = applyEdit(image, part);
+      }
+      return inverses.length > 0 ? { kind: "batch", edits: inverses } : null;
+    }
     default:
       return null;
   }
@@ -72,7 +85,9 @@ export function historyImageIds(history: HistoryState): string[] {
   const ids = new Set<string>();
   for (const step of [...history.undo, ...history.redo]) {
     for (const edit of [step.undo, step.redo]) {
-      if (edit.kind === "add" && edit.annotation.type === "image") ids.add(edit.annotation.imageId);
+      for (const part of edit.kind === "batch" ? edit.edits : [edit]) {
+        if (part.kind === "add" && part.annotation.type === "image") ids.add(part.annotation.imageId);
+      }
     }
   }
   return [...ids];

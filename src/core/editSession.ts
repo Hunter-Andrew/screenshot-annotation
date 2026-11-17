@@ -3,7 +3,7 @@
 // (ticket 13) hooks in here: `apply` records each edit's inverse (src/core/history.ts) and
 // undo/redo replay those through the same `applyEdit`.
 import type { AnnotatedImage } from "./annotatedImage";
-import type { Annotation, Crop } from "./annotation";
+import type { Annotation, Background, Crop } from "./annotation";
 import { sameCrop } from "./crop";
 import { emptyHistory, invert, popRedo, popUndo, record, type HistoryState } from "./history";
 
@@ -16,7 +16,11 @@ export type Edit =
   /** Move to back-to-front position `to` (clamped): `to` one higher is "bring forward". */
   | { kind: "reorder"; id: string; to: number }
   /** The visible area in Capture pixels; null shows the whole Capture again (ticket 21). */
-  | { kind: "setCrop"; crop: Crop | null };
+  | { kind: "setCrop"; crop: Crop | null }
+  /** What fills the area outside the Capture (ticket 37); null is "not chosen yet" (the Settings default applies). */
+  | { kind: "setBackground"; background: Background | null }
+  /** Several edits applied in order as one step: an Annotation and the growth of the area that includes it. */
+  | { kind: "batch"; edits: Edit[] };
 
 /** The image after `edit`. Returns the same image when the edit changes nothing (unknown id). */
 export function applyEdit(image: AnnotatedImage, edit: Edit): AnnotatedImage {
@@ -50,6 +54,15 @@ export function applyEdit(image: AnnotatedImage, edit: Edit): AnnotatedImage {
     }
     case "setCrop":
       return sameCrop(model.crop, edit.crop) ? image : { ...image, model: { ...model, crop: edit.crop } };
+    case "setBackground": {
+      if ((model.background ?? null) === edit.background) return image;
+      const { background: _old, ...rest } = model;
+      return { ...image, model: edit.background === null ? rest : { ...rest, background: edit.background } };
+    }
+    case "batch": {
+      const result = edit.edits.reduce(applyEdit, image);
+      return result;
+    }
     default:
       return image;
   }

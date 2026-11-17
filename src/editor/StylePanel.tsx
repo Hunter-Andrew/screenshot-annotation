@@ -1,4 +1,6 @@
+import type { Background } from "../core/annotation";
 import type { AnnotationKind } from "../core/annotations";
+import { BACKGROUND_LABELS, BACKGROUNDS } from "../core/area";
 import type { GroupId, PropertyGroups, Style } from "../core/propertyGroups";
 import { GROUP_EDITORS, type GroupEditor } from "./style/groups";
 
@@ -25,10 +27,12 @@ interface Props {
   /** The Crop section: shown while the Crop tool is active or the image has a crop. Null: not shown. */
   crop?: { active: boolean; hasCrop: boolean; onRemove(): void } | null;
   toolOption?: { label: string; checked: boolean; onChange(value: boolean): void; hidden?: boolean } | null;
+  /** The Image section (ticket 37): the background outside the Capture. Null: not shown. */
+  image?: { background: Background; onChange(background: Background): void } | null;
 }
 
 /** The Style panel (right column): one section per property group the kind opts into. */
-export function StylePanel({ kind, style, onChange, arrange = null, crop = null, toolOption = null }: Props) {
+export function StylePanel({ kind, style, onChange, arrange = null, crop = null, toolOption = null, image = null }: Props) {
   return (
     <aside className="style-panel" aria-label="Style">
       <h2>Style</h2>
@@ -49,11 +53,29 @@ export function StylePanel({ kind, style, onChange, arrange = null, crop = null,
       {crop && (
         <section className="group" aria-label="Crop">
           <h3>Crop</h3>
-          {crop.active && <p className="hint">Drag on the image to set the visible area.</p>}
+          {crop.active && <p className="hint">Drag a handle, or drag a new rectangle, to set the visible area. Going past the edge makes the image bigger.</p>}
           <div className="presets">
             <button onClick={crop.onRemove} disabled={!crop.hasCrop}>
               Remove crop
             </button>
+          </div>
+        </section>
+      )}
+      {image && (
+        <section className="group" aria-label="Image">
+          <h3>Image</h3>
+          <div role="radiogroup" aria-label="Background" className="presets">
+            {BACKGROUNDS.map((value) => (
+              <label key={value} className="radio">
+                <input
+                  type="radio"
+                  name="image-background"
+                  checked={image.background === value}
+                  onChange={() => image.onChange(value)}
+                />
+                {BACKGROUND_LABELS[value]}
+              </label>
+            ))}
           </div>
         </section>
       )}

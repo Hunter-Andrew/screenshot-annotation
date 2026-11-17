@@ -43,7 +43,13 @@ export type Annotation =
 
 export type AnnotationType = Annotation["type"];
 
-/** The visible area of the Annotated Image, in Capture pixels. Not an Annotation. */
+/** What fills the part of the visible area outside the Capture (ticket 37). Dark is the fixed colour `#1f2937`. */
+export type Background = "white" | "dark" | "transparent";
+
+/**
+ * The visible area of the Annotated Image, in Capture pixels. Not an Annotation. It may be smaller than
+ * the Capture (Crop) or reach past its edges (canvas expansion, ticket 37).
+ */
 export interface Crop {
   x: number;
   y: number;
@@ -56,6 +62,11 @@ export interface AnnotationModel {
   /** Back to front. */
   annotations: Annotation[];
   crop: Crop | null;
+  /**
+   * Fills the visible area outside the Capture. Absent until the area first reaches past the Capture, when
+   * the Settings default is stored here (additive: no format bump; an older app shows the Capture only).
+   */
+  background?: Background;
 }
 
 export function emptyModel(): AnnotationModel {

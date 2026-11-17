@@ -22,8 +22,8 @@ export interface AnnotationKind<A extends Annotation = Annotation> {
   readonly groups: readonly GroupId[];
   /** The style a fresh Annotation of this kind starts with, until the user has restyled the tool. */
   readonly defaultStyle: Style;
-  /** The Annotation a drag from `from` to `to` draws (Capture pixels), or null if it is too small to keep. */
-  fromDrag(id: string, from: Point, to: Point, style: Style, area?: { width: number; height: number }): A | null;
+  /** The Annotation a drag from `from` to `to` draws (Capture pixels), or null if it is too small to keep. `area` is the visible area: a typed-in box is kept inside it. */
+  fromDrag(id: string, from: Point, to: Point, style: Style, area?: { x?: number; y?: number; width: number; height: number }): A | null;
   /** Freehand tools only (Pen): the Annotation for all the points a drag passed through; the canvas prefers it to `fromDrag`. */
   fromPath?(id: string, points: readonly Point[], style: Style): A | null;
   /** Freehand tools only: holding Shift while drawing makes a straight horizontal stroke (Highlighter). */

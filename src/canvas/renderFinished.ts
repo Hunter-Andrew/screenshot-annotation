@@ -3,9 +3,11 @@
 // It draws through the same shape adapters as the editor canvas, so what you see is what you copy.
 // The Capture is the canvas's first drawn layer (its background image), so a Blur, which pixelates
 // what has been drawn beneath it, sees the Capture and every Annotation below it.
-import { FabricImage, StaticCanvas } from "fabric";
+import { StaticCanvas } from "fabric";
 import { type FinishedRenderer, usedImageIds } from "../core/annotatedImage";
+import { backgroundFill } from "../core/area";
 import { encodeRgbaPngCompressed } from "../core/png";
+import { Backdrop } from "./backdrop";
 import { adapterFor, type ShapeAssets } from "./shapes";
 
 export const renderFinished: FinishedRenderer = async (image) => {
@@ -20,17 +22,23 @@ export const renderFinished: FinishedRenderer = async (image) => {
   base.getContext("2d")!.drawImage(bitmap, 0, 0);
   bitmap.close();
 
+  // The visible area decides the output's size: the Crop narrows it, and an area past the Capture's
+  // edges (ticket 37) widens it. What lies outside the Capture is the background, or alpha 0.
+  const area = image.model.crop ?? { x: 0, y: 0, width, height };
   const element = document.createElement("canvas");
   // The pixels are read back (by a Blur while drawing, and below), so keep them on the CPU side.
   // Fabric asks the element for the same context, so it gets this one.
   const context = element.getContext("2d", { willReadFrequently: true })!;
   const canvas = new StaticCanvas(element, {
-    width,
-    height,
+    width: area.width,
+    height: area.height,
     enableRetinaScaling: false,
     renderOnAddRemove: false,
   });
-  canvas.backgroundImage = new FabricImage(base, { originX: "left", originY: "top" });
+  // Scene coordinates are Capture pixels; the output starts at the area's corner.
+  canvas.setViewportTransform([1, 0, 0, 1, -area.x, -area.y]);
+  // A file with no background that somehow reaches past the Capture exports transparent, as it always did.
+  canvas.backgroundImage = new Backdrop(base, area, backgroundFill(image.model.background ?? "transparent"));
   // Pasted pictures are decoded first: the canvas renders once, synchronously, and an image that is not
   // decoded yet would draw nothing.
   const pictures = new Map<string, ImageBitmap>();
@@ -52,9 +60,8 @@ export const renderFinished: FinishedRenderer = async (image) => {
   canvas.renderAll();
   for (const picture of pictures.values()) picture.close();
 
-  // The Crop only narrows what is shown; the Capture itself is never altered (ADR 0002).
-  const area = image.model.crop ?? { x: 0, y: 0, width, height };
-  const pixels = context.getImageData(area.x, area.y, area.width, area.height);
+  // The area only changes what is shown; the Capture itself is never altered (ADR 0002).
+  const pixels = context.getImageData(0, 0, area.width, area.height);
   void canvas.dispose();
   // Encoded here, not with canvas.toBlob: Chromium defers that until the page is idle (about a second
   // when the editor is busy), which would make every Copy and auto-save feel slow.

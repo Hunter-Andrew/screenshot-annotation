@@ -9,7 +9,10 @@ import {
   imageIdFor,
   stripEmbedded,
 } from "../core/annotatedImage";
-import { type Annotation, emptyModel, newAnnotationId } from "../core/annotation";
+import { type Annotation, type Background, type Crop, emptyModel, newAnnotationId } from "../core/annotation";
+import { AREA_LIMIT_MESSAGE, growEdit, setAreaEdit } from "../core/area";
+import type { Edit } from "../core/editSession";
+import { DEFAULT_IMAGE_SETTINGS, type ImageSettings } from "../shared/imageSettings";
 import { kindOf } from "../core/annotations";
 import { DEFAULT_IMAGE_STYLE } from "../core/annotations/image";
 import { checkPastedImage, placeImage } from "../core/pasteImage";
@@ -91,6 +94,12 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
   const [status, setStatus] = useState<string | null>(null);
   // The real capture hotkey, for the empty-state hint; null until the platform has answered.
   const [hotkey, setHotkey] = useState<string | null>(null);
+  // The Settings choices for new images (default background) and for how transparency looks (checkerboard).
+  const [imageSettings, setImageSettings] = useState<ImageSettings>(DEFAULT_IMAGE_SETTINGS);
+  const imageSettingsRef = useRef(imageSettings);
+  imageSettingsRef.current = imageSettings;
+  // The status line says the 8192 px limit stopped a growth until the next edit (a save would otherwise replace it).
+  const limitNotice = useRef<string | null>(null);
 
   const [tool, setTool] = useState(SELECT_TOOL.id);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -111,6 +120,23 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
     );
     return () => {
       cancelled = true;
+    };
+  }, [bridge]);
+
+  useEffect(() => {
+    let cancelled = false;
+    let off: (() => void) | undefined;
+    void bridge.onImageSettings((next) => !cancelled && setImageSettings(next)).then((unsubscribe) => {
+      if (cancelled) unsubscribe();
+      else off = unsubscribe;
+    });
+    bridge.getImageSettings().then(
+      (next) => !cancelled && setImageSettings(next),
+      () => {},
+    );
+    return () => {
+      cancelled = true;
+      off?.();
     };
   }, [bridge]);
 
@@ -142,7 +168,7 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
             event.kind === "saved"
               ? event.first
                 ? `${note}Saved to ${event.path}`
-                : "All changes saved"
+                : (limitNotice.current ?? "All changes saved")
               : `Could not save to the Library: ${event.message}`,
           );
         },
@@ -264,8 +290,15 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
   );
   useEffect(() => () => (imageUrl ? URL.revokeObjectURL(imageUrl) : undefined), [imageUrl]);
   const size = useMemo(() => (captureBytes ? readSize(captureBytes) : null), [captureBytes]);
-
-  const view = useWellView(size, current?.id ?? null);
+  // The visible area: the whole Capture, a Crop of it, or (ticket 37) an area reaching past its edges.
+  const crop = image?.model.crop ?? null;
+  const area = useMemo<Crop | null>(
+    () => (crop ? crop : size ? { x: 0, y: 0, ...size } : null),
+    [crop?.x, crop?.y, crop?.width, crop?.height, size], // eslint-disable-line react-hooks/exhaustive-deps
+  );
+  const view = useWellView(area, current?.id ?? null, area ?? undefined);
+  /** What fills the area outside the Capture: the image's own choice, else the Settings default. */
+  const background: Background = image?.model.background ?? imageSettings.background;
   const readOnly = current?.readOnly ?? false;
 
   // --- model <-> canvas -------------------------------------------------------------------------
@@ -283,21 +316,41 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
   };
   const panelStyle = styledKind ? styleOf(styledKind.type, selected) : {};
 
+  const report = (message: string) => {
+    limitNotice.current = message;
+    setStatus(message);
+  };
+  /**
+   * An Annotation added or changed on the canvas, with the visible area grown to include it (what it covers is
+   * `bounds`) as one undo step. The growth stops at the 8192 px limit, with a message.
+   */
+  const commit = (edit: Edit, bounds?: Crop) => {
+    if (!current) return;
+    limitNotice.current = null;
+    const grown = growEdit(current.session.image, edit, bounds, imageSettings.background);
+    current.session.apply(grown.edit);
+    if (grown.limited) report(AREA_LIMIT_MESSAGE);
+  };
+
   const events: CanvasEvents = {
-    onCreate: (annotation) => {
+    onCreate: (annotation, bounds) => {
       if (!current) return;
-      current.session.apply({ kind: "add", annotation });
+      commit({ kind: "add", annotation }, bounds);
       // Like the layout prototype Andrew chose: after drawing, the new Annotation is selected and the tool is Select
       // again, unless this tool is set to keep drawing (the Pen by default): then it stays active, nothing selected.
       if (!returnsToSelect(tool, behavior)) return;
       setTool(SELECT_TOOL.id);
       setSelectedId(annotation.id);
     },
-    onUpdate: (id, patch) => current?.session.apply({ kind: "update", id, patch }),
-    onCrop: (crop) => {
+    onUpdate: (id, patch, bounds) => commit({ kind: "update", id, patch }, bounds),
+    onCrop: (next, how) => {
       if (!current) return;
-      current.session.apply({ kind: "setCrop", crop });
-      if (returnsToSelect(CROP_TOOL.id, behavior)) setTool(SELECT_TOOL.id);
+      limitNotice.current = null;
+      const { edit, limited } = setAreaEdit(current.session.image, next, imageSettings.background);
+      if (edit) current.session.apply(edit);
+      if (limited) report(AREA_LIMIT_MESSAGE);
+      // Dragging a handle leaves the Crop tool on, to fine-tune the other edges; a fresh rectangle follows the tool's option.
+      if (how !== "handle" && returnsToSelect(CROP_TOOL.id, behavior)) setTool(SELECT_TOOL.id);
     },
     onSelect: (id) => {
       setSelectedId(id);
@@ -360,6 +413,12 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
   const removeCrop = () => {
     if (!current || readOnly) return;
     current.session.apply({ kind: "setCrop", crop: null });
+  };
+
+  /** The Image section's Background: one undo step, kept with the image. */
+  const chooseBackground = (next: Background) => {
+    if (!current || readOnly) return;
+    current.session.apply({ kind: "setBackground", background: next });
   };
 
   const copy = async () => {
@@ -596,7 +655,7 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
   }, []);
 
   return (
-    <div className="editor">
+    <div className="editor" data-checker={imageSettings.checkerboard}>
       {/* The grid covers the editor; the editor stays mounted (its canvas and view survive) but out of reach. */}
       <div className="editor-body" inert={screen === "grid"}>
         <header className="topbar">
@@ -633,15 +692,18 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
         </header>
         <ToolColumn tools={TOOLS} active={tool} disabled={!image || readOnly} bindings={BINDINGS} onPick={chooseTool} />
         <main className="well" ref={view.wellRef}>
-          {image && imageUrl && size ? (
+          {image && imageUrl && size && area ? (
             <Stage
               key={current!.id}
               kit={kit}
               imageUrl={imageUrl}
               size={size}
+              area={area}
+              cropped={crop !== null}
+              background={background}
+              margin={view.margin}
               scale={view.scale}
               interactive={!readOnly}
-              crop={image.model.crop}
               events={events}
               onCanvas={setCanvas}
             />
@@ -653,6 +715,12 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
           kind={readOnly ? null : (styledKind ?? null)}
           style={panelStyle}
           onChange={restyle}
+          image={
+            // With the Select tool and nothing selected, and while the Crop tool is on: the image's own settings.
+            image && !readOnly && ((tool === SELECT_TOOL.id && selectedId === null) || tool === CROP_TOOL.id)
+              ? { background, onChange: chooseBackground }
+              : null
+          }
           crop={
             readOnly || (tool !== CROP_TOOL.id && !image?.model.crop)
               ? null

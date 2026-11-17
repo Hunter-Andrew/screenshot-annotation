@@ -49,21 +49,24 @@ export interface TextArea {
 
 /**
  * The starting area of a text box from a press at `from` and a release at `to` (Capture pixels), kept
- * inside the Capture (`capture`). Any direction works. A click, or a drag under 20 px wide, gets the
+ * inside `capture` (the visible area: it starts at the origin unless `x` and `y` say otherwise). Any direction works. A click, or a drag under 20 px wide, gets the
  * default width and no minimum height; otherwise the width is the wrap width and the height the box's
  * minimum height (it grows downward past it as text wraps).
  */
-export function textAreaFromDrag(from: Point, to: Point, capture: Size): TextArea {
-  const clamp = (v: number, max: number) => Math.min(max, Math.max(0, v));
-  const a = { x: clamp(from.x, capture.width), y: clamp(from.y, capture.height) };
-  const b = { x: clamp(to.x, capture.width), y: clamp(to.y, capture.height) };
+export function textAreaFromDrag(from: Point, to: Point, capture: Size & { x?: number; y?: number }): TextArea {
+  const left = capture.x ?? 0;
+  const top = capture.y ?? 0;
+  const right = left + capture.width;
+  const bottom = top + capture.height;
+  const a = { x: Math.min(right, Math.max(left, from.x)), y: Math.min(bottom, Math.max(top, from.y)) };
+  const b = { x: Math.min(right, Math.max(left, to.x)), y: Math.min(bottom, Math.max(top, to.y)) };
   const moved = Math.max(Math.abs(to.x - from.x), Math.abs(to.y - from.y));
   const dragged = Math.abs(b.x - a.x);
   const isArea = moved >= CLICK_SLOP && dragged >= MIN_AREA_WIDTH;
   const width = Math.min(isArea ? dragged : DEFAULT_WIDTH, capture.width);
   return {
     // A default-width box made near the right edge slides left so it stays inside.
-    x: Math.max(0, Math.min(Math.min(a.x, b.x), capture.width - width)),
+    x: Math.max(left, Math.min(Math.min(a.x, b.x), right - width)),
     y: Math.min(a.y, b.y),
     width,
     minHeight: isArea ? Math.abs(b.y - a.y) : 0,

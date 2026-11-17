@@ -1,17 +1,25 @@
-import { useEffect, useRef } from "react";
-import type { AnnotationCanvas, CanvasEvents, CanvasKit } from "../canvas/types";
-import type { Crop } from "../core/annotation";
+import { useEffect, useMemo, useRef } from "react";
+import type { AnnotationCanvas, CanvasEvents, CanvasKit, CanvasLayout } from "../canvas/types";
+import type { Background, Crop } from "../core/annotation";
+import { backgroundFill } from "../core/area";
 import type { Size } from "./view";
 
 interface Props {
   kit: CanvasKit;
-  /** The Capture, shown underneath; the canvas on top holds only the Annotations. */
+  /** The Capture, shown underneath; the canvas on top holds the Annotations and everything outside the visible area dimmed. */
   imageUrl: string;
+  /** The Capture's size. */
   size: Size;
+  /** The visible area in Capture pixels: smaller than the Capture (a Crop) or reaching past it (expansion). */
+  area: Crop;
+  /** True when the area is a Crop (or expansion) rather than the whole Capture: it gets an outline. */
+  cropped: boolean;
+  /** What fills the area outside the Capture. */
+  background: Background;
+  /** The dark margin shown around the area, in screen pixels per side. */
+  margin: { x: number; y: number };
   scale: number;
   interactive: boolean;
-  /** The visible area: the rest of the Capture is dimmed (it stays on screen and editable). */
-  crop: Crop | null;
   /** Read through a ref, so changing handlers never remounts the canvas. */
   events: CanvasEvents;
   /** The mounted canvas (null while it loads, and after it is torn down). */
@@ -19,14 +27,26 @@ interface Props {
 }
 
 /**
- * The Capture at the current scale with the annotation canvas laid over it. Mount one per image
- * (`key` it by the image): the canvas is created for that Capture's size and disposed with it.
+ * The visible area at the current scale: the Capture inside it, the background around the Capture, the
+ * dark margin, and the annotation canvas laid over all of it. Mount one per image (`key` it by the image):
+ * the canvas is created for that Capture and disposed with it.
  */
-export function Stage({ kit, imageUrl, size, scale, interactive, crop, events, onCanvas }: Props) {
+export function Stage({ kit, imageUrl, size, area, cropped, background, margin, scale, interactive, events, onCanvas }: Props) {
   const host = useRef<HTMLDivElement>(null);
   const canvas = useRef<AnnotationCanvas | null>(null);
-  const latest = useRef({ events, onCanvas, scale, interactive, imageUrl });
-  latest.current = { events, onCanvas, scale, interactive, imageUrl };
+  // The canvas covers the area and its margin, as Capture pixels (the margin is whole screen pixels).
+  const layout = useMemo<CanvasLayout>(() => {
+    const mx = margin.x / scale;
+    const my = margin.y / scale;
+    return {
+      area,
+      background,
+      workspace: { x: area.x - mx, y: area.y - my, width: area.width + 2 * mx, height: area.height + 2 * my },
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [area.x, area.y, area.width, area.height, background, margin.x, margin.y, scale]);
+  const latest = useRef({ events, onCanvas, scale, interactive, imageUrl, layout });
+  latest.current = { events, onCanvas, scale, interactive, imageUrl, layout };
 
   useEffect(() => {
     let cancelled = false;
@@ -34,16 +54,18 @@ export function Stage({ kit, imageUrl, size, scale, interactive, crop, events, o
       .mount(host.current!, {
         size,
         imageUrl: latest.current.imageUrl,
+        layout: latest.current.layout,
         events: {
-          onCreate: (a) => latest.current.events.onCreate(a),
-          onUpdate: (id, patch) => latest.current.events.onUpdate(id, patch),
+          onCreate: (a, bounds) => latest.current.events.onCreate(a, bounds),
+          onUpdate: (id, patch, bounds) => latest.current.events.onUpdate(id, patch, bounds),
           onSelect: (id) => latest.current.events.onSelect(id),
-          onCrop: (crop) => latest.current.events.onCrop(crop),
+          onCrop: (crop, how) => latest.current.events.onCrop(crop, how),
         },
       })
       .then((mounted) => {
         if (cancelled) return mounted.dispose();
         canvas.current = mounted;
+        mounted.setLayout(latest.current.layout);
         mounted.setScale(latest.current.scale);
         mounted.setInteractive(latest.current.interactive);
         latest.current.onCanvas(mounted);
@@ -56,22 +78,36 @@ export function Stage({ kit, imageUrl, size, scale, interactive, crop, events, o
     };
   }, [kit, size]);
 
-  useEffect(() => canvas.current?.setScale(scale), [scale]);
+  useEffect(() => {
+    canvas.current?.setLayout(layout);
+    canvas.current?.setScale(scale);
+  }, [layout, scale]);
   useEffect(() => canvas.current?.setInteractive(interactive), [interactive]);
 
+  const px = (n: number) => n * scale;
+  // The picture under the canvas is only ever shown where the canvas is (it stands in until the canvas has
+  // loaded the Capture): a big Capture cropped small must not show its far parts undimmed.
+  const ws = layout.workspace;
+  const inset = (n: number) => `${Math.max(0, n * scale)}px`;
+  const clip = `inset(${inset(ws.y)} ${inset(size.width - (ws.x + ws.width))} ${inset(size.height - (ws.y + ws.height))} ${inset(ws.x)})`;
+  const fill = backgroundFill(background);
   return (
-    <div className="stage-pad">
-      <div className="stage" style={{ width: size.width * scale, height: size.height * scale }}>
-        <img src={imageUrl} alt="Capture" draggable={false} />
-        <div className="canvas-host" ref={host} />
-        {crop && (
-          <div className="crop-clip" aria-hidden="true">
-            <div
-              className="crop-frame"
-              style={{ left: crop.x * scale, top: crop.y * scale, width: crop.width * scale, height: crop.height * scale }}
-            />
-          </div>
-        )}
+    <div className="stage-pad" style={{ padding: `${margin.y}px ${margin.x}px` }}>
+      <div className="area" style={{ width: px(area.width), height: px(area.height), background: fill ?? undefined }}>
+        {fill === null && <div className="checker" aria-hidden="true" />}
+        {/* The Capture's own box (what the Capture's pixels map to on screen), placed relative to the area. */}
+        <div
+          className="stage"
+          style={{ left: px(-area.x), top: px(-area.y), width: px(size.width), height: px(size.height), clipPath: clip }}
+        >
+          <img src={imageUrl} alt="Capture" draggable={false} />
+        </div>
+        <div
+          className="canvas-host"
+          ref={host}
+          style={{ left: -margin.x, top: -margin.y, width: px(area.width) + 2 * margin.x, height: px(area.height) + 2 * margin.y }}
+        />
+        {cropped && <div className="crop-frame" aria-hidden="true" />}
       </div>
     </div>
   );

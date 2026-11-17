@@ -76,26 +76,24 @@ describe("setCrop", () => {
 });
 
 describe("cropFromDrag", () => {
-  const size = { width: 100, height: 80 };
-
   it("is the rectangle between the press and the release, whichever way it was dragged", () => {
-    expect(cropFromDrag({ x: 10, y: 20 }, { x: 60, y: 50 }, size)).toEqual({ x: 10, y: 20, width: 50, height: 30 });
-    expect(cropFromDrag({ x: 60, y: 50 }, { x: 10, y: 20 }, size)).toEqual({ x: 10, y: 20, width: 50, height: 30 });
+    expect(cropFromDrag({ x: 10, y: 20 }, { x: 60, y: 50 })).toEqual({ x: 10, y: 20, width: 50, height: 30 });
+    expect(cropFromDrag({ x: 60, y: 50 }, { x: 10, y: 20 })).toEqual({ x: 10, y: 20, width: 50, height: 30 });
   });
 
-  it("stays inside the Capture", () => {
-    expect(cropFromDrag({ x: -30, y: -5 }, { x: 140, y: 200 }, size)).toEqual({ x: 0, y: 0, width: 100, height: 80 });
+  it("is not clamped to the Capture: a rectangle drawn past its edge expands the image", () => {
+    expect(cropFromDrag({ x: -30, y: -5 }, { x: 140, y: 200 })).toEqual({ x: -30, y: -5, width: 170, height: 205 });
   });
 
   it("is whole pixels", () => {
-    expect(cropFromDrag({ x: 10.4, y: 20.6 }, { x: 60.2, y: 50.9 }, size)).toEqual({ x: 10, y: 21, width: 50, height: 30 });
+    expect(cropFromDrag({ x: 10.4, y: 20.6 }, { x: 60.2, y: 50.9 })).toEqual({ x: 10, y: 21, width: 50, height: 30 });
   });
 
   it("is nothing when it is only a click or a sliver", () => {
     expect(MIN_CROP).toBeGreaterThan(1);
-    expect(cropFromDrag({ x: 10, y: 10 }, { x: 10, y: 10 }, size)).toBeNull();
-    expect(cropFromDrag({ x: 10, y: 10 }, { x: 10 + MIN_CROP - 1, y: 60 }, size)).toBeNull();
-    expect(cropFromDrag({ x: 10, y: 10 }, { x: 60, y: 10 + MIN_CROP - 1 }, size)).toBeNull();
-    expect(cropFromDrag({ x: 10, y: 10 }, { x: 10 + MIN_CROP, y: 10 + MIN_CROP }, size)).not.toBeNull();
+    expect(cropFromDrag({ x: 10, y: 10 }, { x: 10, y: 10 })).toBeNull();
+    expect(cropFromDrag({ x: 10, y: 10 }, { x: 10 + MIN_CROP - 1, y: 60 })).toBeNull();
+    expect(cropFromDrag({ x: 10, y: 10 }, { x: 60, y: 10 + MIN_CROP - 1 })).toBeNull();
+    expect(cropFromDrag({ x: 10, y: 10 }, { x: 10 + MIN_CROP, y: 10 + MIN_CROP })).not.toBeNull();
   });
 });

@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
-import { FIT, effectiveScale, fitScale, scrollAfterZoom, visibleCaptureArea, zoomStep } from "./view";
+import { FIT, effectiveScale, fitScale, marginPx, scrollAfterZoom, visibleCaptureArea, zoomStep } from "./view";
 
 // The well is the grey area around the canvas; it keeps 16 px of padding on every side.
 describe("fitScale: whole image visible, never enlarged", () => {
@@ -127,5 +127,53 @@ describe("visibleCaptureArea: the part of the Capture the well shows, in Capture
   it("is null when none of the Capture is in view (or nothing is laid out)", () => {
     expect(visibleCaptureArea(rect(0, 0, 800, 600), rect(900, 0, 100, 100), 1)).toBeNull();
     expect(visibleCaptureArea(rect(0, 0, 0, 0), rect(0, 0, 0, 0), 1)).toBeNull();
+  });
+});
+
+// Ticket 37: the visible area is what Fit fits; the dark margin around it is shown as far as there is room.
+describe("the visible area is what Fit fits", () => {
+  it("an expanded area is fitted like any image: it fills the same space", () => {
+    const well = { width: 800, height: 600 };
+    expect(fitScale({ width: 1600, height: 400 }, well)).toBeCloseTo(0.48);
+    expect(fitScale({ width: 700, height: 200 }, well)).toBe(1);
+  });
+});
+
+describe("marginPx: the dark margin around the visible area, in screen pixels per side", () => {
+  const well = { width: 1000, height: 700 };
+
+  it("is a quarter of the area when the well has room", () => {
+    expect(marginPx({ width: 400, height: 300 }, 1, well, FIT)).toEqual({ x: 100, y: 75 });
+  });
+
+  it("is only what room is left when Fit fills the well, never less than the 16 px padding", () => {
+    // 2000 x 1000 fits at (1000 - 32) / 2000 = 0.484: 968 x 484 on screen, 16 px at the sides, 108 above and below.
+    const scale = fitScale({ width: 2000, height: 1000 }, well);
+    expect(marginPx({ width: 2000, height: 1000 }, scale, well, FIT)).toEqual({ x: 16, y: 108 });
+  });
+
+  it("after a manual zoom the whole margin is there to scroll to", () => {
+    expect(marginPx({ width: 2000, height: 1000 }, 1, well, { kind: "zoom", scale: 1 })).toEqual({ x: 500, y: 250 });
+  });
+
+  it("is whole pixels, so it never makes Fit scroll", () => {
+    const m = marginPx({ width: 333, height: 333 }, 1, { width: 600, height: 600 }, FIT);
+    expect(Number.isInteger(m.x) && Number.isInteger(m.y)).toBe(true);
+  });
+});
+
+describe("scrollAfterZoom with a margin", () => {
+  it("anchors with the margin that the content has at each zoom", () => {
+    const next = scrollAfterZoom({
+      image: { width: 4000, height: 3000 },
+      view: { width: 800, height: 600 },
+      scroll: { left: 100, top: 50 },
+      from: 1,
+      to: 2,
+      padding: { from: { x: 1000, y: 750 }, to: { x: 2000, y: 1500 } },
+    });
+    // The view's middle is image point (100 + 400 - 1000) / 1 = -500: in the margin.
+    expect(next.left).toBeCloseTo(Math.max(0, 2000 + -500 * 2 - 400));
+    expect(next.top).toBeCloseTo(Math.max(0, 1500 + (50 + 300 - 750) * 2 - 300));
   });
 });

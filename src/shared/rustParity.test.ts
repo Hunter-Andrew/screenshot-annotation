@@ -5,7 +5,9 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
+import { BACKGROUNDS } from "../core/area";
 import { CAPTURE_DELAYS } from "../platform/bridge";
+import { CHECKERBOARD_THEMES, DEFAULT_IMAGE_SETTINGS } from "./imageSettings";
 import { COUNTDOWN_HASH, OVERLAY_HASH_PREFIX, RELEASES_URL, SETTINGS_HASH } from "./constants";
 
 const rust = (file: string) => readFileSync(resolve(__dirname, "../../src-tauri/src", file), "utf8");
@@ -36,6 +38,15 @@ describe("TS/Rust shared constants", () => {
     expect(match?.[1].split(",").map((n) => Number(n.trim()))).toEqual([...CAPTURE_DELAYS]);
   });
 
+  it("settings.rs offers the same image backgrounds and checkerboards, with the same defaults, as the editor", () => {
+    const list = (name: string) => rust("settings.rs").match(new RegExp(`pub const ${name}: \\[&str; \\d+\\] = \\[([^\\]]*)\\];`))?.[1].split(",").map((v) => v.trim().replace(/"/g, ""));
+    const text = (name: string) => rust("settings.rs").match(new RegExp(`pub const ${name}: &str = "([^"]+)";`))?.[1];
+    expect(list("BACKGROUNDS")).toEqual([...BACKGROUNDS]);
+    expect(list("CHECKERBOARDS")).toEqual([...CHECKERBOARD_THEMES]);
+    expect(text("DEFAULT_IMAGE_BACKGROUND")).toBe(DEFAULT_IMAGE_SETTINGS.background);
+    expect(text("DEFAULT_CHECKERBOARD")).toBe(DEFAULT_IMAGE_SETTINGS.checkerboard);
+  });
+
   it("every command the Tauri bridge invokes is registered in lib.rs", () => {
     const tauriBridge = readFileSync(resolve(__dirname, "../platform/tauriBridge.ts"), "utf8");
     const commands = [...tauriBridge.matchAll(/invoke<[^>]*>\("([a-z_]+)"/g)].map((m) => m[1]);
@@ -64,6 +75,7 @@ describe("TS/Rust shared constants", () => {
       rust("overlay.rs").match(/ATTEMPT_EVENT: &str = "([^"]+)"/)?.[1],
       rust("countdown.rs").match(/pub const EVENT: &str = "([^"]+)"/)?.[1],
       rust("lib.rs").match(/TOOL_STYLES_RESET_EVENT: &str = "([^"]+)"/)?.[1],
+      rust("lib.rs").match(/IMAGE_SETTINGS_EVENT: &str = "([^"]+)"/)?.[1],
     ];
     for (const name of emitted) {
       expect(name).toBeTruthy();

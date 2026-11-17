@@ -17,6 +17,11 @@
 //!   Deleting the whole field (with the app closed) resets every tool to its default style.
 //! - `launchAtSignIn`: true (the default, also when the field is missing) starts the app in the tray when
 //!   you sign in to Windows, through a value in the per-user Run key. Change it in Settings.
+//! - `imageBackground`: what fills the part of a new image outside the Capture when it is made bigger than
+//!   the Capture: "white", "dark" or "transparent" (the default, also when the field is missing or not one of
+//!   those). The image keeps its own choice once it has one; this is only where it starts.
+//! - `transparencyCheckerboard`: "dark" (the default) or "light": the checkerboard drawn behind transparent
+//!   pixels in the editor and the Library. It changes how transparency looks, never an exported picture.
 //! - `trayNoticeShown`: true once the one-time "still running in the tray" message, shown the first time
 //!   the editor is closed, has been shown. Setting it back to false (with the app closed) shows it once more.
 
@@ -48,6 +53,49 @@ pub struct Settings {
     pub launch_at_sign_in: bool,
     /// The one-time "still running in the tray" notice, shown the first time the editor is closed, was shown.
     pub tray_notice_shown: bool,
+    /// What fills a new image outside the Capture once it is made bigger: one of `BACKGROUNDS`.
+    #[serde(deserialize_with = "background_or_default")]
+    pub image_background: String,
+    /// The checkerboard behind transparent pixels: one of `CHECKERBOARDS`.
+    #[serde(deserialize_with = "checkerboard_or_default")]
+    pub transparency_checkerboard: String,
+}
+
+pub const BACKGROUNDS: [&str; 3] = ["white", "dark", "transparent"];
+pub const CHECKERBOARDS: [&str; 2] = ["dark", "light"];
+pub const DEFAULT_IMAGE_BACKGROUND: &str = "transparent";
+pub const DEFAULT_CHECKERBOARD: &str = "dark";
+
+/// What the editor and the Library read: both image settings, as the frontend spells them.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct ImageSettings {
+    pub background: String,
+    pub checkerboard: String,
+}
+
+/// A stored choice that is not one of `allowed` (a hand edit, a newer version) is the default, not an error.
+fn choice_or<'de, D>(d: D, allowed: &[&str], default: &str) -> Result<String, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    Ok(match serde_json::Value::deserialize(d)? {
+        serde_json::Value::String(s) if allowed.contains(&s.as_str()) => s,
+        _ => default.to_string(),
+    })
+}
+
+fn background_or_default<'de, D: serde::Deserializer<'de>>(d: D) -> Result<String, D::Error> {
+    choice_or(d, &BACKGROUNDS, DEFAULT_IMAGE_BACKGROUND)
+}
+
+fn checkerboard_or_default<'de, D: serde::Deserializer<'de>>(d: D) -> Result<String, D::Error> {
+    choice_or(d, &CHECKERBOARDS, DEFAULT_CHECKERBOARD)
+}
+
+impl Settings {
+    pub fn image_settings(&self) -> ImageSettings {
+        ImageSettings { background: self.image_background.clone(), checkerboard: self.transparency_checkerboard.clone() }
+    }
 }
 
 impl Default for Settings {
@@ -59,6 +107,8 @@ impl Default for Settings {
             tool_styles: serde_json::Map::new(),
             launch_at_sign_in: true,
             tray_notice_shown: false,
+            image_background: DEFAULT_IMAGE_BACKGROUND.into(),
+            transparency_checkerboard: DEFAULT_CHECKERBOARD.into(),
         }
     }
 }
@@ -131,6 +181,29 @@ pub fn set_tool_styles(
 /// even when the write fails.
 pub fn set_launch_at_sign_in(dir: &Path, settings: &mut Settings, enabled: bool) -> io::Result<()> {
     settings.launch_at_sign_in = enabled;
+    save(dir, settings)
+}
+
+fn invalid_choice(what: &str, value: &str) -> io::Error {
+    io::Error::new(io::ErrorKind::InvalidInput, format!("{value:?} is not a {what}"))
+}
+
+/// Sets the default background for new images and then tries to save; like `set_magnifier`, the in-memory
+/// value changes even when the write fails. A value that is not one of `BACKGROUNDS` changes nothing.
+pub fn set_image_background(dir: &Path, settings: &mut Settings, background: &str) -> io::Result<()> {
+    if !BACKGROUNDS.contains(&background) {
+        return Err(invalid_choice("background", background));
+    }
+    settings.image_background = background.to_string();
+    save(dir, settings)
+}
+
+/// Sets the transparency checkerboard and then tries to save; same rules as `set_image_background`.
+pub fn set_transparency_checkerboard(dir: &Path, settings: &mut Settings, theme: &str) -> io::Result<()> {
+    if !CHECKERBOARDS.contains(&theme) {
+        return Err(invalid_choice("checkerboard", theme));
+    }
+    settings.transparency_checkerboard = theme.to_string();
     save(dir, settings)
 }
 
@@ -412,6 +485,68 @@ mod tests {
         let mut s = Settings::default();
         assert!(take_tray_notice(&blocker, &mut s));
         assert!(!take_tray_notice(&blocker, &mut s));
+        fs::remove_file(&blocker).unwrap();
+    }
+
+    #[test]
+    fn a_fresh_install_starts_transparent_with_the_dark_checkerboard() {
+        let s = load(&temp_dir("fresh-image"));
+        assert_eq!((s.image_background.as_str(), s.transparency_checkerboard.as_str()), ("transparent", "dark"));
+        assert_eq!(s.image_settings(), ImageSettings { background: "transparent".into(), checkerboard: "dark".into() });
+    }
+
+    #[test]
+    fn a_file_from_before_the_image_settings_keeps_what_it_has_and_gets_the_defaults() {
+        let dir = temp_dir("old-image");
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(dir.join(FILE_NAME), br#"{"hotkey":"alt+x"}"#).unwrap();
+        let s = load(&dir);
+        assert_eq!(s.hotkey, "alt+x");
+        assert_eq!((s.image_background.as_str(), s.transparency_checkerboard.as_str()), ("transparent", "dark"));
+        assert!(!dir.join(CORRUPT_FILE_NAME).exists());
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn the_image_settings_are_stored_camel_case_and_round_trip() {
+        let dir = temp_dir("image-roundtrip");
+        let mut s = Settings::default();
+        set_image_background(&dir, &mut s, "white").unwrap();
+        set_transparency_checkerboard(&dir, &mut s, "light").unwrap();
+        let text = fs::read_to_string(dir.join(FILE_NAME)).unwrap();
+        assert!(text.contains("\"imageBackground\": \"white\""), "{text}");
+        assert!(text.contains("\"transparencyCheckerboard\": \"light\""), "{text}");
+        let back = load(&dir);
+        assert_eq!((back.image_background.as_str(), back.transparency_checkerboard.as_str()), ("white", "light"));
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn a_value_that_is_not_a_choice_is_refused_and_a_stored_one_falls_back_to_the_default() {
+        let dir = temp_dir("image-invalid");
+        let mut s = Settings::default();
+        assert!(set_image_background(&dir, &mut s, "pink").is_err());
+        assert!(set_transparency_checkerboard(&dir, &mut s, "").is_err());
+        assert_eq!(s.image_background, "transparent");
+        assert_eq!(s.transparency_checkerboard, "dark");
+
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(dir.join(FILE_NAME), br#"{"hotkey":"alt+x","imageBackground":"pink","transparencyCheckerboard":5}"#).unwrap();
+        let back = load(&dir);
+        assert_eq!(back.hotkey, "alt+x");
+        assert_eq!((back.image_background.as_str(), back.transparency_checkerboard.as_str()), ("transparent", "dark"));
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn image_settings_keep_the_new_value_in_memory_when_the_file_cannot_be_written() {
+        let blocker = temp_dir("image-blocked");
+        fs::write(&blocker, b"not a folder").unwrap();
+        let mut s = Settings::default();
+        assert!(set_image_background(&blocker, &mut s, "dark").is_err());
+        assert_eq!(s.image_background, "dark");
+        assert!(set_transparency_checkerboard(&blocker, &mut s, "light").is_err());
+        assert_eq!(s.transparency_checkerboard, "light");
         fs::remove_file(&blocker).unwrap();
     }
 }

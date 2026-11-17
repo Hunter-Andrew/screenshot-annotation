@@ -50,7 +50,7 @@ const isString = (value: unknown): value is string => typeof value === "string";
 const isNumber = (value: unknown): value is number => typeof value === "number" && Number.isFinite(value);
 
 /** Shallow check that is enough for `applyEdit` to never throw: kind and ids, not Annotation contents. */
-function isEdit(value: unknown): value is Edit {
+function isEdit(value: unknown, depth = 0): value is Edit {
   if (!isObject(value)) return false;
   switch (value.kind) {
     case "add":
@@ -68,6 +68,11 @@ function isEdit(value: unknown): value is Edit {
       return isString(value.id) && isNumber(value.to);
     case "setCrop":
       return value.crop === null || (isObject(value.crop) && ["x", "y", "width", "height"].every((k) => isNumber((value.crop as Record<string, unknown>)[k])));
+    case "setBackground":
+      return value.background === null || value.background === "white" || value.background === "dark" || value.background === "transparent";
+    case "batch":
+      // One level only: a batch holds plain edits.
+      return depth === 0 && Array.isArray(value.edits) && value.edits.every((part) => isEdit(part, 1));
     default:
       return false;
   }

@@ -5,6 +5,9 @@
  * settings, etc. here.
  */
 
+import type { Background } from "../core/annotation";
+import type { CheckerboardTheme, ImageSettings } from "../shared/imageSettings";
+
 /** A Capture handed to the editor: a plain PNG of one monitor at native resolution. */
 export interface CaptureResult {
   width: number;
@@ -222,6 +225,18 @@ export interface PlatformBridge {
   setMagnifier(enabled: boolean): Promise<void>;
   /** The magnifier setting changed (from any window); delivers the new value, not a toggle. */
   onOverlayMagnifier(handler: (enabled: boolean) => void): Promise<() => void>;
+
+  /**
+   * The two image settings (ticket 37): the background a new image starts with, and how transparency
+   * looks (the checkerboard). Defaults on a fresh install or an older settings file: Transparent, Dark.
+   */
+  getImageSettings(): Promise<ImageSettings>;
+  /** Store the default background for new images and tell every window via `onImageSettings`. A failed write is logged and kept in memory. */
+  setImageBackground(background: Background): Promise<void>;
+  /** Store the checkerboard choice and tell every window via `onImageSettings`. */
+  setCheckerboard(theme: CheckerboardTheme): Promise<void>;
+  /** The image settings changed (from any window); delivers the new values. Returns an unsubscribe function. */
+  onImageSettings(handler: (settings: ImageSettings) => void): Promise<() => void>;
 
   /**
    * Each tool's last style (the "sticky" styles), keyed by Annotation type, stored in settings.json so

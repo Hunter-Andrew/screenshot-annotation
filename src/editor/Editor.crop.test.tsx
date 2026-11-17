@@ -71,14 +71,18 @@ describe("the Crop tool", () => {
     await act(async () => kit.latest.dragCrop(CROP));
     await userEvent.keyboard("c");
 
-    await act(async () => kit.latest.dragCrop({ x: 0, y: 0, width: 40, height: 30 }));
+    await act(async () => kit.latest.dragCrop({ x: 2, y: 2, width: 30, height: 20 }));
+    expect(kit.latest.model!.crop).toEqual({ x: 2, y: 2, width: 30, height: 20 });
 
-    expect(kit.latest.model!.crop).toEqual({ x: 0, y: 0, width: 40, height: 30 });
+    // Back to exactly the whole Capture is no crop at all.
+    await userEvent.keyboard("c");
+    await act(async () => kit.latest.dragCrop({ x: 0, y: 0, width: 40, height: 30 }));
+    expect(kit.latest.model!.crop).toBeNull();
   });
 });
 
 describe("while the image has a crop", () => {
-  it("shows no crop frame without a crop, and dims the outside with a border once cropped", async () => {
+  it("shows no crop frame without a crop, and outlines the visible area once cropped", async () => {
     const { kit } = await openWithCapture();
     expect(frame()).toBeNull();
 
@@ -86,9 +90,9 @@ describe("while the image has a crop", () => {
 
     const el = frame()!;
     expect(el).not.toBeNull();
-    // Scale is 1 in tests' stub canvas; the frame is in Capture pixels times the view scale.
-    expect(el.style.left).toBe(`${CROP.x * kit.latest.scale}px`);
-    expect(el.style.width).toBe(`${CROP.width * kit.latest.scale}px`);
+    // The frame outlines the visible area, which is the box the Capture is laid out in; the canvas dims the rest.
+    expect((el.parentElement as HTMLElement).style.width).toBe(`${CROP.width * kit.latest.scale}px`);
+    expect(kit.latest.layout.area).toEqual(CROP);
     // The whole Capture stays on screen and every Annotation stays editable.
     expect(screen.getByRole("img", { name: "Capture" })).toBeVisible();
     await act(async () => kit.latest.draw(RECT));

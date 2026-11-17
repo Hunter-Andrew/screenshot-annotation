@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { sanitizeImageSettings } from "../shared/imageSettings";
 import { formatStamp } from "../shared/stamp";
 import { watchLibrary } from "./libraryWatch";
 import type {
@@ -150,6 +151,10 @@ export function createTauriBridge(): PlatformBridge {
     getMagnifier: () => invoke<boolean>("get_magnifier"),
     setMagnifier: (enabled) => invoke<void>("set_magnifier", { enabled }),
     onOverlayMagnifier: (handler) => listen<boolean>("overlay-magnifier", (event) => handler(event.payload === true)),
+    getImageSettings: async () => sanitizeImageSettings(await invoke<unknown>("get_image_settings")),
+    setImageBackground: (background) => invoke<void>("set_image_background", { background }),
+    setCheckerboard: (theme) => invoke<void>("set_checkerboard", { theme }),
+    onImageSettings: (handler) => listen<unknown>("image-settings", (event) => handler(sanitizeImageSettings(event.payload))),
     getToolStyles: () => invoke<Record<string, unknown>>("get_tool_styles"),
     setToolStyles: (styles) => invoke<void>("set_tool_styles", { styles }),
     savePngAs: (png, suggestedName) =>
