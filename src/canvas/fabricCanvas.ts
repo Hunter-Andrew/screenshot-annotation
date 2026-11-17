@@ -202,7 +202,9 @@ export function createFabricCanvas(host: HTMLElement, { size, events, imageUrl }
     const adapter = adapterFor(tool);
     if (!drag || !kind || !adapter) return;
     const to = clampToImage(canvas.getScenePoint(event.e));
-    if (kind.typedInPlace) return previewArea(drag, to);
+    // A Callout with its tail on previews the speech box and tail as they will be; other typed-in tools, a dashed area.
+    const showsShape = kind.type === "callout" && drawStyle.tail?.enabled !== false;
+    if (kind.typedInPlace && !showsShape) return previewArea(drag, to);
     drag.path.push(to);
     // A freehand kind (Pen) gets every point the pointer passed; the others only the two ends.
     const preview = kind.fromPath

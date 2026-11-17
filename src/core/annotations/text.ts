@@ -37,7 +37,7 @@ const DEFAULT_WIDTH = 240;
 /** A drag narrower than this is too thin to be an area: the default width is used instead. */
 const MIN_AREA_WIDTH = 20;
 /** Pointer movement (Capture pixels) under which a press is a click, not a drag. */
-const CLICK_SLOP = 4;
+export const CLICK_SLOP = 4;
 
 export interface TextArea {
   x: number;

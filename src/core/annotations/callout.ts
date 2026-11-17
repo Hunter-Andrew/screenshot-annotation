@@ -4,7 +4,7 @@
 // follows the box when it moves. Absent, the tail points at the default spot below the box.
 import type { PropertyGroups, Style } from "../propertyGroups";
 import type { AnnotationKind, Point } from "./kind";
-import { textAreaFromDrag } from "./text";
+import { CLICK_SLOP, textAreaFromDrag } from "./text";
 
 export interface CalloutAnnotation extends Pick<PropertyGroups, "font" | "textOutline" | "stroke" | "fill" | "tail"> {
   id: string;
@@ -35,7 +35,15 @@ export const calloutKind: AnnotationKind<CalloutAnnotation> = {
   typedInPlace: true,
   fromDrag(id, from, to, style: Style, area) {
     const base = calloutKind.defaultStyle;
-    const { x, y, width, minHeight } = textAreaFromDrag(from, to, area ?? { width: Infinity, height: Infinity });
+    const capture = area ?? { width: Infinity, height: Infinity };
+    const tail = style.tail ?? base.tail!;
+    const dragged = Math.max(Math.abs(to.x - from.x), Math.abs(to.y - from.y)) >= CLICK_SLOP;
+    // Tail on, dragged: the press is the tip and the release is the box corner nearest it; the box runs
+    // on away from the press by the dragged distance (default width when that is too narrow).
+    const withTip = tail.enabled && dragged;
+    const { x, y, width, minHeight } = withTip
+      ? textAreaFromDrag(to, { x: 2 * to.x - from.x, y: 2 * to.y - from.y }, capture)
+      : textAreaFromDrag(from, to, capture);
     return {
       id,
       type: "callout",
@@ -43,12 +51,13 @@ export const calloutKind: AnnotationKind<CalloutAnnotation> = {
       y,
       width,
       ...(minHeight > 0 ? { minHeight } : {}),
+      ...(withTip ? { tip: { x: from.x - x, y: from.y - y } } : {}),
       text: "",
       font: style.font ?? base.font!,
       textOutline: style.textOutline ?? base.textOutline!,
       stroke: style.stroke ?? base.stroke!,
       fill: style.fill ?? base.fill!,
-      tail: style.tail ?? base.tail!,
+      tail,
     };
   },
 };

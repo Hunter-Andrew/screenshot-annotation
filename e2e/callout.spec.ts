@@ -109,3 +109,49 @@ test("O draws a callout: text in a speech box, a tail you can drag and switch of
   pixels = await copyPixels(page);
   expect(pixels.at(tailX, Math.round(made!.y) + 40)).toEqual([200, 200, 200, 255]);
 });
+
+test("dragging a callout with the tail on: the press is the tip, the release the box corner, and the preview shows the box", async ({ page }) => {
+  await page.goto("/");
+  await capture(page, 600, 400);
+  await page.getByRole("button", { name: "100%" }).click();
+  await expect(page.getByLabel("Zoom level")).toHaveText("100%");
+  const box = (await page.locator(".stage").boundingBox())!;
+  const at = (x: number, y: number) => ({ x: box.x + x, y: box.y + y });
+
+  await page.keyboard.press("o");
+  const press = at(100, 100);
+  const release = at(260, 160);
+  await page.mouse.move(press.x, press.y);
+  await page.mouse.down();
+  await page.mouse.move(release.x, release.y, { steps: 6 });
+  // Live preview: the red outline of the speech box and its tail, from the press point (100, 100) to the
+  // box's far corner (the dashed blue area of the plain Text preview has no red).
+  const red = await page.evaluate(() => {
+    const canvas = document.querySelector<HTMLCanvasElement>(".canvas-container canvas.lower-canvas")!;
+    const data = canvas.getContext("2d")!.getImageData(0, 0, canvas.width, canvas.height).data;
+    let minX = Infinity, maxX = -1, maxY = -1;
+    for (let i = 0; i < data.length; i += 4) {
+      if (data[i]! > 200 && data[i + 1]! < 90) {
+        minX = Math.min(minX, (i / 4) % canvas.width);
+        maxX = Math.max(maxX, (i / 4) % canvas.width);
+        maxY = Math.max(maxY, Math.floor(i / 4 / canvas.width));
+      }
+    }
+    return { minX, maxX, maxY };
+  });
+  expect(red.minX).toBeLessThanOrEqual(105);
+  expect(red.maxX).toBeGreaterThanOrEqual(420);
+  expect(red.maxY).toBeGreaterThanOrEqual(215);
+  await page.mouse.up();
+  await expect(page.locator("textarea")).toBeFocused();
+  await page.keyboard.type("Here");
+  await page.keyboard.press("Escape");
+
+  await expectSaved(page, ([c]) => c?.text === "Here", "the callout is saved");
+  const [made] = await saved(page);
+  // The box starts at the release; the tip is the press point, relative to the box (Fabric may shift by half a pixel).
+  expect(Math.abs(made!.x - 260)).toBeLessThanOrEqual(1);
+  expect(made!.width).toBe(160);
+  expect(Math.abs(made!.tip!.x - -160)).toBeLessThanOrEqual(1);
+  expect(Math.abs(made!.tip!.y - -60)).toBeLessThanOrEqual(1);
+});
