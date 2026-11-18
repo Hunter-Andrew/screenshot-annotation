@@ -6,11 +6,11 @@ import { Canvas, type FabricObject, FabricImage, Rect } from "fabric";
 import { backgroundFill, growsArea, limitPoint, shiftIntoLimit } from "../core/area";
 import { kindOf } from "../core/annotations";
 import { erasePieces } from "../core/annotations/erase";
+import { highlightKind } from "../core/annotations/highlight";
 import type { Point } from "../core/annotations";
 import { cropFromDrag, MIN_CROP } from "../core/crop";
 import { newAnnotationId, type Annotation, type AnnotationType, type AnnotationModel, type Crop } from "../core/annotation";
 import { DEFAULT_ERASER_SIZE, type Style } from "../core/propertyGroups";
-import { CALLOUT_TAIL_PERCENT } from "../shared/imageSettings";
 import { Backdrop } from "./backdrop";
 import { CropFrame, OutsideDim } from "./chrome";
 import type { AnnotationCanvas, CanvasLayout, MountOptions } from "./types";
@@ -67,8 +67,6 @@ export function createFabricCanvas(host: HTMLElement, { events, imageUrl, layout
 
   let tool = SELECT;
   let drawStyle: Style = {};
-  /** Settings > Callout tail length: how much of a callout's draw drag its tail takes. */
-  let calloutTailPercent: number = CALLOUT_TAIL_PERCENT.default;
   let interactive = true;
   const objectsById = new Map<string, FabricObject>();
   const idOf = new WeakMap<FabricObject, string>();
@@ -226,21 +224,37 @@ export function createFabricCanvas(host: HTMLElement, { events, imageUrl, layout
     }
     canvas.requestRenderAll();
   };
+  /** The Highlighter is the active tool: it shows a ring the size of its stroke instead of a cursor. */
+  const highlighting = () => tool === "highlight";
+  /** A ring follows the pointer: the Eraser's circle, or the Highlighter's stroke width. */
+  const ringed = () => erasing() || highlighting();
   // The outline circle: a dark ring with a white one inside it, readable on any Capture, in the eraser's size at the current zoom.
+  // `after:render` also fires for Fabric's overlay layer (`renderTop`, on the upper canvas). Drawing there left a ring
+  // that nothing clears (Fabric only clears that layer when it drew a selection box or a brush): the stuck after-image.
   canvas.on("after:render", ({ ctx }) => {
-    if (!pointer || !interactive || !erasing()) return;
+    if (ctx !== canvas.getContext()) return;
+    if (!pointer || !interactive || !ringed()) return;
     const scene = canvas.viewportTransform;
     ctx.save();
     ctx.transform(scene[0], scene[1], scene[2], scene[3], scene[4], scene[5]);
     const pixel = 1 / (canvas.getZoom() || 1);
     ctx.beginPath();
-    ctx.arc(pointer.x, pointer.y, eraserRadius(), 0, Math.PI * 2);
-    ctx.lineWidth = 3 * pixel;
-    ctx.strokeStyle = "rgba(17, 24, 39, 0.9)";
-    ctx.stroke();
-    ctx.lineWidth = 1.5 * pixel;
-    ctx.strokeStyle = "#ffffff";
-    ctx.stroke();
+    if (highlighting()) {
+      // The stroke's own width in Capture pixels (so the zoom scales it), as a thin outline in the marker's colour.
+      const stroke = drawStyle.stroke ?? highlightKind.defaultStyle.stroke!;
+      ctx.arc(pointer.x, pointer.y, stroke.width / 2, 0, Math.PI * 2);
+      ctx.lineWidth = 1.5 * pixel;
+      ctx.strokeStyle = stroke.color;
+      ctx.stroke();
+    } else {
+      ctx.arc(pointer.x, pointer.y, eraserRadius(), 0, Math.PI * 2);
+      ctx.lineWidth = 3 * pixel;
+      ctx.strokeStyle = "rgba(17, 24, 39, 0.9)";
+      ctx.stroke();
+      ctx.lineWidth = 1.5 * pixel;
+      ctx.strokeStyle = "#ffffff";
+      ctx.stroke();
+    }
     ctx.restore();
   });
   canvas.upperCanvasEl.addEventListener("mouseleave", () => {
@@ -255,8 +269,8 @@ export function createFabricCanvas(host: HTMLElement, { events, imageUrl, layout
     // The Crop tool needs its handles to take the pointer; the Annotations then stay out of the way.
     canvas.skipTargetFind = !interactive || (drawing && !cropping && pending === null);
     for (const object of objectsById.values()) object.evented = !cropping;
-    // The Pen's Eraser mode draws its own outline circle (below) instead of a cursor.
-    const cursor = drawing ? (erasing() ? "none" : "crosshair") : null;
+    // The Pen's Eraser mode and the Highlighter draw their own outline circle (below) instead of a cursor.
+    const cursor = drawing ? (ringed() ? "none" : "crosshair") : null;
     canvas.defaultCursor = cursor ?? "default";
     canvas.hoverCursor = cursor ?? "move";
   };
@@ -390,10 +404,13 @@ export function createFabricCanvas(host: HTMLElement, { events, imageUrl, layout
     drag = { from, path: [from], ghost: null };
   });
   canvas.on("mouse:move", (event) => {
-    if (erasing() && interactive) {
+    if (ringed() && interactive) {
       pointer = canvas.getScenePoint(event.e);
+      if (highlighting()) canvas.requestRenderAll(); // the ring follows (a drag below renders anyway)
+    }
+    if (erasing() && interactive) {
       if (!erase) return canvas.requestRenderAll();
-      const to = pointer;
+      const to = canvas.getScenePoint(event.e);
       const last = erase.path.at(-1)!;
       erase.path.push(to);
       return eraseSegment(erase, last, to);
@@ -411,7 +428,7 @@ export function createFabricCanvas(host: HTMLElement, { events, imageUrl, layout
     // A freehand kind (Pen) gets every point the pointer passed; the others only the two ends.
     const preview = kind.fromPath
       ? kind.fromPath("preview", pathFor(kind, drag, to, (event.e as MouseEvent).shiftKey), drawStyle)
-      : kind.fromDrag("preview", drag.from, to, drawStyle, layout.area, { tailPercent: calloutTailPercent });
+      : kind.fromDrag("preview", drag.from, to, drawStyle, layout.area);
     if (!preview) return dropGhost();
     if (drag.ghost) adapter.update(drag.ghost, preview);
     else {
@@ -449,7 +466,7 @@ export function createFabricCanvas(host: HTMLElement, { events, imageUrl, layout
     const to = reach(canvas.getScenePoint(event.e), gesture.from);
     const annotation = kind.fromPath
       ? kind.fromPath(newAnnotationId(), pathFor(kind, { ...gesture, path: [...gesture.path, to] }, to, (event.e as MouseEvent).shiftKey), drawStyle)
-      : kind.fromDrag(newAnnotationId(), gesture.from, to, drawStyle, layout.area, { tailPercent: calloutTailPercent });
+      : kind.fromDrag(newAnnotationId(), gesture.from, to, drawStyle, layout.area);
     canvas.requestRenderAll();
     if (!annotation) return;
     if (kind.typedInPlace) startTyping(annotation);
@@ -524,9 +541,6 @@ export function createFabricCanvas(host: HTMLElement, { events, imageUrl, layout
       if (!erasing()) clearErase();
       refreshMode();
       canvas.requestRenderAll();
-    },
-    setCalloutTailPercent(percent) {
-      calloutTailPercent = percent;
     },
     select(id) {
       const object = id === null ? undefined : objectsById.get(id);

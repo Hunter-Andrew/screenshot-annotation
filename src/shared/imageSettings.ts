@@ -1,4 +1,4 @@
-// The image Settings (ticket 37, plus the callout tail and the canvas view), as the editor and Library read them. TS is the single source of truth for
+// The image Settings (ticket 37, plus the canvas view), as the editor and Library read them. TS is the single source of truth for
 // the values; `src-tauri/src/settings.rs` must spell the same defaults and choices (see rustParity.test.ts).
 import { DEFAULT_DARK_BACKGROUND, isBackground } from "../core/area";
 import type { Background } from "../core/annotation";
@@ -12,8 +12,6 @@ export interface ImageSettings {
   background: Background;
   /** The checkerboard drawn behind transparent pixels. */
   checkerboard: CheckerboardTheme;
-  /** How much of a callout's draw drag its tail takes, in percent. */
-  calloutTailPercent: number;
   /** The room kept around the canvas in the editor view, in pixels. */
   canvasMargin: number;
   /** The room kept around the canvas while the Crop tool is active, in pixels. */
@@ -39,7 +37,6 @@ export interface NumberRange {
   decimals?: number;
 }
 
-export const CALLOUT_TAIL_PERCENT: NumberRange = { min: 5, max: 50, default: 20 };
 export const CANVAS_MARGIN: NumberRange = { min: 0, max: 200, default: 16 };
 /** The Canvas margin while the Crop tool is active (room to drag the handles outwards). */
 export const CROP_MARGIN: NumberRange = { min: 0, max: 400, default: 150 };
@@ -53,7 +50,6 @@ export const OUTSIDE_DARKNESS: NumberRange = { min: 0, max: 99.9, default: 95, d
 export const DEFAULT_IMAGE_SETTINGS: ImageSettings = {
   background: "transparent",
   checkerboard: "light",
-  calloutTailPercent: CALLOUT_TAIL_PERCENT.default,
   canvasMargin: CANVAS_MARGIN.default,
   cropMargin: CROP_MARGIN.default,
   darkBackground: DEFAULT_DARK_BACKGROUND,
@@ -90,7 +86,6 @@ export function sanitizeImageSettings(raw: unknown): ImageSettings {
   return {
     background: isBackground(value.background) ? value.background : DEFAULT_IMAGE_SETTINGS.background,
     checkerboard: isCheckerboard(value.checkerboard) ? value.checkerboard : DEFAULT_IMAGE_SETTINGS.checkerboard,
-    calloutTailPercent: clampToRange(CALLOUT_TAIL_PERCENT, value.calloutTailPercent),
     canvasMargin: clampToRange(CANVAS_MARGIN, value.canvasMargin),
     cropMargin: clampToRange(CROP_MARGIN, value.cropMargin),
     darkBackground: isDarkBackground(value.darkBackground) ? value.darkBackground.toLowerCase() : DEFAULT_DARK_BACKGROUND,

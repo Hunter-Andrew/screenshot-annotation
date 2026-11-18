@@ -78,8 +78,6 @@ export interface AnnotationCanvas {
   setTool(tool: string): void;
   /** The style new Annotations are drawn in. */
   setDrawStyle(style: Style): void;
-  /** Settings > Callout tail length (5 to 50): the share of a callout's draw drag its tail takes, for the preview and the result. */
-  setCalloutTailPercent(percent: number): void;
   /** Select an Annotation by id, or clear the selection with null. */
   select(id: string | null): void;
   /** Show the canvas at `scale` (1 = Capture pixels): sets its on-screen size and zoom. */

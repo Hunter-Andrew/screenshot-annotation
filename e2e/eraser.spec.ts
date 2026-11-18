@@ -79,11 +79,42 @@ async function drawLine(page: Page, view: View, y: number) {
   await drag(page, [view.at(20, y), view.at(150, y), view.at(280, y)]);
 }
 
+/** How many pixels of the canvas Fabric keeps for its own overlays (selection box, brush) are not transparent. */
+async function upperCanvasInk(page: Page) {
+  await page.evaluate(() => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done))));
+  return page.evaluate(() => {
+    const canvas = document.querySelector<HTMLCanvasElement>("canvas.upper-canvas")!;
+    const { data } = canvas.getContext("2d")!.getImageData(0, 0, canvas.width, canvas.height);
+    let ink = 0;
+    for (let i = 3; i < data.length; i += 4) if (data[i]! > 0) ink++;
+    return ink;
+  });
+}
+
 const close = (a: number, b: number, tolerance = 3) => Math.abs(a - b) <= tolerance;
 const xs = (s: Saved) => s.points.map((p) => p.x);
 
 test.describe("the Pen's Eraser mode", () => {
   test.use({ viewport: { width: 760, height: 560 } });
+
+  test("the outline circle is drawn once, on the picture, and leaves no stuck ring behind when the pointer moves on", async ({ page }) => {
+    const view = await openCapture(page);
+    await drawLine(page, view, 100);
+    await expectSaved(page, (all) => all.length === 1, "drawn");
+    await chooseEraser(page, 40); // radius 20
+    await drag(page, [view.at(100, 60), view.at(100, 100), view.at(100, 140)]);
+    await expectSaved(page, (all) => all.length === 2, "two strokes after the erase");
+
+    for (const [x, y] of [[200, 150], [220, 160], [240, 170]] as const) {
+      await page.mouse.move(view.at(x, y).x, view.at(x, y).y, { steps: 3 });
+      await page.mouse.move(view.at(x, y).x, view.at(x, y).y);
+    }
+    // The ring follows the pointer on the picture: its right side, 20 px from the pointer (240, 170), is not grey.
+    await expect.poll(async () => (await pixel(page, 260, 170))[0]).not.toBe(GREY[0]);
+    expect(await pixel(page, 150, 160)).toEqual(GREY); // nothing left where the pointer was before
+    // Fabric's own overlay layer stays clean: a ring drawn there is never cleared (the stuck after-image).
+    expect(await upperCanvasInk(page)).toBe(0);
+  });
 
   test("an erase drag cuts the stroke where the circle passed, live while dragging, and saves two strokes", async ({ page }) => {
     const view = await openCapture(page);

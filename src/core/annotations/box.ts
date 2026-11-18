@@ -13,7 +13,7 @@ export interface BoxGeometry extends Pick<PropertyGroups, "stroke" | "fill"> {
 
 export const DEFAULT_BOX_STYLE: Required<Pick<Style, "stroke" | "fill">> = {
   stroke: { color: "#e02424", width: 4 },
-  fill: { mode: "none", color: "#facc15", opacity: 0.4 },
+  fill: { mode: "none", color: "#ffff00", opacity: 0.4 },
 };
 
 const MIN_SIDE = 4;

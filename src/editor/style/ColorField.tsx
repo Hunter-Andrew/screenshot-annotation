@@ -13,7 +13,7 @@ import { parseHexColor } from "../../core/hexColor";
 export const PALETTE: readonly string[] = [
   "#e02424", // red
   "#f97316", // orange
-  "#facc15", // yellow
+  "#ffff00", // yellow
   "#16a34a", // green
   "#2563eb", // blue
   "#9333ea", // purple

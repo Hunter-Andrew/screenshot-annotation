@@ -12,12 +12,6 @@ export interface Size {
   height: number;
 }
 
-/** Settings a drag may depend on (from the Settings window); a tool uses the ones it knows. */
-export interface DrawOptions {
-  /** Callout: how much of the draw drag its tail takes, in percent (Settings > Callout tail length). */
-  tailPercent?: number;
-}
-
 export interface AnnotationKind<A extends Annotation = Annotation> {
   readonly type: A["type"];
   /** The tool's name in the tool column. */
@@ -40,7 +34,6 @@ export interface AnnotationKind<A extends Annotation = Annotation> {
     to: Point,
     style: Style,
     area?: { x?: number; y?: number; width: number; height: number },
-    options?: DrawOptions,
   ): A | null;
   /** Freehand tools only (Pen): the Annotation for all the points a drag passed through; the canvas prefers it to `fromDrag`. */
   fromPath?(id: string, points: readonly Point[], style: Style): A | null;

@@ -53,10 +53,9 @@ describe("Settings > Image", () => {
     expect(await screen.findByText(/never in an exported picture/i)).toBeVisible();
   });
 
-  it("shows the view and callout defaults with their labels", async () => {
+  it("shows the view defaults with their labels", async () => {
     render(<Settings bridge={createFakeBridge()} />);
-    await waitFor(() => expect(screen.getByLabelText("Callout tail length (% of drag)")).toHaveValue(20));
-    expect(screen.getByLabelText("Canvas margin (px)")).toHaveValue(16);
+    await waitFor(() => expect(screen.getByLabelText("Canvas margin (px)")).toHaveValue(16));
     expect(screen.getByLabelText("Outside-canvas darkness (%)")).toHaveValue(95);
     expect(screen.getByLabelText("Outside-canvas darkness slider")).toHaveValue("95");
     expect(screen.getByLabelText("Show outside the canvas on new images")).toBeChecked();
@@ -88,20 +87,20 @@ describe("Settings > Image", () => {
   it("stores a number inside its range, and ignores one outside it", async () => {
     const bridge = createFakeBridge();
     render(<Settings bridge={bridge} />);
-    const field = await screen.findByLabelText("Callout tail length (% of drag)");
+    const field = await screen.findByLabelText("Canvas margin (px)");
     await waitFor(() => expect(field).toBeEnabled());
 
     await userEvent.clear(field);
-    await userEvent.type(field, "35");
+    await userEvent.type(field, "100");
     await userEvent.tab();
-    expect(bridge.imageSettings.calloutTailPercent).toBe(35);
+    expect(bridge.imageSettings.canvasMargin).toBe(100);
 
     await userEvent.clear(field);
-    await userEvent.type(field, "99");
+    await userEvent.type(field, "999");
     await userEvent.tab();
-    expect(bridge.imageSettings.calloutTailPercent).toBe(35);
-    expect(field).toHaveValue(35);
-    expect(screen.getByText(/5 to 50/)).toBeVisible();
+    expect(bridge.imageSettings.canvasMargin).toBe(100);
+    expect(field).toHaveValue(100);
+    expect(screen.getByText(/0 to 200/)).toBeVisible();
   });
 
   it("stores the margin, the darkness and the show-outside choice", async () => {

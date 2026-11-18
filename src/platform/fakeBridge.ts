@@ -1,5 +1,5 @@
 import { encodeRgbaPng, readSize } from "../core/png";
-import { CALLOUT_TAIL_PERCENT, CANVAS_MARGIN, CROP_MARGIN, DEFAULT_IMAGE_SETTINGS, type ImageSettings, inRange, isDarkBackground, OUTSIDE_DARKNESS, sanitizeImageSettings } from "../shared/imageSettings";
+import { CANVAS_MARGIN, CROP_MARGIN, DEFAULT_IMAGE_SETTINGS, type ImageSettings, inRange, isDarkBackground, OUTSIDE_DARKNESS, sanitizeImageSettings } from "../shared/imageSettings";
 import { formatStamp } from "../shared/stamp";
 import type { CaptureResult, LibraryFile, LibraryItem, OverlayOutcome, OverlayRect, PlatformBridge } from "./bridge";
 
@@ -586,10 +586,6 @@ export function createFakeBridge(
     },
     setCheckerboard: async (checkerboard) => {
       writeImageSettings({ ...readImageSettings(), checkerboard });
-    },
-    setCalloutTailPercent: async (percent) => {
-      if (!inRange(CALLOUT_TAIL_PERCENT, percent)) throw new Error(`${percent} is not a callout tail percentage`);
-      writeImageSettings({ ...readImageSettings(), calloutTailPercent: percent });
     },
     setCanvasMargin: async (pixels) => {
       if (!inRange(CANVAS_MARGIN, pixels)) throw new Error(`${pixels} is not a canvas margin`);

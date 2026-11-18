@@ -3,7 +3,6 @@
 // `tip` is where the tail points, as an offset from the text box's top-left corner, so the tail
 // follows the box when it moves. Absent, the tail points at the default spot below the box.
 import type { PropertyGroups, Style } from "../propertyGroups";
-import { CALLOUT_TAIL_PERCENT, clampToRange } from "../../shared/imageSettings";
 import { CALLOUT_PAD } from "./calloutGeometry";
 import type { AnnotationKind, Point, Size } from "./kind";
 import type { Run } from "./runs";
@@ -30,44 +29,33 @@ interface Area extends Size {
   y?: number;
 }
 
+/** Lowest height of the text box a tail drag starts with (the box grows with its text past it). */
+export const DEFAULT_CALLOUT_MIN_HEIGHT = 40;
+
 /**
- * The text box and tail tip a drag draws with the tail on (Capture pixels). The press is the tip; the release is the
- * far corner of the speech box. The tail takes `tailPercent` of the press-to-release distance, measured along the
- * axis of the side that faces the tip (the one the drag runs along most), and the speech box takes the rest: it spans
- * from the release back to that fraction of the way from the press, and over the whole drag on the other axis, so the
- * press and the release are at opposite ends of the callout. The release is kept inside `area`; a box too narrow for
- * text gets the default width (it then slides to stay inside).
+ * The text box a tail drag draws (Capture pixels). The press is the tip and the release is where the tail ends, which
+ * is the corner of the speech box nearest the tip: the box extends from there away from the tip, in the direction the
+ * drag ran (right and down for a drag that went right and down, and so on), at the default width and a default lowest
+ * height that grows with the text. The release is kept inside `area`, and the box slides to stay inside it too.
  */
-function boxFromTailDrag(press: Point, release: Point, tailPercent: number, area: Area) {
+function boxFromTailDrag(press: Point, release: Point, area: Area) {
   const left = area.x ?? 0;
   const top = area.y ?? 0;
   const right = left + area.width;
   const bottom = top + area.height;
-  const inside = (p: Point): Point => ({ x: Math.min(right, Math.max(left, p.x)), y: Math.min(bottom, Math.max(top, p.y)) });
-  const from = inside(press);
-  const to = inside(release);
-  const share = clampToRange(CALLOUT_TAIL_PERCENT, tailPercent) / 100;
-  const dx = to.x - from.x;
-  const dy = to.y - from.y;
-  const alongX = Math.abs(dx) >= Math.abs(dy);
-  const nearX = from.x + dx * share;
-  const nearY = from.y + dy * share;
-  // The speech box's edges, then the text box inside its padding.
-  const speechLeft = Math.min(alongX ? nearX : from.x, to.x);
-  const speechRight = Math.max(alongX ? nearX : from.x, to.x);
-  const speechTop = Math.min(alongX ? from.y : nearY, to.y);
-  const speechBottom = Math.max(alongX ? from.y : nearY, to.y);
-  let width = speechRight - speechLeft - 2 * CALLOUT_PAD;
-  let x = speechLeft + CALLOUT_PAD;
-  if (width < MIN_AREA_WIDTH) {
-    // Too thin for text: the default width, from the tail's end (away from the press) or from the box's own left edge.
-    width = DEFAULT_WIDTH;
-    x = alongX && dx < 0 ? speechRight - CALLOUT_PAD - width : x;
-  }
-  width = Math.min(width, area.width);
-  x = Math.max(left, Math.min(x, right - width));
-  const minHeight = speechBottom - speechTop - 2 * CALLOUT_PAD;
-  return { x, y: speechTop + CALLOUT_PAD, width, minHeight: minHeight >= CLICK_SLOP ? minHeight : 0 };
+  const to: Point = { x: Math.min(right, Math.max(left, release.x)), y: Math.min(bottom, Math.max(top, release.y)) };
+  const width = Math.max(MIN_AREA_WIDTH, Math.min(DEFAULT_WIDTH, area.width - 2 * CALLOUT_PAD));
+  const minHeight = DEFAULT_CALLOUT_MIN_HEIGHT;
+  const leftward = release.x < press.x;
+  const upward = release.y < press.y;
+  const x = leftward ? to.x - CALLOUT_PAD - width : to.x + CALLOUT_PAD;
+  const y = upward ? to.y - CALLOUT_PAD - minHeight : to.y + CALLOUT_PAD;
+  return {
+    x: Math.max(left + CALLOUT_PAD, Math.min(x, right - CALLOUT_PAD - width)),
+    y: Math.max(top + CALLOUT_PAD, Math.min(y, bottom - CALLOUT_PAD - minHeight)),
+    width,
+    minHeight,
+  };
 }
 
 export const calloutKind: AnnotationKind<CalloutAnnotation> = {
@@ -84,16 +72,16 @@ export const calloutKind: AnnotationKind<CalloutAnnotation> = {
   },
   typedInPlace: true,
   keepsEmptyText: true,
-  fromDrag(id, from, to, style: Style, area, options) {
+  fromDrag(id, from, to, style: Style, area) {
     const base = calloutKind.defaultStyle;
     const capture = area ?? { width: Infinity, height: Infinity };
     const tail = style.tail ?? base.tail!;
     const dragged = Math.max(Math.abs(to.x - from.x), Math.abs(to.y - from.y)) >= CLICK_SLOP;
-    // Tail on, dragged: the press is the tip and the release the far corner of the speech box; the tail takes
-    // the Settings' percentage of the drag (see `boxFromTailDrag`). Tail off, or a click: a plain text area.
+    // Tail on, dragged: the press is the tip and the release is where the tail ends, at the speech box's nearest
+    // corner (see `boxFromTailDrag`). Tail off, or a click: a plain text area.
     const withTip = tail.enabled && dragged;
     const { x, y, width, minHeight } = withTip
-      ? boxFromTailDrag(from, to, options?.tailPercent ?? CALLOUT_TAIL_PERCENT.default, capture)
+      ? boxFromTailDrag(from, to, capture)
       : textAreaFromDrag(from, to, capture);
     return {
       id,

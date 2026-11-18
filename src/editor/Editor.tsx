@@ -393,7 +393,6 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
 
   useEffect(() => canvas?.sync(image?.model ?? emptyModel(), image?.images), [canvas, image?.model, image?.images]);
   useEffect(() => canvas?.setTool(tool), [canvas, tool]);
-  useEffect(() => canvas?.setCalloutTailPercent(imageSettings.calloutTailPercent), [canvas, imageSettings.calloutTailPercent]);
   useEffect(() => canvas?.select(selectedId), [canvas, selectedId, image?.model]);
   useEffect(
     () => canvas?.setDrawStyle(tool === SELECT_TOOL.id ? {} : styleOf(tool, null)),

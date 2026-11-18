@@ -6,7 +6,6 @@ describe("sanitizeImageSettings", () => {
     expect(sanitizeImageSettings(undefined)).toEqual({
       background: "transparent",
       checkerboard: "light",
-      calloutTailPercent: 20,
       canvasMargin: 16,
       cropMargin: 150,
       darkBackground: "#191919",
@@ -18,8 +17,8 @@ describe("sanitizeImageSettings", () => {
   });
 
   it("keeps valid values, clamps numbers into their range, and defaults anything that is not a whole number", () => {
-    const value = sanitizeImageSettings({ background: "white", checkerboard: "dark", calloutTailPercent: 99, canvasMargin: 3, outsideDarkness: "x", showOutsideDefault: false });
-    expect(value).toEqual({ background: "white", checkerboard: "dark", calloutTailPercent: 50, canvasMargin: 3, cropMargin: 150, darkBackground: "#191919", outsideDarkness: 95, showOutsideDefault: false, libraryStripCollapsed: false });
+    const value = sanitizeImageSettings({ background: "white", checkerboard: "dark", canvasMargin: 3, outsideDarkness: "x", showOutsideDefault: false });
+    expect(value).toEqual({ background: "white", checkerboard: "dark", canvasMargin: 3, cropMargin: 150, darkBackground: "#191919", outsideDarkness: 95, showOutsideDefault: false, libraryStripCollapsed: false });
     expect(sanitizeImageSettings({ canvasMargin: 1.5, outsideDarkness: 100 })).toMatchObject({ canvasMargin: 16, outsideDarkness: 99.9 });
   });
 

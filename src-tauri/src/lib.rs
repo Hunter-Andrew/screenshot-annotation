@@ -312,20 +312,6 @@ fn set_checkerboard(app: AppHandle, state: tauri::State<'_, AppSettings>, theme:
     saved.or_else(|e| if e.kind() == std::io::ErrorKind::InvalidInput { Err(e.to_string()) } else { Ok(()) })
 }
 
-/// Stores the callout tail percentage; same rules as `set_image_background` (a value outside its range is refused).
-#[tauri::command]
-fn set_callout_tail_percent(app: AppHandle, state: tauri::State<'_, AppSettings>, percent: u32) -> Result<(), String> {
-    let mut data = state.data.lock().unwrap();
-    let saved = settings::set_callout_tail_percent(&state.dir, &mut data, percent);
-    if let Err(e) = &saved {
-        diag::log(&format!("the callout tail percentage set to {percent}; could not save settings.json (kept in memory): {e}"));
-    }
-    let now = data.image_settings();
-    drop(data);
-    let _ = app.emit(IMAGE_SETTINGS_EVENT, now);
-    saved.or_else(|e| if e.kind() == std::io::ErrorKind::InvalidInput { Err(e.to_string()) } else { Ok(()) })
-}
-
 /// Stores the canvas margin; same rules as `set_image_background` (a value outside its range is refused).
 #[tauri::command]
 fn set_canvas_margin(app: AppHandle, state: tauri::State<'_, AppSettings>, pixels: u32) -> Result<(), String> {
@@ -1145,7 +1131,6 @@ pub fn run() {
             get_image_settings,
             set_image_background,
             set_checkerboard,
-            set_callout_tail_percent,
             set_canvas_margin,
             set_crop_margin,
             set_library_strip_collapsed,
