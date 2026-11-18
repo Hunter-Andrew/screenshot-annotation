@@ -32,13 +32,15 @@ export function keyLabel(action: string, bindings: Bindings = defaultBindings())
 }
 
 /**
- * Whether `action` may run while the key press goes into a text field or the Text tool's box: bare
- * keys never do (typing "t" must not switch tools), and of the Ctrl combos only the view keys (zoom,
- * fit) stay active. Ctrl+C and Ctrl+Delete keep their text meaning there (copy the selected words,
- * delete the next word), so they never copy or discard the image from inside a text box.
+ * Whether `action` may run while the key press goes into a text field or the Text tool's box (ticket
+ * 28 decision 7): bare and Shift-only keys never do (typing "t" must not switch tools); Ctrl and Alt
+ * combinations do, for the view keys and any remappable action. The fixed editing keys (Ctrl+C,
+ * Ctrl+Delete even when Discard sits on it, ...) keep their text meaning there, so they never copy or discard the image.
  */
-export function allowedWhileTyping(action: string | null, event: Pick<KeyboardEvent, "ctrlKey">): boolean {
-  return action !== null && event.ctrlKey && action.startsWith("view.");
+export function allowedWhileTyping(action: string | null, event: Pick<KeyboardEvent, "ctrlKey"> & { altKey?: boolean; key?: string }): boolean {
+  if (action === null || !(event.ctrlKey || event.altKey)) return false;
+  if (event.key === "Delete" || event.key === "Backspace") return false; // Ctrl+Delete deletes a word in a text box
+  return action.startsWith("view.") || (SHORTCUT_ACTIONS.find((a) => a.id === action)?.remappable ?? false);
 }
 
 const TEXT_INPUT_TYPES = new Set(["", "text", "number", "search", "email", "url", "tel", "password"]);

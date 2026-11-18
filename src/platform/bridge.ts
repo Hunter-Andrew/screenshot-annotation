@@ -268,6 +268,11 @@ export interface PlatformBridge {
   getShortcutOverrides(): Promise<Record<string, unknown>>;
   /** Replace all stored shortcut overrides. A failed write is logged and kept in memory for this run. */
   setShortcutOverrides(overrides: Record<string, string>): Promise<void>;
+  /**
+   * Called with the full stored overrides whenever any window changes them, so an open overlay or
+   * editor switches keys at once (like `onOverlayMagnifier`). Returns the unsubscribe function.
+   */
+  onShortcutOverrides(handler: (overrides: Record<string, unknown>) => void): Promise<() => void>;
 
   /** The capture hotkey (an accelerator such as "ctrl+shift+s") and whether the OS accepted it. */
   getHotkey(): Promise<HotkeyState>;

@@ -77,3 +77,47 @@ test("remapped keys persist across a reload, and Reset all brings the defaults b
   await page.reload();
   await expect(magnifier).toHaveText("M");
 });
+
+test("a remap in Settings reaches an already open editor and its displayed keys", async ({ page, context }) => {
+  await page.goto("/");
+  await expect(page.getByRole("button", { name: /^Arrow \(A\)/ })).toBeVisible();
+
+  const settings = await context.newPage(); // another window on the same stored settings
+  await settings.goto("/#settings");
+  await remap(settings, "Arrow", "k");
+  await expect(settings.getByRole("button", { name: "Change shortcut for Arrow" })).toHaveText("K");
+
+  const arrow = page.getByRole("button", { name: /^Arrow \(K\)/ }); // no reload of the editor
+  await expect(arrow).toBeVisible();
+  await page.keyboard.press("a");
+  await expect(arrow).toHaveAttribute("aria-pressed", "false");
+  await page.keyboard.press("k");
+  await expect(arrow).toHaveAttribute("aria-pressed", "true");
+
+  await settings.getByRole("button", { name: "Reset all shortcuts" }).click();
+  await expect(page.getByRole("button", { name: /^Arrow \(A\)/ })).toBeVisible();
+});
+
+test("while a text input has focus, bare keys are suspended and Ctrl/Alt combinations still work", async ({ page }) => {
+  await page.goto("/#settings");
+  await remap(page, "Arrow", "Alt+k");
+  await expect(page.getByRole("button", { name: "Change shortcut for Arrow" })).toHaveText("Alt+K");
+  await page.goto("/");
+  await page.reload();
+  const arrow = page.getByRole("button", { name: /^Arrow \(Alt\+K\)/ });
+  const line = page.getByRole("button", { name: /^Line \(L\)/ });
+  await expect(arrow).toBeVisible();
+
+  await page.waitForFunction(() => Boolean((window as unknown as { __fakeBridge?: unknown }).__fakeBridge));
+  await page.evaluate(() => {
+    const rgba = new Uint8Array(40 * 30 * 4).fill(200);
+    (window as unknown as { __fakeBridge: { simulateCapture(s: unknown): void } }).__fakeBridge.simulateCapture({ width: 40, height: 30, rgba });
+  });
+  await expect(page.getByRole("img", { name: "Capture" })).toBeVisible();
+  await page.getByRole("button", { name: /^Rectangle \(/ }).click(); // a drawing tool shows its Stroke group
+  await page.getByRole("textbox", { name: "Color hex", exact: true }).focus();
+  await page.keyboard.press("l"); // typed into the field, not a tool switch
+  await expect(line).toHaveAttribute("aria-pressed", "false");
+  await page.keyboard.press("Alt+k");
+  await expect(arrow).toHaveAttribute("aria-pressed", "true");
+});

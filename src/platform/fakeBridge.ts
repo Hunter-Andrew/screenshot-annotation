@@ -173,6 +173,14 @@ export function createFakeBridge(
   let toolStylesResets = 0;
   const toolStylesResetHandlers = new Set<() => void>();
   const magnifierHandlers = new Set<(enabled: boolean) => void>();
+  const shortcutHandlers = new Set<(overrides: Record<string, unknown>) => void>();
+  const readShortcuts = () => JSON.parse(store.getItem("fake.shortcuts") ?? "{}") as Record<string, unknown>;
+  // Another browser tab on the same localStorage stands for another window: tell this one too.
+  if (options.storage && typeof window !== "undefined") {
+    window.addEventListener("storage", (event) => {
+      if (event.key === "fake.shortcuts") shortcutHandlers.forEach((handler) => handler(readShortcuts()));
+    });
+  }
   const imageSettingsHandlers = new Set<(settings: ImageSettings) => void>();
   const readImageSettings = (): ImageSettings => {
     try {
@@ -630,6 +638,13 @@ export function createFakeBridge(
     getShortcutOverrides: async () => JSON.parse(store.getItem("fake.shortcuts") ?? "{}"),
     setShortcutOverrides: async (overrides) => {
       store.setItem("fake.shortcuts", JSON.stringify(overrides));
+      shortcutHandlers.forEach((handler) => handler(readShortcuts()));
+    },
+    onShortcutOverrides: async (handler) => {
+      shortcutHandlers.add(handler);
+      return () => {
+        shortcutHandlers.delete(handler);
+      };
     },
     savePngAs: async (png, suggestedName) => {
       if (cancelSaveAs) {

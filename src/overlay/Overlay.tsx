@@ -80,17 +80,25 @@ function ActiveOverlay({ bridge, monitor }: { bridge: PlatformBridge; monitor: n
   const imageRef = useRef<HTMLImageElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const finished = useRef(false);
-  // The user's remapped keys, read when this capture begins (live updates are ticket 48). Until the
-  // read returns, or if it fails, the defaults apply.
+  // The user's remapped keys: read when this capture begins and pushed here when Settings changes them.
+  // Until the read returns, or if it fails, the defaults apply.
   const [bindings, setBindings] = useState(() => defaultBindings("overlay"));
   useEffect(() => {
     let alive = true;
+    let off: (() => void) | undefined;
+    void bridge
+      .onShortcutOverrides((stored) => alive && setBindings(resolveBindings("overlay", stored)))
+      .then((unsubscribe) => {
+        if (alive) off = unsubscribe;
+        else unsubscribe();
+      });
     bridge.getShortcutOverrides().then(
       (stored) => alive && setBindings(resolveBindings("overlay", stored)),
       (e) => void bridge.logOverlay(`overlay ${monitor}: getShortcutOverrides failed: ${e}`),
     );
     return () => {
       alive = false;
+      off?.();
     };
   }, [bridge, monitor]);
 

@@ -91,8 +91,7 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
   const screenRef = useRef(screen);
   screenRef.current = screen;
   // Thumbnails picked with Ctrl/Shift+click, for deleting several at once.
-  // The user's remapped keys (ticket 47): read at start and again whenever the window gets focus, which is
-  // how a change made in Settings reaches an editor that was already open. Live push is ticket 48.
+  // The user's remapped keys: read at start, then pushed here whenever Settings changes them.
   const [bindings, setBindings] = useState<Bindings>(() => defaultBindings());
   useEffect(() => {
     let alive = true;
@@ -102,10 +101,16 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
         () => {},
       );
     void load();
-    window.addEventListener("focus", load);
+    let off: (() => void) | undefined;
+    void bridge
+      .onShortcutOverrides((stored) => alive && setBindings(resolveBindings("editor", stored)))
+      .then((unsubscribe) => {
+        if (alive) off = unsubscribe;
+        else unsubscribe();
+      });
     return () => {
       alive = false;
-      window.removeEventListener("focus", load);
+      off?.();
     };
   }, [bridge]);
   const [selection, setSelection] = useState(NO_SELECTION);

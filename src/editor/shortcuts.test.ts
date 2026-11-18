@@ -161,3 +161,17 @@ describe("keys while typing in a text field or the text box", () => {
     expect(allowedWhileTyping(null, key("x"))).toBe(false);
   });
 });
+
+describe("remapped keys while typing (ticket 48)", () => {
+  const bindings = { ...defaultBindings(), "tool.arrow": "Ctrl+K", "tool.line": "Alt+L", "tool.rect": "Shift+R" };
+
+  it("Ctrl and Alt combinations stay active, Shift-only keys are suspended", () => {
+    const ctrlK = key("k", { ctrl: true });
+    expect(allowedWhileTyping(actionForKeyEvent(ctrlK, bindings), ctrlK)).toBe(true);
+    const altL = key("l", { alt: true });
+    expect(allowedWhileTyping(actionForKeyEvent(altL, bindings), altL)).toBe(true);
+    const shiftR = key("r", { shift: true });
+    expect(actionForKeyEvent(shiftR, bindings)).toBe("tool.rect");
+    expect(allowedWhileTyping("tool.rect", shiftR)).toBe(false);
+  });
+});
