@@ -110,7 +110,7 @@ export function ShortcutsSection({ bridge }: { bridge: PlatformBridge }) {
                     </span>
                   )}
                   {problem?.id === action.id && (
-                    <p role="alert" style={{ color: "#b00020", flexBasis: "100%", margin: "2px 0" }}>
+                    <p role="alert" className="error" style={{ flexBasis: "100%", margin: "2px 0" }}>
                       {problem.message}
                     </p>
                   )}

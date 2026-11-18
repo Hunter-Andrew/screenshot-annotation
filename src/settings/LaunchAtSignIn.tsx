@@ -49,7 +49,7 @@ export function LaunchAtSignIn({ bridge }: { bridge: PlatformBridge }) {
         />{" "}
         Launch at sign-in
       </label>
-      <p style={{ margin: "4px 0", color: "#666" }}>
+      <p className="muted" style={{ margin: "4px 0" }}>
         Starts in the system tray when you sign in to Windows, so the capture hotkey always works.
       </p>
       {problem && <p role="alert">{problem}</p>}

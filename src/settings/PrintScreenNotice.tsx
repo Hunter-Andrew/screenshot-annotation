@@ -25,7 +25,7 @@ export function PrintScreenNotice({ bridge }: { bridge: PlatformBridge }) {
     setVisible(false);
   };
   return (
-    <section aria-labelledby="ps-heading" style={{ border: "1px solid #888", padding: 8, margin: "8px 0" }}>
+    <section aria-labelledby="ps-heading" className="notice">
       <h2 id="ps-heading" style={{ fontSize: 15 }}>
         Print Screen
       </h2>

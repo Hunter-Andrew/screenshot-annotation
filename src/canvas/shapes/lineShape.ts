@@ -1,6 +1,7 @@
 // The Fabric object that draws and edits a Line: like an Arrow (see arrowShape.ts) it is a plain
 // FabricObject whose box is the line's bounds, with one control on each end point; dragging the line
 // moves it. It draws the same way in the editor and in the Export.
+import { SELECTION_COLOR } from "../selectionColor";
 import { Control, FabricObject, Point } from "fabric";
 import { lineBounds, type LineAnnotation } from "../../core/annotations/line";
 
@@ -32,7 +33,7 @@ export class LineShape extends FabricObject {
       cornerSize: HANDLE_RADIUS * 2,
       transparentCorners: false,
       cornerColor: "#ffffff",
-      cornerStrokeColor: "#2f5bea",
+      cornerStrokeColor: SELECTION_COLOR,
     });
     this.controls = { start: this.endControl("start"), end: this.endControl("end") };
     this.setModel(annotation);

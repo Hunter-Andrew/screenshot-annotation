@@ -116,7 +116,7 @@ export function HotkeyRecorder({ bridge }: { bridge: PlatformBridge }) {
         {recording ? "Press a key combination… (Esc to cancel)" : current === null ? "…" : formatCombo(current)}
       </button>
       {problem !== null && (
-        <p role="alert" style={{ color: "#b00020" }}>
+        <p role="alert" className="error">
           {describe(problem)}
         </p>
       )}
@@ -127,7 +127,7 @@ export function HotkeyRecorder({ bridge }: { bridge: PlatformBridge }) {
         </p>
       )}
       {warn && (
-        <div role="status" style={{ border: "1px solid #b26a00", padding: 8, margin: "8px 0" }}>
+        <div role="status" className="notice">
           <p style={{ margin: "0 0 8px" }}>
             Windows will keep sending Print Screen to Snipping Tool, so Snipping Tool opens as well as the capture
             overlay, until you turn off &ldquo;Use the Print screen button to open screen capturing&rdquo; in

@@ -1,0 +1,43 @@
+/* Settings and About (one window, no .editor around it): the same palette, section headers in the second accent. */
+html:has(.settings),
+html:has(.settings) body {
+  margin: 0;
+  background: var(--chrome);
+}
+.settings {
+  min-height: 100vh;
+  box-sizing: border-box;
+  color: var(--fg);
+  background: var(--chrome);
+}
+.settings h2 {
+  color: var(--accent2-text);
+}
+.settings button {
+  font: inherit;
+  color: inherit;
+  background: var(--chrome);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 4px 10px;
+  cursor: pointer;
+}
+.settings button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.settings .muted {
+  color: var(--muted);
+}
+.settings .error {
+  color: var(--danger);
+}
+.settings .notice {
+  border: 1px solid var(--warn);
+  padding: 8px;
+  margin: 8px 0;
+}
+.settings :focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}

@@ -2,6 +2,7 @@
 // bounds; it draws with `arrowGeometry` (the same geometry the Export renderer uses) and has just two
 // controls, one on each end point, instead of the usual eight scale handles: resizing an arrow means
 // moving an end. Dragging the line moves the whole arrow.
+import { SELECTION_COLOR } from "../selectionColor";
 import { Control, FabricObject, Point } from "fabric";
 import { arrowBounds, arrowGeometry, type ArrowAnnotation } from "../../core/annotations/arrow";
 
@@ -36,7 +37,7 @@ export class ArrowShape extends FabricObject {
       cornerSize: HANDLE_RADIUS * 2,
       transparentCorners: false,
       cornerColor: "#ffffff",
-      cornerStrokeColor: "#2f5bea",
+      cornerStrokeColor: SELECTION_COLOR,
     });
     this.controls = { start: this.endControl("start"), end: this.endControl("end") };
     this.setModel(annotation);

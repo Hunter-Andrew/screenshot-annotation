@@ -1,15 +1,6 @@
 /* Layout A (ticket 04): top bar, tool column left, the canvas in a neutral well, Style panel right,
    the Library Strip along the bottom (ticket 14) above the status bar. */
 .editor {
-  --bg: #eef0f4;
-  --chrome: #ffffff;
-  --fg: #1b1e27;
-  --muted: #5f6676;
-  --line: #d8dbe3;
-  --accent: #2f5bea;
-  --accent-fg: #ffffff;
-  --well: #c9cdd6;
-  --pressed: #dfe6fd;
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) 232px;
   grid-template-rows: auto minmax(0, 1fr) auto auto;
@@ -23,19 +14,10 @@
   color: var(--fg);
   background: var(--chrome);
 }
-@media (prefers-color-scheme: dark) {
-  .editor {
-    --bg: #15171d;
-    --chrome: #1f222b;
-    --fg: #e8eaf0;
-    --muted: #9aa1b2;
-    --line: #333847;
-    --accent: #6d8cff;
-    --accent-fg: #0d1020;
-    --well: #0e1015;
-    --pressed: #2b3558;
-    color-scheme: dark;
-  }
+/* Colours come from the shared palette in src/shared/theme.css (ticket 42). */
+.editor :focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
 }
 
 .editor button {
@@ -54,9 +36,11 @@
      the drag ended); let the pointer fall through to what is beneath. */
   pointer-events: none;
 }
+/* A toggle that is on: the second accent (green). The selected tool overrides this with the main accent. */
 .editor button[aria-pressed="true"] {
-  background: var(--pressed);
-  border-color: var(--accent);
+  background: var(--pressed2);
+  border-color: var(--accent2);
+  color: var(--accent2-text);
 }
 .editor button.primary {
   background: var(--accent);
@@ -106,11 +90,14 @@
 }
 /* Selected tool: the accent border and tint from the shared pressed style, plus an accent icon, a bold name and a bar on the left. */
 .tools .tool[aria-pressed="true"] {
+  background: var(--pressed);
+  border-color: var(--accent);
+  color: var(--fg);
   border-width: 1px 1px 1px 4px;
   font-weight: 600;
 }
 .tools .tool[aria-pressed="true"] .tool-icon {
-  color: var(--accent);
+  color: var(--accent-text);
 }
 .tools kbd {
   font: 12px ui-monospace, monospace;
@@ -223,7 +210,7 @@
   gap: 8px;
   margin: 0 0 12px;
   padding: 8px;
-  border: 1px solid var(--accent);
+  border: 1px solid var(--accent2);
   border-radius: 6px;
   cursor: pointer;
 }
@@ -233,7 +220,7 @@
 .style-panel h3 {
   margin: 0 0 6px;
   font-size: 12px;
-  color: var(--muted);
+  color: var(--accent2-text);
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
@@ -258,7 +245,7 @@
   border: 1px solid var(--line);
 }
 .editor .swatch[aria-pressed="true"] {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--focus);
   outline-offset: 2px;
 }
 .custom-color {
@@ -276,14 +263,14 @@
   font: 12px ui-monospace, Consolas, monospace;
 }
 .editor .swatches .hex-input.invalid {
-  border-color: #e02424;
-  outline: 1px solid #e02424;
+  border-color: var(--danger);
+  outline: 1px solid var(--danger);
   background: rgba(224, 36, 36, 0.12);
 }
 .hex-error {
   margin: -4px 0 8px;
   font-size: 12px;
-  color: #e02424;
+  color: var(--danger);
 }
 .style-panel .row {
   display: flex;
@@ -404,11 +391,11 @@
   text-align: left;
 }
 .editor .lib-card[data-current="true"] .lib-open {
-  border-color: var(--accent);
+  border-color: var(--accent2);
 }
 .editor .lib-card[data-selected="true"] .lib-open {
-  background: var(--pressed);
-  outline: 3px solid var(--accent);
+  background: var(--pressed2);
+  outline: 3px solid var(--accent2);
   outline-offset: -1px;
 }
 .lib-thumb {
@@ -481,8 +468,8 @@
   font-size: 12px;
 }
 .editor .grid-header button.danger {
-  border-color: #e02424;
-  color: #e02424;
+  border-color: var(--danger);
+  color: var(--danger);
 }
 .grid-body {
   flex: 1;
@@ -525,13 +512,13 @@
   gap: 12px;
   padding: 8px 8px 8px 16px;
   border-radius: 8px;
-  background: #1b1e27;
-  color: #ffffff;
+  background: var(--toast-bg);
+  color: var(--toast-fg);
   box-shadow: 0 4px 18px rgba(0, 0, 0, 0.35);
 }
 .editor .undo-notice button {
-  color: #ffffff;
+  color: var(--toast-fg);
   background: transparent;
-  border-color: #6d8cff;
+  border-color: var(--toast-accent);
   font-weight: 600;
 }
