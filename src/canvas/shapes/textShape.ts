@@ -86,6 +86,11 @@ export class TextShape extends Textbox {
     this.on("mousedblclick", () => {
       if (!this.isEditing && this.canvas) this.beginEditing();
     });
+    // A press on the text being typed in (to put the caret, or to drag-select) must not take the focus off the hidden
+    // textarea: the blur would end the edit (see `initHiddenTextarea`) before the drag could select anything.
+    this.on("mousedown", ({ e }) => {
+      if (this.isEditing) e.preventDefault();
+    });
     this.on("editing:exited", () => {
       // A change of look alone (Ctrl+U, or the Style panel's Font on a selection) changes no words, so Fabric reports nothing: tell the canvas the Annotation was modified.
       if (this.underlineToggled) {

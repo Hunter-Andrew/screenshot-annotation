@@ -1,8 +1,8 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
 import { createFromCapture, decodeLibraryPng, encodeLibraryPng, exportPng } from "./annotatedImage";
-import type { RectAnnotation } from "./annotation";
-import { AREA_LIMIT_MESSAGE, followAreaEdit, limitArea, limitPoint, MAX_AREA_SIDE, setAreaEdit, shiftIntoLimit, visibleAreaOf } from "./area";
+import type { Annotation, RectAnnotation } from "./annotation";
+import { AREA_LIMIT_MESSAGE, followAreaEdit, growsArea, limitArea, limitPoint, MAX_AREA_SIDE, setAreaEdit, shiftIntoLimit, visibleAreaOf } from "./area";
 import { createEditSession } from "./editSession";
 import { parseHistory, serializeHistory } from "./historyFile";
 import { encodeRgbaPng } from "./png";
@@ -215,6 +215,61 @@ describe("auto-grow", () => {
     expect(second.undo()).toBe(true);
     expect(second.image.model.crop).toBeNull();
     expect(second.image.model.annotations).toEqual([]);
+  });
+});
+
+describe("kinds that never grow the area (Pen, Highlighter, Blur)", () => {
+  const far = { x: 90, y: 70, width: 80, height: 40 };
+  const pen = (id: string, x = 90): Annotation => ({ id, type: "pen", points: [{ x, y: 70 }, { x: x + 80, y: 110 }], stroke: { color: "#e02424", width: 4 } }) as Annotation;
+  const highlight = (id: string): Annotation => ({ id, type: "highlight", points: [{ x: 90, y: 70 }, { x: 170, y: 70 }], stroke: { color: "#facc15", width: 20 }, opacity: 0.4 }) as unknown as Annotation;
+  const blur = (id: string): Annotation => ({ id, type: "blur", x: 90, y: 70, width: 80, height: 40, strength: 10 }) as unknown as Annotation;
+
+  it("says which kinds grow", () => {
+    expect(["pen", "highlight", "blur"].map((t) => growsArea(t as Annotation["type"]))).toEqual([false, false, false]);
+    expect(["arrow", "line", "rect", "ellipse", "text", "callout", "image"].every((t) => growsArea(t as Annotation["type"]))).toBe(true);
+  });
+
+  it.each([["pen", pen("a")], ["highlight", highlight("a")], ["blur", blur("a")]])("a %s added past the edge leaves the area, and the edit, as they are", (_name, annotation) => {
+    const session = make();
+    const followed = followAreaEdit(session.image, { kind: "add", annotation }, far, "white");
+    expect(followed.edit.kind).toBe("add");
+    session.apply(followed.edit);
+    expect(session.image.model.crop ?? null).toBeNull();
+    expect(session.image.model.background).toBeUndefined();
+    expect(session.image.model.grownBy).toBeUndefined();
+  });
+
+  it("moving or resizing one past the edge does not grow it, and no growth is recorded", () => {
+    const session = make();
+    session.apply({ kind: "add", annotation: blur("b") });
+    session.apply(followAreaEdit(session.image, { kind: "update", id: "b", patch: { x: 150, width: 200 } }, { x: 150, y: 70, width: 200, height: 40 }, "white").edit);
+    expect(session.image.model.crop ?? null).toBeNull();
+    expect(session.image.model.grownBy).toBeUndefined();
+  });
+
+  it("is outside the 8192 limit's concern: a huge one is no growth, so nothing is limited", () => {
+    const session = make();
+    const followed = followAreaEdit(session.image, { kind: "add", annotation: highlight("h") }, { x: 0, y: 0, width: 20000, height: 10 }, "white");
+    expect(followed.limited).toBe(false);
+  });
+
+  it("a shape growing the area is not held open by a Pen next to it, and shrinks back on its own", () => {
+    const session = make();
+    session.apply(followAreaEdit(session.image, { kind: "add", annotation: rect("r", 90, 10, 40, 10) }, { x: 88, y: 8, width: 44, height: 14 }, "white").edit);
+    session.apply(followAreaEdit(session.image, { kind: "add", annotation: pen("p") }, far, "white").edit);
+    expect(session.image.model.crop!.width).toBe(132);
+    session.apply(followAreaEdit(session.image, { kind: "delete", id: "r" }, undefined, "white").edit);
+    expect(session.image.model.crop ?? null).toBeNull();
+    expect(session.image.model.annotations.map((a) => a.id)).toEqual(["p"]);
+  });
+
+  it("an area an older version grew for a Pen is let go when that Pen changes", () => {
+    const session = make();
+    // The old behaviour: the Pen is recorded as a cause (a saved history can hold this).
+    session.apply({ kind: "add", annotation: pen("p") });
+    session.apply({ kind: "batch", edits: [{ kind: "setCrop", crop: { x: 0, y: 0, width: 170, height: 110 } }, { kind: "setGrowth", growth: { base: { x: 0, y: 0, width: 100, height: 80 }, causes: [{ id: "p", bounds: far }] } }] });
+    session.apply(followAreaEdit(session.image, { kind: "update", id: "p", patch: { points: [{ x: 1, y: 1 }, { x: 5, y: 5 }] } }, { x: 1, y: 1, width: 4, height: 4 }, "white").edit);
+    expect(session.image.model.crop ?? null).toBeNull();
   });
 });
 

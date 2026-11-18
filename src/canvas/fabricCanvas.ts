@@ -3,12 +3,12 @@
 // ./shapes, and follows the model (`sync`). User gestures leave through `CanvasEvents` as model edits;
 // the canvas never keeps state of its own that the model does not have.
 import { Canvas, type FabricObject, FabricImage, Rect } from "fabric";
-import { backgroundFill, limitPoint, shiftIntoLimit } from "../core/area";
+import { backgroundFill, growsArea, limitPoint, shiftIntoLimit } from "../core/area";
 import { kindOf } from "../core/annotations";
 import { erasePieces } from "../core/annotations/erase";
 import type { Point } from "../core/annotations";
 import { cropFromDrag, MIN_CROP } from "../core/crop";
-import { newAnnotationId, type Annotation, type AnnotationModel, type Crop } from "../core/annotation";
+import { newAnnotationId, type Annotation, type AnnotationType, type AnnotationModel, type Crop } from "../core/annotation";
 import { DEFAULT_ERASER_SIZE, type Style } from "../core/propertyGroups";
 import { CALLOUT_TAIL_PERCENT } from "../shared/imageSettings";
 import { Backdrop } from "./backdrop";
@@ -119,6 +119,8 @@ export function createFabricCanvas(host: HTMLElement, { events, imageUrl, layout
   let held = false;
   /** `p` held back at the limit of the visible area extended by `anchor` (where the gesture started). */
   const reach = (p: Point, anchor?: Point): Point => {
+    // A Pen, Highlighter or Blur drag never grows the area, so there is no limit to hold it to.
+    if (tool !== CROP && tool !== SELECT && !growsArea(tool as AnnotationType)) return p;
     const area = layout.area;
     const base = anchor
       ? {
@@ -285,6 +287,8 @@ export function createFabricCanvas(host: HTMLElement, { events, imageUrl, layout
   // An Annotation may be moved anywhere the pointer goes, until the visible area would pass the 8192 px limit.
   canvas.on("object:moving", ({ target }) => {
     if (!target || target === frame || !idOf.has(target)) return;
+    const type = applied.get(idOf.get(target)!)?.type;
+    if (type && !growsArea(type)) return;
     const { dx, dy } = shiftIntoLimit(layout.area, boundsOf(target));
     if (dx !== 0 || dy !== 0) {
       held = true;
