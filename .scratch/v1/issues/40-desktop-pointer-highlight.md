@@ -19,3 +19,12 @@
 **Status:** needs-triage
 
 Spec: `.scratch/snagit-clone/spec.md`. Planned for M6 (v1.0.0, moved from M5 on 2026-11-18); requested by Andrew on 2026-11-17.
+
+## Decisions (grilling, 2026-11-18)
+
+1. **Moved to M6 (v1.0.0)**, together with ticket 41. v1.0.0 is released only when M6 is finished.
+2. **Absorbs ticket 39:** the editor's tool column gets a button that toggles this global pointer (not an editor-only pointer).
+3. **Look: a red "laser dot"** (option C in `.scratch/v1/prototypes/m5-pointer-and-palette.html`): a bright red dot with a soft glow. Default colour red, configurable in Settings.
+4. **Size:** Small / Medium / Large in Settings (default Medium).
+5. **Click ripple:** a brief expanding ring (~400 ms) on click, **on/off in Settings**.
+6. Still open (grill at M6): exact sizes and opacity, idle hide, multi-monitor and mixed-DPI, hotkey default, tray menu state, persistence across restarts.

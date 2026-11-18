@@ -4,7 +4,7 @@
 
 **Blocked by:** nothing (M4 shipped as v0.5.0).
 
-**Status:** needs-triage
+**Status:** ready-for-agent
 
 ## Open questions (grill before building)
 
@@ -16,3 +16,17 @@
 - Scope guard: purely visual, no layout or behaviour changes; existing e2e locators must keep working.
 
 Spec: `.scratch/snagit-clone/spec.md`. Planned for M5 (v0.6.0).
+
+## Decisions (grilling, 2026-11-18)
+
+1. **Palette: option 3** in `.scratch/v1/prototypes/m5-pointer-and-palette.html`: **purple leads, green is the second accent.**
+   - Main accent (selected tool, Copy as the primary button, canvas selection handles and border, focus ring): purple. Light theme `#520DF2` (Andrew's pick) with white text; dark theme `#6d32f5` with white text.
+   - Second accent (Style panel section headers, toggles, Library Strip and grid selection): green. Light theme `#15803d`; dark theme fills `#22c55e`, text `#4ade80`.
+   - The old blue `#2f5bea` goes everywhere, including `src/canvas/shapes/lineShape.ts` and `boxShapes.ts`.
+2. **Every colour pair meets WCAG AA**; keyboard focus stays clearly visible.
+3. **Both themes** get the palette; the app keeps following the system theme (no theme picker).
+4. **Every window:** editor, Library Strip and grid, Settings, About, toasts.
+5. **Flat:** no gradients, no per-tool icon colours.
+6. **Visual only:** no layout or behaviour changes; existing e2e locators keep working.
+7. **The Annotation palette (the 8 colours, ColorField) is unchanged:** annotation colours are the user's content, not the app's chrome.
+8. **Built last in M5**, after 43, 44 and 28, so it restyles the finished UI once.
