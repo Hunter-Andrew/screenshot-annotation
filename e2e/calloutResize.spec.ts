@@ -152,12 +152,12 @@ test("with the real pointer: dragging a side handle of a saved callout leaves it
       return file ? (decodeLibraryPng(file.bytes).model.annotations as never) : [];
     });
 
-  // Draw a callout with its tail on: press (100,100) is the tip, release (340,180) the far corner.
+  // Draw a callout with its tail on: press (100,100) is the tip, the box starts at the release (180,140).
   await page.keyboard.press("o");
   const press = at(100, 100);
   await page.mouse.move(press.x, press.y);
   await page.mouse.down();
-  await page.mouse.move(at(340, 180).x, at(340, 180).y, { steps: 8 });
+  await page.mouse.move(at(180, 140).x, at(180, 140).y, { steps: 8 });
   await page.mouse.up();
   await page.keyboard.type("Hi");
   await page.keyboard.press("Escape");

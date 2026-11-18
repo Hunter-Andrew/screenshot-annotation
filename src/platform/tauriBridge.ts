@@ -154,7 +154,6 @@ export function createTauriBridge(): PlatformBridge {
     getImageSettings: async () => sanitizeImageSettings(await invoke<unknown>("get_image_settings")),
     setImageBackground: (background) => invoke<void>("set_image_background", { background }),
     setCheckerboard: (theme) => invoke<void>("set_checkerboard", { theme }),
-    setCalloutTailPercent: (percent) => invoke<void>("set_callout_tail_percent", { percent }),
     setCanvasMargin: (pixels) => invoke<void>("set_canvas_margin", { pixels }),
     setOutsideDarkness: (percent) => invoke<void>("set_outside_darkness", { percent }),
     setShowOutsideDefault: (show) => invoke<void>("set_show_outside_default", { show }),

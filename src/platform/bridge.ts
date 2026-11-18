@@ -237,8 +237,6 @@ export interface PlatformBridge {
   setImageBackground(background: Background): Promise<void>;
   /** Store the checkerboard choice and tell every window via `onImageSettings`. */
   setCheckerboard(theme: CheckerboardTheme): Promise<void>;
-  /** Store the callout tail length (percent of the draw drag, 5 to 50). A value outside the range is refused. */
-  setCalloutTailPercent(percent: number): Promise<void>;
   /** Store the canvas margin in pixels (16 to 200). A value outside the range is refused. */
   setCanvasMargin(pixels: number): Promise<void>;
   /** Store how dark the outside of the canvas is shown, in percent (0 to 99.9, to a tenth). A value outside the range, or with more decimals, is refused. */

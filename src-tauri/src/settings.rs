@@ -22,7 +22,6 @@
 //!   those). The image keeps its own choice once it has one; this is only where it starts.
 //! - `transparencyCheckerboard`: "light" (the default) or "dark": the checkerboard drawn behind transparent
 //!   pixels in the editor and the Library. It changes how transparency looks, never an exported picture.
-//! - `calloutTailPercent` (5 to 50, default 20): how much of a callout's draw drag its tail takes.
 //! - `canvasMargin` (16 to 200 pixels, default 48): the room kept around the canvas in the editor view.
 //! - `outsideDarkness` (0 to 99.9 percent, to a tenth, default 95): how dark the area outside the canvas is shown.
 //!   A stored value such as 60 stays as stored; one with more decimals is rounded to a tenth.
@@ -66,9 +65,6 @@ pub struct Settings {
     /// The checkerboard behind transparent pixels: one of `CHECKERBOARDS`.
     #[serde(deserialize_with = "checkerboard_or_default")]
     pub transparency_checkerboard: String,
-    /// How much of a callout's draw drag its tail takes, in percent (`CALLOUT_TAIL_PERCENT`).
-    #[serde(deserialize_with = "callout_tail_percent_or_default")]
-    pub callout_tail_percent: u32,
     /// The room kept around the canvas in the editor view, in pixels (`CANVAS_MARGIN`).
     #[serde(deserialize_with = "canvas_margin_or_default")]
     pub canvas_margin: u32,
@@ -126,7 +122,6 @@ impl DecimalRange {
     }
 }
 
-pub const CALLOUT_TAIL_PERCENT: Range = Range { min: 5, max: 50, default: 20 };
 pub const CANVAS_MARGIN: Range = Range { min: 16, max: 200, default: 48 };
 pub const OUTSIDE_DARKNESS: DecimalRange = DecimalRange { min: 0.0, max: 99.9, default: 95.0 };
 pub const DEFAULT_SHOW_OUTSIDE: bool = true;
@@ -137,7 +132,6 @@ pub const DEFAULT_SHOW_OUTSIDE: bool = true;
 pub struct ImageSettings {
     pub background: String,
     pub checkerboard: String,
-    pub callout_tail_percent: u32,
     pub canvas_margin: u32,
     pub outside_darkness: f64,
     pub show_outside_default: bool,
@@ -182,10 +176,6 @@ fn tenths_in<'de, D: serde::Deserializer<'de>>(d: D, range: DecimalRange) -> Res
     })
 }
 
-fn callout_tail_percent_or_default<'de, D: serde::Deserializer<'de>>(d: D) -> Result<u32, D::Error> {
-    number_in(d, CALLOUT_TAIL_PERCENT)
-}
-
 fn canvas_margin_or_default<'de, D: serde::Deserializer<'de>>(d: D) -> Result<u32, D::Error> {
     number_in(d, CANVAS_MARGIN)
 }
@@ -206,7 +196,6 @@ impl Settings {
         ImageSettings {
             background: self.image_background.clone(),
             checkerboard: self.transparency_checkerboard.clone(),
-            callout_tail_percent: self.callout_tail_percent,
             canvas_margin: self.canvas_margin,
             outside_darkness: self.outside_darkness,
             show_outside_default: self.show_outside_default,
@@ -225,7 +214,6 @@ impl Default for Settings {
             tray_notice_shown: false,
             image_background: DEFAULT_IMAGE_BACKGROUND.into(),
             transparency_checkerboard: DEFAULT_CHECKERBOARD.into(),
-            callout_tail_percent: CALLOUT_TAIL_PERCENT.default,
             canvas_margin: CANVAS_MARGIN.default,
             outside_darkness: OUTSIDE_DARKNESS.default,
             show_outside_default: DEFAULT_SHOW_OUTSIDE,
@@ -329,15 +317,6 @@ pub fn set_transparency_checkerboard(dir: &Path, settings: &mut Settings, theme:
 
 fn out_of_range(what: &str, value: u32, range: Range) -> io::Error {
     io::Error::new(io::ErrorKind::InvalidInput, format!("{value} is not a {what} ({} to {})", range.min, range.max))
-}
-
-/// Sets the callout tail percentage; a value outside `CALLOUT_TAIL_PERCENT` changes nothing. Same save rules as the others.
-pub fn set_callout_tail_percent(dir: &Path, settings: &mut Settings, value: u32) -> io::Result<()> {
-    if !CALLOUT_TAIL_PERCENT.contains(value) {
-        return Err(out_of_range("callout tail percentage", value, CALLOUT_TAIL_PERCENT));
-    }
-    settings.callout_tail_percent = value;
-    save(dir, settings)
 }
 
 /// Sets the canvas margin in pixels; a value outside `CANVAS_MARGIN` changes nothing.
@@ -657,7 +636,6 @@ mod tests {
             ImageSettings {
                 background: "transparent".into(),
                 checkerboard: "light".into(),
-                callout_tail_percent: 20,
                 canvas_margin: 48,
                 outside_darkness: 95.0,
                 show_outside_default: true,
@@ -668,7 +646,6 @@ mod tests {
     #[test]
     fn the_image_settings_reach_the_page_in_camel_case() {
         let json = serde_json::to_value(Settings::default().image_settings()).unwrap();
-        assert_eq!(json["calloutTailPercent"], 20);
         assert_eq!(json["canvasMargin"], 48);
         assert_eq!(json["outsideDarkness"], 95.0);
         assert_eq!(json["showOutsideDefault"], true);
@@ -689,12 +666,6 @@ mod tests {
     fn the_numeric_settings_are_validated_on_set_and_clamped_or_defaulted_on_load() {
         let dir = temp_dir("numeric");
         let mut s = Settings::default();
-        for (bad, ok) in [(4u32, 5u32), (51, 50)] {
-            assert!(set_callout_tail_percent(&dir, &mut s, bad).is_err());
-            assert_ne!(s.callout_tail_percent, bad);
-            set_callout_tail_percent(&dir, &mut s, ok).unwrap();
-            assert_eq!(s.callout_tail_percent, ok);
-        }
         assert!(set_canvas_margin(&dir, &mut s, 15).is_err());
         assert!(set_canvas_margin(&dir, &mut s, 201).is_err());
         set_canvas_margin(&dir, &mut s, 200).unwrap();
@@ -710,18 +681,18 @@ mod tests {
         let back = load(&dir);
         assert_eq!((back.canvas_margin, back.outside_darkness, back.show_outside_default), (200, 0.0, false));
         let text = fs::read_to_string(dir.join(FILE_NAME)).unwrap();
-        assert!(text.contains("\"calloutTailPercent\": 50") && text.contains("\"showOutsideDefault\": false"), "{text}");
+        assert!(text.contains("\"canvasMargin\": 200") && text.contains("\"showOutsideDefault\": false"), "{text}");
 
         fs::write(
             dir.join(FILE_NAME),
-            br#"{"calloutTailPercent":99,"canvasMargin":3,"outsideDarkness":"x","showOutsideDefault":"no"}"#,
+            br#"{"canvasMargin":3,"outsideDarkness":"x","showOutsideDefault":"no"}"#,
         )
         .unwrap();
         let back = load(&dir);
-        assert_eq!((back.callout_tail_percent, back.canvas_margin, back.outside_darkness, back.show_outside_default), (50, 16, 95.0, true));
-        fs::write(dir.join(FILE_NAME), br#"{"calloutTailPercent":-3,"canvasMargin":1.5,"outsideDarkness":null}"#).unwrap();
+        assert_eq!((back.canvas_margin, back.outside_darkness, back.show_outside_default), (16, 95.0, true));
+        fs::write(dir.join(FILE_NAME), br#"{"canvasMargin":1.5,"outsideDarkness":null}"#).unwrap();
         let back = load(&dir);
-        assert_eq!((back.callout_tail_percent, back.canvas_margin, back.outside_darkness), (5, 48, 95.0));
+        assert_eq!((back.canvas_margin, back.outside_darkness), (48, 95.0));
         // A stored whole number stays as stored; a fraction is kept to a tenth; a value past the range is brought into it.
         for (stored, expected) in [("60", 60.0), ("72.5", 72.5), ("72.54", 72.5), ("99.9", 99.9), ("100", 99.9), ("-4", 0.0), ("0", 0.0)] {
             fs::write(dir.join(FILE_NAME), format!(r#"{{"outsideDarkness":{stored}}}"#)).unwrap();

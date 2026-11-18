@@ -3,7 +3,6 @@ import type { Background } from "../core/annotation";
 import { BACKGROUND_LABELS, BACKGROUNDS, isBackground } from "../core/area";
 import type { PlatformBridge } from "../platform/bridge";
 import {
-  CALLOUT_TAIL_PERCENT,
   CANVAS_MARGIN,
   CHECKERBOARD_THEMES,
   type CheckerboardTheme,
@@ -165,13 +164,6 @@ export function ImageSettingsSection({ bridge }: { bridge: PlatformBridge }) {
         <br />
         <small>How transparent areas look in the editor and the Library; never in an exported picture.</small>
       </p>
-      <NumberSetting
-        label="Callout tail length (% of drag)"
-        hint="How much of the drag that draws a callout becomes its tail."
-        range={CALLOUT_TAIL_PERCENT}
-        value={settings?.calloutTailPercent}
-        onCommit={(value) => save({ calloutTailPercent: value }, () => bridge.setCalloutTailPercent(value), "setCalloutTailPercent")}
-      />
       <NumberSetting
         label="Canvas margin (px)"
         hint="Room kept around the canvas in the editor."
