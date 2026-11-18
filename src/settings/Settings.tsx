@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import type { PlatformBridge } from "../platform/bridge";
 import { MAIN_STYLE, RELEASES_URL } from "../shared/constants";
-import { HotkeyRecorder } from "./HotkeyRecorder";
+import { ShortcutsSection } from "./ShortcutsSection";
 import { LaunchAtSignIn } from "./LaunchAtSignIn";
 import { ImageSettingsSection } from "./ImageSettingsSection";
 import { LibraryFolder } from "./LibraryFolder";
@@ -18,7 +18,7 @@ export function Settings({ bridge }: { bridge: PlatformBridge }) {
   return (
     <main style={MAIN_STYLE}>
       <h1 style={{ fontSize: 18 }}>Settings</h1>
-      <HotkeyRecorder bridge={bridge} />
+      <ShortcutsSection bridge={bridge} />
       <PrintScreenNotice bridge={bridge} />
       <MagnifierSetting bridge={bridge} />
       <ImageSettingsSection bridge={bridge} />
