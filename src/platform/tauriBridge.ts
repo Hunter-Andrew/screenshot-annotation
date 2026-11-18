@@ -163,6 +163,8 @@ export function createTauriBridge(): PlatformBridge {
     onImageSettings: (handler) => listen<unknown>("image-settings", (event) => handler(sanitizeImageSettings(event.payload))),
     getToolStyles: () => invoke<Record<string, unknown>>("get_tool_styles"),
     setToolStyles: (styles) => invoke<void>("set_tool_styles", { styles }),
+    getShortcutOverrides: () => invoke<Record<string, unknown>>("get_shortcut_overrides"),
+    setShortcutOverrides: (overrides) => invoke<void>("set_shortcut_overrides", { overrides }),
     savePngAs: (png, suggestedName) =>
       invoke<string | null>("save_png_as", png, { headers: { "x-suggested-name": suggestedName } }),
     discardLibraryFile: (path) => invoke<void>("library_discard", { path }),

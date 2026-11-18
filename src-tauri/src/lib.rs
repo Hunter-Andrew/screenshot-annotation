@@ -412,6 +412,22 @@ fn set_tool_styles(state: tauri::State<'_, AppSettings>, styles: serde_json::Map
     }
 }
 
+/// The user's changed keyboard shortcuts (action id to key), as stored in settings.json; the front
+/// end validates what it reads.
+#[tauri::command]
+fn get_shortcut_overrides(state: tauri::State<'_, AppSettings>) -> serde_json::Map<String, serde_json::Value> {
+    state.data.lock().unwrap().shortcuts.clone()
+}
+
+/// Stores the shortcut overrides at once. A failed write is logged and the value stays in memory for this run.
+#[tauri::command]
+fn set_shortcut_overrides(state: tauri::State<'_, AppSettings>, overrides: serde_json::Map<String, serde_json::Value>) {
+    let mut data = state.data.lock().unwrap();
+    if let Err(e) = settings::set_shortcuts(&state.dir, &mut data, overrides) {
+        diag::log(&format!("shortcuts changed; could not save settings.json (kept in memory): {e}"));
+    }
+}
+
 /// Whether the app starts when the user signs in to Windows (default on; stored in settings.json).
 #[tauri::command]
 fn get_launch_at_sign_in(state: tauri::State<'_, AppSettings>) -> bool {
@@ -1120,6 +1136,8 @@ pub fn run() {
             open_keyboard_settings,
             get_tool_styles,
             set_tool_styles,
+            get_shortcut_overrides,
+            set_shortcut_overrides,
             overlay::overlay_frame,
             overlay::overlay_windows,
             overlay::overlay_attempt,

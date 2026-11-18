@@ -91,8 +91,11 @@ type KeyEventLike = Pick<KeyboardEvent, "key" | "ctrlKey" | "altKey" | "metaKey"
 export function actionForKeyEvent(event: KeyEventLike, bindings: Bindings): string | null {
   if (event.metaKey) return null;
   const pressed = event.key === "+" ? "=" : event.key === " " ? "space" : event.key.toLowerCase();
-  for (const [action, spec] of Object.entries(bindings)) {
-    const binding = parseKey(spec);
+  // Bindings that spell Shift out are tried first, so Ctrl+Shift+K is never shadowed by a plain Ctrl+K
+  // (which also matches with Shift held) whatever order the bindings were built in.
+  const candidates = Object.entries(bindings).map(([action, spec]) => ({ action, binding: parseKey(spec) }));
+  candidates.sort((a, b) => Number(b.binding.shift) - Number(a.binding.shift));
+  for (const { action, binding } of candidates) {
     if (binding.key !== pressed) continue;
     if (binding.ctrl !== event.ctrlKey || binding.alt !== event.altKey) continue;
     // Shift is part of typing a capital or a symbol (Ctrl+Shift+= makes "+"), so only bindings that

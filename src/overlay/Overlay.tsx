@@ -11,9 +11,8 @@ import {
 } from "../capture/selection";
 import type { OverlayFrame, OverlayOutcome, OverlayRect, PlatformBridge } from "../platform/bridge";
 
+import { resolveBindings } from "../shared/shortcutBindings";
 import { actionForKeyEvent, defaultBindings } from "../shared/shortcutRegistry";
-
-const BINDINGS = defaultBindings("overlay"); // ticket 47 will read the user's remapping here
 
 /** Magnifier: `SOURCE` native pixels around the pointer, shown `ZOOM` times larger. */
 const SOURCE = 15;
@@ -81,6 +80,19 @@ function ActiveOverlay({ bridge, monitor }: { bridge: PlatformBridge; monitor: n
   const imageRef = useRef<HTMLImageElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const finished = useRef(false);
+  // The user's remapped keys, read when this capture begins (live updates are ticket 48). Until the
+  // read returns, or if it fails, the defaults apply.
+  const [bindings, setBindings] = useState(() => defaultBindings("overlay"));
+  useEffect(() => {
+    let alive = true;
+    bridge.getShortcutOverrides().then(
+      (stored) => alive && setBindings(resolveBindings("overlay", stored)),
+      (e) => void bridge.logOverlay(`overlay ${monitor}: getShortcutOverrides failed: ${e}`),
+    );
+    return () => {
+      alive = false;
+    };
+  }, [bridge, monitor]);
 
   // Anything that goes wrong here is reported to the app's log and ends the capture: the platform
   // tears every overlay down and tells the user, instead of leaving a window that never appears.
@@ -142,7 +154,7 @@ function ActiveOverlay({ bridge, monitor }: { bridge: PlatformBridge; monitor: n
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      const action = actionForKeyEvent(event, BINDINGS);
+      const action = actionForKeyEvent(event, bindings);
       if (action === "overlay.cancel") finish({ kind: "cancel" });
       else if (action === "overlay.monitor") {
         event.preventDefault();

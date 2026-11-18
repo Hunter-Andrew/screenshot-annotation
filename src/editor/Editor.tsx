@@ -38,7 +38,8 @@ import "./editor.css";
 import { createPersister, type Persister } from "./persister";
 import { createHistoryStore } from "./historyStore";
 import { imageOnClipboard, pictureAsPng } from "./clipboardImage";
-import { actionForKeyEvent, allowedWhileTyping, defaultBindings, isTypingTarget, keyLabel } from "./shortcuts";
+import { resolveBindings } from "../shared/shortcutBindings";
+import { actionForKeyEvent, allowedWhileTyping, defaultBindings, isTypingTarget, keyLabel, type Bindings } from "./shortcuts";
 import { Stage } from "./Stage";
 import { StylePanel } from "./StylePanel";
 import { CROP_TOOL, SELECT_TOOL, TOOLS } from "./tools";
@@ -64,7 +65,6 @@ interface Entry {
 const READ_ONLY_NOTICE = "Opened read-only: it was saved by a newer version of Screenshot Annotation";
 const NOTHING_OPEN_NOTICE = "Take or open a capture before pasting an image";
 
-const BINDINGS = defaultBindings(); // ticket 28 will read the user's remapping here
 
 function useSessionImage(session: EditSession | null): AnnotatedImage | null {
   return useSyncExternalStore(
@@ -91,6 +91,23 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
   const screenRef = useRef(screen);
   screenRef.current = screen;
   // Thumbnails picked with Ctrl/Shift+click, for deleting several at once.
+  // The user's remapped keys (ticket 47): read at start and again whenever the window gets focus, which is
+  // how a change made in Settings reaches an editor that was already open. Live push is ticket 48.
+  const [bindings, setBindings] = useState<Bindings>(() => defaultBindings());
+  useEffect(() => {
+    let alive = true;
+    const load = () =>
+      bridge.getShortcutOverrides().then(
+        (stored) => alive && setBindings(resolveBindings("editor", stored)),
+        () => {},
+      );
+    void load();
+    window.addEventListener("focus", load);
+    return () => {
+      alive = false;
+      window.removeEventListener("focus", load);
+    };
+  }, [bridge]);
   const [selection, setSelection] = useState(NO_SELECTION);
   const openToken = useRef(0);
   const image = useSessionImage(current?.session ?? null);
@@ -631,7 +648,7 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
   latest.current = keys;
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      const action = actionForKeyEvent(event, BINDINGS);
+      const action = actionForKeyEvent(event, bindings);
       if (!action) return;
       // Typing in a text field or in the Text tool's box: bare keys are the text's, not shortcuts.
       if (isTypingTarget(event.target as HTMLElement | null) && !allowedWhileTyping(action, event)) return;
@@ -701,7 +718,7 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, []);
+  }, [bindings]);
 
   return (
     <div className="editor" data-checker={imageSettings.checkerboard}>
@@ -714,14 +731,14 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
           <button
             onClick={undo}
             disabled={!current || readOnly || !current.session.canUndo}
-            title={`Undo (${keyLabel("editor.undo", BINDINGS)})`}
+            title={`Undo (${keyLabel("editor.undo", bindings)})`}
           >
             Undo
           </button>
           <button
             onClick={redo}
             disabled={!current || readOnly || !current.session.canRedo}
-            title={`Redo (${keyLabel("editor.redo", BINDINGS)})`}
+            title={`Redo (${keyLabel("editor.redo", bindings)})`}
           >
             Redo
           </button>
@@ -739,7 +756,7 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
             ⚙
           </button>
         </header>
-        <ToolColumn tools={TOOLS} active={tool} disabled={!image || readOnly} bindings={BINDINGS} onPick={chooseTool} />
+        <ToolColumn tools={TOOLS} active={tool} disabled={!image || readOnly} bindings={bindings} onPick={chooseTool} />
         <main className="well" ref={view.wellRef} style={{ "--outside-darkness": Number((imageSettings.outsideDarkness / 100).toFixed(4)) } as CSSProperties}>
           {image && imageUrl && size && area ? (
             <Stage
@@ -804,9 +821,9 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
                   onBack: () => moveSelected(-1),
                   onDelete: deleteSelected,
                   titles: {
-                    forward: `Bring forward (${keyLabel("editor.bringForward", BINDINGS)})`,
-                    back: `Send back (${keyLabel("editor.sendBack", BINDINGS)})`,
-                    delete: `Delete (${keyLabel("editor.delete", BINDINGS)})`,
+                    forward: `Bring forward (${keyLabel("editor.bringForward", bindings)})`,
+                    back: `Send back (${keyLabel("editor.sendBack", bindings)})`,
+                    delete: `Delete (${keyLabel("editor.delete", bindings)})`,
                   },
                 }
           }

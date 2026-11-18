@@ -261,6 +261,14 @@ export interface PlatformBridge {
   /** Replace the stored tool styles (all tools at once). A failed write is logged and kept in memory for this run. */
   setToolStyles(styles: Record<string, unknown>): Promise<void>;
 
+  /**
+   * The user's changed keyboard shortcuts, action id to key spec ("N", "Ctrl+Shift+K"), stored in
+   * settings.json. Overrides only; opaque to the platform, the registry code validates what it reads.
+   */
+  getShortcutOverrides(): Promise<Record<string, unknown>>;
+  /** Replace all stored shortcut overrides. A failed write is logged and kept in memory for this run. */
+  setShortcutOverrides(overrides: Record<string, string>): Promise<void>;
+
   /** The capture hotkey (an accelerator such as "ctrl+shift+s") and whether the OS accepted it. */
   getHotkey(): Promise<HotkeyState>;
   /**

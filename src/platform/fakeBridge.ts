@@ -99,6 +99,8 @@ export interface FakeBridge extends PlatformBridge {
   readonly imageSettings: ImageSettings;
   /** The stored tool styles (`fake.toolStyles` in the fake storage; empty for a fresh fake). */
   readonly toolStyles: Record<string, unknown>;
+  /** The stored shortcut overrides (`fake.shortcuts` in the fake storage; empty for a fresh fake). */
+  readonly shortcutOverrides: Record<string, unknown>;
 }
 
 /** Fake setting storage; the browser build passes localStorage so e2e reloads keep it. */
@@ -621,6 +623,13 @@ export function createFakeBridge(
     getToolStyles: async () => JSON.parse(store.getItem("fake.toolStyles") ?? "{}"),
     setToolStyles: async (styles) => {
       store.setItem("fake.toolStyles", JSON.stringify(styles));
+    },
+    get shortcutOverrides() {
+      return JSON.parse(store.getItem("fake.shortcuts") ?? "{}") as Record<string, unknown>;
+    },
+    getShortcutOverrides: async () => JSON.parse(store.getItem("fake.shortcuts") ?? "{}"),
+    setShortcutOverrides: async (overrides) => {
+      store.setItem("fake.shortcuts", JSON.stringify(overrides));
     },
     savePngAs: async (png, suggestedName) => {
       if (cancelSaveAs) {
