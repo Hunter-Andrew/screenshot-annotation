@@ -11,6 +11,10 @@ import {
 } from "../capture/selection";
 import type { OverlayFrame, OverlayOutcome, OverlayRect, PlatformBridge } from "../platform/bridge";
 
+import { actionForKeyEvent, defaultBindings } from "../shared/shortcutRegistry";
+
+const BINDINGS = defaultBindings("overlay"); // ticket 47 will read the user's remapping here
+
 /** Magnifier: `SOURCE` native pixels around the pointer, shown `ZOOM` times larger. */
 const SOURCE = 15;
 const ZOOM = 8;
@@ -138,11 +142,12 @@ function ActiveOverlay({ bridge, monitor }: { bridge: PlatformBridge; monitor: n
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") finish({ kind: "cancel" });
-      else if (event.key === " ") {
+      const action = actionForKeyEvent(event, BINDINGS);
+      if (action === "overlay.cancel") finish({ kind: "cancel" });
+      else if (action === "overlay.monitor") {
         event.preventDefault();
         finish({ kind: "monitor" });
-      } else if (event.key === "m" || event.key === "M") {
+      } else if (action === "overlay.magnifier") {
         // The platform stores the value and tells every overlay (other monitors included); this
         // window switches at once rather than waiting for that round trip.
         const next = !magnifierRef.current;
