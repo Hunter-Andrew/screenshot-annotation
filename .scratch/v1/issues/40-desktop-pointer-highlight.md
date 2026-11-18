@@ -14,8 +14,8 @@
 - Hotkey default and where it is set (Settings, next to the capture hotkey); state shown in the tray menu (checked item)?
 - Does it persist across restarts (off by default)?
 
-**Blocked by:** the v1.0.0 release (M0 to M4 complete).
+**Blocked by:** nothing (M4 shipped as v0.5.0); M5 (v0.6.0) first.
 
 **Status:** needs-triage
 
-Spec: `.scratch/snagit-clone/spec.md`. Planned for M5 (v1.1.0); requested by Andrew on 2026-11-17.
+Spec: `.scratch/snagit-clone/spec.md`. Planned for M6 (v1.0.0, moved from M5 on 2026-11-18); requested by Andrew on 2026-11-17.

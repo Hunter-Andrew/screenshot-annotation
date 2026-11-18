@@ -2,7 +2,7 @@
 
 Before each release run the **Quick check** below by hand on the Windows test PC (about 10 minutes); the full list further down is reference for the parts you changed. Install the setup `.exe` from the candidate build (a CI artifact, or the draft Release), not a local build. Tag `vX.Y.Z` only once everything that applies passes. See [ADR 0006](adr/0006-manual-updates-unsigned-no-network.md).
 
-Each item shows the milestone it applies from: **M0** (v0.1.0), **M1** (v0.2.0), **M2** (v0.3.0), **M3** (v0.4.0), **M4** (v1.0.0). In the full list, an item applies to every release at or after its milestone; the Quick check already picks the ones that matter most.
+Each item shows the milestone it applies from: **M0** (v0.1.0), **M1** (v0.2.0), **M2** (v0.3.0), **M3** (v0.4.0), **M4** (v0.5.0), **M5** (v0.6.0), **M6** (v1.0.0). In the full list, an item applies to every release at or after its milestone; the Quick check already picks the ones that matter most.
 
 ## Quick check (about 10 minutes): what goes unnoticed or does harm if broken
 
@@ -24,7 +24,7 @@ For v0.4.0 (M3), on top of the v0.3.0 list above:
 - [ ] **The folder is the truth.** With the editor open, delete a PNG in Explorer: its thumbnail disappears within a few seconds (or at once when you click back into the app). Copy a screenshot PNG from elsewhere into a month folder: it appears in the strip and opens with no annotations, and the file is unchanged until you edit it.
 - [ ] **Hover Copy pastes the finished picture.** Hover a thumbnail that has annotations, click Copy, and paste into Teams or Outlook: the annotations are burned in, as a plain image.
 
-For v1.0.0 (M4), on top of the lists above (tickets 22, 23 and 24 are only proven by these steps; the Linux test suite cannot see the Windows behavior). The full steps are in "Tray, delay timer and Settings" and "Speed" below:
+For v0.5.0 (M4), on top of the lists above (tickets 22, 23 and 24 are only proven by these steps; the Linux test suite cannot see the Windows behavior). The full steps are in "Tray, delay timer and Settings" and "Speed" below:
 
 - [ ] **Closing the editor keeps the app alive.** Click the editor's X: the window hides, the tray icon stays, the first time only a notice says the app is still running in the tray. Press the capture hotkey: it works. Click the tray icon: the editor comes back with your last image.
 - [ ] **The pre-warmed windows are fast and never show up in the picture.** Right after starting the app, press the hotkey and capture a region: the overlay appears at once and the editor opens at once on release. Task Manager shows the app idling at roughly 50 to 150 MB, not growing capture after capture.

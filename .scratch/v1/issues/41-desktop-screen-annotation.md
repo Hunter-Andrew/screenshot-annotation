@@ -15,8 +15,8 @@
 - Multi-monitor and mixed-DPI behaviour; does it work over full-screen apps?
 - Can the result be captured (it is on screen, so a normal Capture includes it) or must it be excluded?
 
-**Blocked by:** the v1.0.0 release (M0 to M4 complete).
+**Blocked by:** nothing (M4 shipped as v0.5.0); M5 (v0.6.0) first.
 
 **Status:** needs-triage
 
-Spec: `.scratch/snagit-clone/spec.md`. Planned for M5 (v1.1.0); requested by Andrew on 2026-11-17.
+Spec: `.scratch/snagit-clone/spec.md`. Planned for M6 (v1.0.0, moved from M5 on 2026-11-18); requested by Andrew on 2026-11-17.

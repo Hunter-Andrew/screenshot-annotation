@@ -2,7 +2,7 @@
 
 **What to build:** Give the app's own UI (editor, Library Strip and grid, Settings, About, tray-adjacent windows) a visual refresh with more colour, especially bright green and purple, so it pops more. The new logo (`assets/icon-source.png`: a green-to-blue "S" on a dark rounded square with cyan accents) is the starting palette. Requested by Andrew on 2026-11-17.
 
-**Blocked by:** the v1.0.0 release (M0 to M4 complete).
+**Blocked by:** nothing (M4 shipped as v0.5.0).
 
 **Status:** needs-triage
 
@@ -15,4 +15,4 @@
 - Does the Annotation palette (the 8 colours, ColorField) change? (Recommended: no, annotation colours are the user's content, not the app's chrome.)
 - Scope guard: purely visual, no layout or behaviour changes; existing e2e locators must keep working.
 
-Spec: `.scratch/snagit-clone/spec.md`. Planned for M5 (v1.1.0).
+Spec: `.scratch/snagit-clone/spec.md`. Planned for M5 (v0.6.0).

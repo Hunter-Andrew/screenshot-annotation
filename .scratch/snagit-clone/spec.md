@@ -144,7 +144,7 @@ The app makes no network calls. Updates are manual installs from public GitHub R
 105. As Andrew, I want "Open in Explorer" in Settings to open the Library folder, so that I can manage files directly.
 106. As Andrew, I want thumbnails cached outside my Pictures folder, so that Pictures holds only my images.
 107. As Andrew, I want an image saved by a newer app version to open read-only in an older version, so that nothing gets corrupted when versions differ.
-108. As Andrew, I want Settings to show every keyboard shortcut (the capture hotkey, the capture-overlay keys such as Space for the whole monitor, Esc to cancel and M for the magnifier, and the editor's tool and action keys) and let me remap each one, so that the app fits my hands and avoids clashes with other software. *(M5, after v1.0.0; added 2026-11-15 after M1 testing.)*
+108. As Andrew, I want Settings to show every keyboard shortcut (the capture hotkey, the capture-overlay keys such as Space for the whole monitor, Esc to cancel and M for the magnifier, and the editor's tool and action keys) and let me remap each one, so that the app fits my hands and avoids clashes with other software. *(M5, v0.6.0; added 2026-11-15 after M1 testing.)*
 109. As Andrew, I want to extend the canvas beyond the Capture, by drawing past its edge or by dragging its edges outward like a rectangle (crop in reverse), with a per-image transparent, white or dark background and a configurable default, so that I can add arrows and notes that sit outside the screenshot. *(M4 with Crop; added 2026-11-15 after M2 testing.)*
 110. As Andrew, I want to paste an image from the clipboard into the canvas with Ctrl+V and move it, resize it, and give it a border and an opacity, so that I can add another screenshot or picture next to my annotations. *(M4; ticket 38; added 2026-11-16 after M3 testing.)*
 
@@ -255,14 +255,14 @@ The app makes no network calls. Updates are manual installs from public GitHub R
 - Date-grouped cards of about 230 px.
 - A header bar with counts, Delete N, Clear selection, and Back to editor (Esc).
 
-**Settings window:** hotkey; a Shortcuts section that lists and remaps the other shortcuts (M5, after v1.0.0; ticket 28); launch at sign-in; Library folder (read-only) with Open in Explorer; Reset tool styles; About with the version and Check for updates.
+**Settings window:** hotkey; a Shortcuts section that lists and remaps the other shortcuts (M5, v0.6.0; ticket 28); launch at sign-in; Library folder (read-only) with Open in Explorer; Reset tool styles; About with the version and Check for updates.
 
 **Tray**
 - Left-click opens the editor.
 - The menu has Capture, Capture in 3s / 5s / 10s, Open editor, Settings and Exit.
 - Closing the editor hides it, with a one-time notice.
 
-**Build order:** milestones M0 Skeleton (v0.1) → M1 Capture → Copy (v0.2) → M2 Annotate (v0.3) → M3 Library (v0.4) → M4 Complete (v1.0) → M5 Shortcuts (v1.1).
+**Build order:** milestones M0 Skeleton (v0.1) → M1 Capture → Copy (v0.2) → M2 Annotate (v0.3) → M3 Library (v0.4) → M4 Complete (v0.5) → M5 Shortcuts, polish and facelift (v0.6) → M6 Desktop demo tools (v1.0).
 - M1 already saves captures in the final format.
 - Ticketed as 24 vertical slices in `.scratch/v1/issues/`.
 
