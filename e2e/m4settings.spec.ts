@@ -79,7 +79,7 @@ test.describe("the Style panel at the narrowest window", () => {
       // Every alignment button lies inside the panel's width, so none needs a sideways scroll to be reached.
       const inside = await page.evaluate(() => {
         const panel = document.querySelector(".style-panel")!.getBoundingClientRect();
-        return [...document.querySelectorAll<HTMLElement>('[role="group"][aria-label="Alignment"] button')].map((b) => {
+        return [...document.querySelectorAll<HTMLElement>('[role="group"][aria-label="Alignment"] button, [role="group"][aria-label="Vertical alignment"] button')].map((b) => {
           const r = b.getBoundingClientRect();
           return r.left >= panel.left && r.right <= panel.right;
         });
@@ -87,9 +87,15 @@ test.describe("the Style panel at the narrowest window", () => {
       expect(inside).toEqual([true, true, true, true, true, true]);
       // And the buttons are on more than one row (they wrapped rather than shrank).
       const tops = await page.evaluate(() =>
-        [...document.querySelectorAll<HTMLElement>('[role="group"][aria-label="Alignment"] button')].map((b) => Math.round(b.getBoundingClientRect().top)),
+        [...document.querySelectorAll<HTMLElement>('[role="group"][aria-label="Alignment"] button, [role="group"][aria-label="Vertical alignment"] button')].map((b) => Math.round(b.getBoundingClientRect().top)),
       );
       expect(new Set(tops).size).toBeGreaterThan(1);
+      // The horizontal three share the first row and the vertical three share the second: a wrap never splits a group.
+      expect(tops[0]).toBe(tops[1]);
+      expect(tops[1]).toBe(tops[2]);
+      expect(tops[3]).toBe(tops[4]);
+      expect(tops[4]).toBe(tops[5]);
+      expect(tops[3]).toBeGreaterThan(tops[0]);
     });
   }
 });
