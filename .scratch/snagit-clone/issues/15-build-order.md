@@ -72,6 +72,7 @@ Decided with Andrew on 2026-11-14. Each milestone is a release Andrew installs o
   - Desktop pointer highlight (ticket 40): a pointer highlight over the whole desktop, run by the tray app and switched on and off by its own hotkey; the colour is set in Settings.
   - Screen annotation (ticket 41): temporary rectangles and highlights drawn over the whole desktop, from a hotkey and/or a small pop-out toolbar that can be hidden and shown.
   - UI facelift (ticket 42): more colour, especially bright green and purple (matching the new logo), so the app pops more.
+  - Style panel polish (added 2026-11-18, Andrew): the Text and Callout vertical alignment buttons all on the second row, with the horizontal ones alone on the first (ticket 43); better Highlighter thickness presets, dropping 2 and adding 8, 12 and 18 (ticket 44, `needs-triage`).
   - These add global hotkeys beyond the capture hotkey, so ticket 28's "capture hotkey is the only global registration" rule is widened for them: the standard `RegisterHotKey` method only, still no low-level hooks and no key blocking.
 
 **Planning approach**
