@@ -30,3 +30,7 @@ Spec: `.scratch/snagit-clone/spec.md`. Planned for M5 (v0.6.0).
 6. **Visual only:** no layout or behaviour changes; existing e2e locators keep working.
 7. **The Annotation palette (the 8 colours, ColorField) is unchanged:** annotation colours are the user's content, not the app's chrome.
 8. **Built last in M5**, after 43, 44 and 28, so it restyles the finished UI once.
+
+## Build note
+
+Define the palette once as shared CSS variables (light and dark), replacing `--accent: #2f5bea` in `src/editor/editor.css` and the hard-coded `#2f5bea` in `src/canvas/shapes/lineShape.ts` and `boxShapes.ts`. Then apply it window by window (editor, Library Strip and grid, Settings, About, toasts), checking AA contrast and the focus ring in both themes after each window.

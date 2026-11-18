@@ -7,9 +7,10 @@
 - A transparent, click-through, non-focusable overlay window that follows the cursor (the same technique as the delay timer's countdown badge, `src-tauri/src/countdown.rs`); clicks must pass through to the apps below.
 - The new global hotkey uses the standard `RegisterHotKey` method only (no low-level hooks, no key blocking), per ADRs 0001 and 0007 and ticket 28's constraint.
 
-## Open questions (grill before building)
+## Open questions (grill at M6)
 
-- Shape, size and opacity; a click ripple; does it hide when the mouse is idle?
+- Exact pixel sizes for Small / Medium / Large and the glow opacity.
+- Does it hide when the mouse is idle?
 - Multi-monitor and mixed-DPI behaviour (one overlay per monitor, as the capture overlay has).
 - Hotkey default and where it is set (Settings, next to the capture hotkey); state shown in the tray menu (checked item)?
 - Does it persist across restarts (off by default)?
@@ -27,4 +28,4 @@ Spec: `.scratch/snagit-clone/spec.md`. Planned for M6 (v1.0.0, moved from M5 on 
 3. **Look: a red "laser dot"** (option C in `.scratch/v1/prototypes/m5-pointer-and-palette.html`): a bright red dot with a soft glow. Default colour red, configurable in Settings.
 4. **Size:** Small / Medium / Large in Settings (default Medium).
 5. **Click ripple:** a brief expanding ring (~400 ms) on click, **on/off in Settings**.
-6. Still open (grill at M6): exact sizes and opacity, idle hide, multi-monitor and mixed-DPI, hotkey default, tray menu state, persistence across restarts.
+6. The remaining questions are listed under "Open questions (grill at M6)" above.
