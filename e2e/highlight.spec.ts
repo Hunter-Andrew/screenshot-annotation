@@ -136,7 +136,7 @@ test.describe("the Highlighter", () => {
     const box = (await page.locator(".stage").boundingBox())!;
     await page.keyboard.press("h");
     const opacity = page.getByRole("region", { name: "Opacity" });
-    await expect(opacity.getByRole("button")).toHaveText(["25%", "40%", "60%", "80%"]);
+    await expect(opacity.getByRole("button")).toHaveText(["25%", "40%", "60%", "80%", "100%"]);
     await expect(opacity.getByRole("button", { name: "80%" })).toHaveAttribute("aria-pressed", "true");
     await expect(opacity.getByRole("slider")).toHaveCount(0);
     await opacity.getByRole("button", { name: "40%" }).click();

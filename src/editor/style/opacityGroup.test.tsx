@@ -12,9 +12,9 @@ function panel(opacity: number) {
 const pressed = () => screen.queryAllByRole("button", { pressed: true }).map((b) => b.textContent).filter((t) => t?.endsWith("%"));
 
 describe("Opacity group", () => {
-  it("offers the presets 25, 40, 60 and 80 %, with no slider", () => {
+  it("offers the presets 25, 40, 60, 80 and 100 %, with no slider", () => {
     panel(0.8);
-    for (const name of ["25%", "40%", "60%", "80%"]) expect(screen.getByRole("button", { name })).toBeVisible();
+    for (const name of ["25%", "40%", "60%", "80%", "100%"]) expect(screen.getByRole("button", { name })).toBeVisible();
     expect(screen.queryByRole("slider", { name: "Opacity" })).toBeNull();
     expect(pressed()).toEqual(["80%"]);
   });
@@ -26,7 +26,7 @@ describe("Opacity group", () => {
   });
 
   it("shows no preset as active for a stored value that is none of them (an older stroke keeps its value)", () => {
-    panel(1);
+    panel(0.9);
     expect(pressed()).toEqual([]);
   });
 });

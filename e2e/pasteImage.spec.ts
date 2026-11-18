@@ -306,8 +306,8 @@ test.describe("pasting an image in the editor", () => {
     const border = page.getByRole("region", { name: "Border" });
     await border.getByRole("button", { name: "On" }).click();
     await border.getByRole("button", { name: "Border width 8" }).click();
-    await page.getByLabel("Opacity percent").fill("50");
-    await expect.poll(async () => (await onlyImage(page)).opacity.value, { timeout: 6000 }).toBe(0.5);
+    await page.getByRole("group", { name: "Opacity" }).getByRole("button", { name: "60%" }).click();
+    await expect.poll(async () => (await onlyImage(page)).opacity.value, { timeout: 6000 }).toBe(0.6);
     img = await onlyImage(page);
     expect(img.border).toMatchObject({ enabled: true, width: 8 });
 
@@ -325,10 +325,10 @@ test.describe("pasting an image in the editor", () => {
     expect(Array.from(at(px, right - 2, bottom - 2)).slice(0, 3)).toEqual(hex);
     expect(Array.from(at(px, left - 1, top + 20))).toEqual(pattern(left - 1, top + 20)); // no growth outside
     const inside = pattern(left + 20, top + 20);
-    nearly(Array.from(at(px, left + 20, top + 20)), [inside[0]! / 2, inside[1]! / 2, (inside[2]! + 255) / 2, 255]);
+    nearly(Array.from(at(px, left + 20, top + 20)), [inside[0]! * 0.4, inside[1]! * 0.4, inside[2]! * 0.4 + 255 * 0.6, 255]);
 
     // Another capture, then back to the first from the Library Strip: the image is still there and editable.
-    await expect.poll(async () => (await onlyImage(page)).opacity.value, { timeout: 6000 }).toBe(0.5);
+    await expect.poll(async () => (await onlyImage(page)).opacity.value, { timeout: 6000 }).toBe(0.6);
     await captureWithPattern(page, W, H, new Date(2026, 10, 16, 11, 0, 0));
     await page.getByRole("region", { name: "Library Strip" }).getByRole("button", { name: "Open image from 16 Nov 2026 10:00:00" }).click();
     await expect.poll(() => liveDiffersFrom(page, left + 10, top + 30, pattern(left + 10, top + 30)), { timeout: 6000 }).toBe(true);

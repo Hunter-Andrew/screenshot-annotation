@@ -372,7 +372,7 @@ describe("an image is a normal Annotation", () => {
     expect(images(kit)[0]!.border.color).toBe("#2563eb");
 
     const opacity = screen.getByRole("region", { name: "Opacity" });
-    expect(within(opacity).queryAllByRole("button", { pressed: true })).toHaveLength(0); // 100% is not a preset
+    expect(within(opacity).getByRole("button", { name: "100%" })).toHaveAttribute("aria-pressed", "true");
     await user.click(within(opacity).getByRole("button", { name: "60%" }));
     expect(images(kit)[0]!.opacity.value).toBe(0.6);
     expect(within(opacity).getByRole("button", { name: "60%" })).toHaveAttribute("aria-pressed", "true");
