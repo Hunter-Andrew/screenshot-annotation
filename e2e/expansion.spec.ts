@@ -160,7 +160,7 @@ test.describe("an Annotation past the Capture's edge", () => {
     await expect.poll(async () => (await libraryFile(page)).background).toBe("transparent");
   });
 
-  test("a Blur drawn across the Capture's edge pixelates the Capture and the background beneath it, as exported", async ({ page }) => {
+  test("a Blur drawn across the Capture's edge does not grow the image: it pixelates the Capture and the background beneath it, clipped at the edge", async ({ page }) => {
     await page.goto("/");
     await setSetting(page, "setImageBackground", "white");
     await capture(page, 300, 200);
@@ -171,13 +171,98 @@ test.describe("an Annotation past the Capture's edge", () => {
     await drag(page, { x: stage.x + 240, y: stage.y + 60 }, { x: stage.x + 336, y: stage.y + 124 });
 
     const out = await copied(page);
-    expect(out.px.width).toBe(336);
+    expect(out.px.width).toBe(300); // a Blur never grows the area
+    expect(out.px.height).toBe(200);
     const colorAt = (x: number, y: number) => (x < 300 ? pattern(x, y) : WHITE);
     // Blocks run 16 px from the box's corner at (240, 60).
     nearly(Array.from(at(out.px, 245, 65)), averageOf(240, 60, 256, 76)); // wholly over the Capture
-    nearly(Array.from(at(out.px, 295, 65)), averageOf(288, 60, 304, 76, colorAt)); // straddles the edge
-    nearly(Array.from(at(out.px, 325, 65)), WHITE); // wholly over the background
+    nearly(Array.from(at(out.px, 295, 65)), averageOf(288, 60, 300, 76, colorAt)); // the last block is cut at the edge: it averages what is visible
     expect(Array.from(at(out.px, 239, 65))).toEqual(pattern(239, 65)); // outside the box: untouched
+  });
+});
+
+test.describe("Pen, Highlighter and Blur never grow the area", () => {
+  /** What is saved with the image now: its area and its Annotations. */
+  const saved = (page: Page) =>
+    page.evaluate(async () => {
+      const { decodeLibraryPng } = await import(/* @vite-ignore */ "/src/core/annotatedImage.ts" as string);
+      const file = (window as unknown as InPage).__fakeBridge.libraryFiles.at(-1)!;
+      const { model } = decodeLibraryPng(file.bytes);
+      const annotations = model.annotations as { type: string; points?: { x: number }[] }[];
+      const maxX = Math.max(...annotations.flatMap((a) => (a.points ?? []).map((p) => p.x)));
+      return { crop: model.crop ?? null, kinds: annotations.map((a) => a.type), maxX };
+    });
+
+  for (const [name, key] of [["Pen", "p"], ["Highlighter", "h"], ["Blur", "b"]] as const) {
+    test(`a ${name} dragged past the edge keeps the area and is kept whole; Copy is as big as the Capture`, async ({ page }) => {
+      await page.goto("/");
+      await setSetting(page, "setImageBackground", "white");
+      await capture(page, 300, 200);
+      const stage = await stageBox(page);
+
+      await page.keyboard.press(key);
+      await drag(page, { x: stage.x + 200, y: stage.y + 50 }, { x: stage.x + 380, y: stage.y + 120 });
+      await expect.poll(async () => (await saved(page)).kinds.length, { timeout: 10_000 }).toBe(1);
+      const file = await saved(page);
+      expect(file.crop).toBeNull();
+      const out = await copied(page);
+      expect([out.px.width, out.px.height]).toEqual([300, 200]);
+
+      // The stroke or box is still one step: Undo removes it, Redo brings it back, never any growth.
+      await page.keyboard.press("Control+z");
+      await expect(page.getByRole("button", { name: "Undo" })).toBeDisabled();
+      await page.keyboard.press("Control+Shift+z");
+      await expect.poll(async () => (await saved(page)).kinds.length, { timeout: 10_000 }).toBe(1);
+      expect((await saved(page)).crop).toBeNull();
+    });
+  }
+
+  test("moving a Pen stroke past the edge does not grow the area, and a rectangle beside it still does and shrinks back", async ({ page }) => {
+    await page.goto("/");
+    await setSetting(page, "setImageBackground", "white");
+    await capture(page, 300, 200);
+    const stage = await stageBox(page);
+
+    await page.keyboard.press("p");
+    await drag(page, { x: stage.x + 100, y: stage.y + 150 }, { x: stage.x + 180, y: stage.y + 150 });
+    await page.keyboard.press("v");
+    await drag(page, { x: stage.x + 140, y: stage.y + 150 }, { x: stage.x + 340, y: stage.y + 150 }); // the stroke now reaches past the right edge
+    await expect.poll(async () => (await saved(page)).kinds, { timeout: 10_000 }).toEqual(["pen"]);
+    await expect.poll(async () => (await saved(page)).maxX, { timeout: 10_000 }).toBeGreaterThan(300); // it really is past the edge
+    expect((await copied(page)).px.width).toBe(300);
+    expect((await saved(page)).crop).toBeNull();
+
+    // A rectangle past the edge grows the area; deleting it takes the area back, the pen stays.
+    await page.keyboard.press("r");
+    await drag(page, { x: stage.x + 200, y: stage.y + 30 }, { x: stage.x + 360, y: stage.y + 80 });
+    expect((await copied(page)).px.width).toBeGreaterThan(340);
+    await page.keyboard.press("Delete");
+    expect((await copied(page)).px.width).toBe(300);
+    await expect.poll(async () => (await saved(page)).kinds, { timeout: 10_000 }).toEqual(["pen"]);
+  });
+
+  test("what lies outside stays in the Annotation: widening the area with the Crop tool shows it again", async ({ page }) => {
+    await page.goto("/");
+    await setSetting(page, "setImageBackground", "white");
+    await capture(page, 300, 200);
+    const stage = await stageBox(page);
+
+    await page.keyboard.press("p");
+    await drag(page, { x: stage.x + 200, y: stage.y + 100 }, { x: stage.x + 360, y: stage.y + 100 });
+    expect((await copied(page)).px.width).toBe(300);
+    const redInside = (px: ReturnType<typeof decodePixels>, x0: number, x1: number) => {
+      let n = 0;
+      for (let y = 90; y < 110; y++) for (let x = x0; x < x1; x++) n += at(px, x, y)[0] === 224 && at(px, x, y)[1] === 36 ? 1 : 0;
+      return n;
+    };
+    expect(redInside((await copied(page)).px, 200, 300)).toBeGreaterThan(100);
+
+    // Widen the area to the right with the Crop tool's handle.
+    await page.keyboard.press("c");
+    await drag(page, { x: stage.x + 300, y: stage.y + 100 }, { x: stage.x + 380, y: stage.y + 100 });
+    const wide = await copied(page);
+    expect(wide.px.width).toBeGreaterThan(370);
+    expect(redInside(wide.px, 310, 360)).toBeGreaterThan(100); // the part that was clipped is there
   });
 });
 

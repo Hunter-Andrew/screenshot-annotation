@@ -116,8 +116,9 @@ export function StylePanel({ kind, style, onChange, toolGroups = [], arrange = n
               className="group"
               aria-label={editor.title}
               {...(keepsEditing ? { "data-keeps-text-editing": "" } : {})}
-              // A press on a button must not move the focus off the text (that would drop the selection).
-              onMouseDown={typing ? (e) => (e.target as Element).closest("button") && e.preventDefault() : undefined}
+              // A press on anything of the section but a field that takes the keyboard (a button, a label, the gap between
+              // controls) must not move the focus off the text: that would end the edit and drop the selection.
+              onMouseDown={typing ? (e) => !(e.target as Element).closest("input, select, textarea") && e.preventDefault() : undefined}
               onClick={typing ? (e) => (e.target as Element).closest("button") && typing.focusText() : undefined}
               onChange={typing ? (e) => ((e.target as Element).tagName === "SELECT" || (e.target as HTMLInputElement).type === "color") && typing.focusText() : undefined}
             >

@@ -165,18 +165,18 @@ describe("eraseEdit: the one edit an erase drag makes", () => {
     expect(applyEdit(undone, edit!).model.annotations).toEqual(after.model.annotations);
   });
 
-  it("lets the visible area shrink back when the part of a stroke that grew it is erased", () => {
+  it("never touches the visible area: a Pen stroke past the edge does not grow it, so erasing it has nothing to shrink", () => {
     const blank = image([]);
     const stroke = pen("far", along(100, 200, 280, 350));
     const bounds = { x: 97, y: -3, width: 256, height: 6 };
     const grown = applyEdit(blank, followAreaEdit(blank, { kind: "add", annotation: stroke }, bounds, "white").edit);
-    expect(visibleAreaOf(grown).width).toBeGreaterThan(300);
+    expect(visibleAreaOf(grown).width).toBe(300);
 
-    // Erase the end that reached past the Capture's right edge (x 300).
     const { edit } = eraseEdit(grown, [{ x: 350, y: 0 }, { x: 290, y: 0 }], R, "white", newId);
     const after = applyEdit(grown, edit!);
 
-    expect(visibleAreaOf(after).width).toBeLessThanOrEqual(300);
+    expect(visibleAreaOf(after).width).toBe(300);
+    expect(after.model.crop ?? null).toBeNull();
     expect(applyEdit(after, invert(grown, edit!) as Edit)).toEqual(grown);
   });
 });

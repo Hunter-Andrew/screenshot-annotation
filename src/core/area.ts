@@ -11,7 +11,7 @@
 // their extents. So it follows them back in (resized, moved inside, deleted) but never below the base. Setting
 // the area explicitly (the Crop tool) makes it the final base and clears the record.
 import type { AnnotatedImage } from "./annotatedImage";
-import type { Background, Crop, GrowCause } from "./annotation";
+import type { AnnotationType, Background, Crop, GrowCause } from "./annotation";
 import { type Point, sameCrop } from "./crop";
 import { type Edit, type Growth, growthOf, sameGrowth } from "./editSession";
 import { readSize } from "./png";
@@ -31,6 +31,14 @@ export const isBackground = (value: unknown): value is Background => BACKGROUNDS
 export function backgroundFill(background: Background, dark: string = DEFAULT_DARK_BACKGROUND): string | null {
   return background === "white" ? "#ffffff" : background === "dark" ? dark : null;
 }
+
+/**
+ * The kinds that never grow the visible area (Pen, Highlighter, Blur): they can be drawn, moved and resized past the
+ * edge, and what lies outside is clipped from the render but stays in the Annotation (it shows again if the area is
+ * widened later). Every other kind grows it.
+ */
+const NEVER_GROWS: readonly AnnotationType[] = ["pen", "highlight", "blur"];
+export const growsArea = (type: AnnotationType): boolean => !NEVER_GROWS.includes(type);
 
 /** The area shown and exported: the crop, or the whole Capture. */
 export function visibleAreaOf(image: AnnotatedImage): Crop {
@@ -155,7 +163,11 @@ export function followAreaEdit(
   defaultBackground: Background,
 ): { edit: Edit; limited: boolean } {
   const id = edit.kind === "add" ? edit.annotation.id : edit.kind === "update" || edit.kind === "delete" ? edit.id : null;
-  if (id === null || (edit.kind !== "delete" && !bounds)) return { edit, limited: false };
+  if (id === null) return { edit, limited: false };
+  const type = edit.kind === "add" ? edit.annotation.type : image.model.annotations.find((a) => a.id === id)?.type;
+  // A Pen, Highlighter or Blur covers what it covers but is never a cause of growth (and one that was recorded as such is dropped).
+  if (type !== undefined && !growsArea(type)) bounds = undefined;
+  else if (edit.kind !== "delete" && !bounds) return { edit, limited: false };
   const before = growthOf(image.model);
   const base = before?.base ?? visibleAreaOf(image);
   const causes = (before?.causes ?? []).filter((cause) => cause.id !== id);

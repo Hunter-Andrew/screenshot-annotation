@@ -17,7 +17,7 @@ A Capture together with its Annotations, kept editable.
 _Avoid_: Document, project, file
 
 **Crop**:
-The visible area of an Annotated Image. It narrows what is shown and exported without discarding any of the Capture. The visible area may also be larger than the Capture (canvas expansion): the Crop tool's handles and any Annotation drawn or moved past the edge make it bigger, and the part outside the Capture is filled with the image's Background. An area that an Annotation grew shrinks back when that Annotation shrinks, moves inside or is deleted, but never below its base (the Capture, or the Crop the user set); setting the area explicitly with the Crop tool makes it final.
+The visible area of an Annotated Image. It narrows what is shown and exported without discarding any of the Capture. The visible area may also be larger than the Capture (canvas expansion): the Crop tool's handles and any Annotation drawn or moved past the edge make it bigger (except a Pen stroke, a Highlighter stroke and a Blur, which never grow it: what lies outside the visible area is clipped from the render but stays in the Annotation, and shows again if the area is widened), and the part outside the Capture is filled with the image's Background. An area that an Annotation grew shrinks back when that Annotation shrinks, moves inside or is deleted, but never below its base (the Capture, or the Crop the user set); setting the area explicitly with the Crop tool makes it final.
 _Avoid_: Trim, cut, canvas size
 
 **Background**:
@@ -41,7 +41,7 @@ An Annotation of boxed text with an optional pointer tail that can be dragged to
 _Avoid_: Speech bubble, note
 
 **Styled text** (run):
-Part of the text of a Text or Callout that has its own size, Bold, Italic, Underline or color, chosen while editing the box with the characters selected. Each such range of characters is a run (stored in the Annotation's `runs`, the text itself stays plain) and overrides only the properties it names; the rest follows the box's Font. Alignment and the Text outline always belong to the whole box. A change of the whole box's size, Bold, Italic, Underline or color clears that property on every run, so "make everything 24 px" does what it says. A bigger run makes its line taller.
+Part of the text of a Text or Callout that has its own size, Bold, Italic, Underline or color, chosen while editing the box with the characters selected. Each such range of characters is a run (stored in the Annotation's `runs`, the text itself stays plain) and overrides only the properties it names; the rest follows the box's Font. Characters are selected with the keyboard or the mouse (a drag, a double-click on a word) and the Font controls then change only them; with a caret only they change the whole box. Alignment and the Text outline always belong to the whole box. A change of the whole box's size, Bold, Italic, Underline or color clears that property on every run, so "make everything 24 px" does what it says. A bigger run makes its line taller.
 _Avoid_: Rich text (in code and docs), span, formatting, mixed font
 
 **Pasted image**:

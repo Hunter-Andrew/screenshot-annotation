@@ -145,6 +145,18 @@ test.describe("a drag follows the pointer past the canvas and the window", () =>
     await expect(page.getByText("The image can be at most 8192 pixels on a side")).toBeVisible();
   });
 
+  test("a Pen, Highlighter or Blur dragged far outside the window follows the pointer but never grows the image", async ({ page }) => {
+    await page.goto("/");
+    const view = await capture(page, 300, 200);
+    for (const key of ["p", "h", "b"]) {
+      await page.keyboard.press(key);
+      await drag(page, view.at(200, 50), view.at(20000, 900));
+      const size = await copiedSize(page);
+      expect([size.width, size.height]).toEqual([300, 200]);
+      await expect(page.getByText("The image can be at most 8192 pixels on a side")).toHaveCount(0); // no limit to hold it to
+    }
+  });
+
   test("a press that starts outside the canvas (on the top bar) draws nothing", async ({ page }) => {
     await page.goto("/");
     const view = await capture(page, 300, 200);

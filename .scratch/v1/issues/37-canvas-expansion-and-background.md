@@ -80,3 +80,9 @@ Spec: `.scratch/snagit-clone/spec.md` (story 109).
 ## Update (M4 settings, 2026-11-18)
 
 Dark is no longer the fixed `#1f2937`: it is the "Dark image background" setting (`#191919` by default), applied at render time and never stored in the file. See `.scratch/snagit-clone/issues/13-settings-screen.md`.
+
+- 2026-11-18 (M4 p-text, branch `m4/p-text`, after Andrew's request): **Pen, Highlighter and Blur never grow the visible area**; where the text above says "any Annotation" grows it, this wins.
+  - They can still be drawn, moved and resized past the edge (and, being exempt, are not held back at the 8192 px limit), but the area stays as it is. What lies outside is clipped from the render and the Export, drawn dimmed in the editor like any outside part, and stays in the Annotation: widen the area later (Crop tool handle) and it shows again. Arrow, Line, Rectangle, Ellipse, Text, Callout and Pasted image still grow it.
+  - `growsArea(type)` in `src/core/area.ts`; `followAreaEdit` treats such an Annotation as having no bounds, so no growth is recorded in `grownBy` and the edit-history entry holds the edit alone. An older file whose `grownBy` names a Pen, Highlighter or Blur lets that area go the next time that Annotation is edited, moved or deleted. `fabricCanvas.ts` skips the drag limit (`reach`, `object:moving`) for them. The Eraser cuts Pen strokes only, so it never changes the area now.
+  - A Blur straddling the edge pixelates what is visible: its last block at the edge averages the visible pixels only.
+  - Done: unit (`area.test.ts`, `erase.test.ts`), e2e with real Fabric (`e2e/expansion.spec.ts`, `e2e/reach.spec.ts`); manual checklist item added (M4).
