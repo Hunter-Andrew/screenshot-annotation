@@ -5,65 +5,67 @@
 // A key spec is the registry's text form: modifiers in the order Ctrl, Alt, Shift, then the key
 // ("N", "Ctrl+Shift+K", "Space", "Ctrl+Delete").
 
-import { defaultBindings, SHORTCUT_REGISTRY, shortcutsIn, type Bindings, type ShortcutAction } from "./shortcutRegistry";
+import {
+  CONTEXT_NAME,
+  defaultBindings,
+  formatKeySpec,
+  normalizeKeySpec,
+  parseKeySpec,
+  SHORTCUT_REGISTRY,
+  shortcutsIn,
+  type Bindings,
+  type ShortcutAction,
+  type ShortcutContext,
+} from "./shortcutRegistry";
 
 /** Overrides as stored in settings.json: unchecked, so every value is `unknown`. */
 export type StoredOverrides = Readonly<Record<string, unknown>>;
 
 export type Validation = { ok: true } | { ok: false; message: string };
 
-const CONTEXT_NAME = { overlay: "Capture overlay", editor: "Editor" } as const;
+const NO_SUCH_SHORTCUT = "That shortcut does not exist.";
+const WINDOWS_KEY_REFUSAL = "Shortcuts with the Windows key are not allowed.";
+const PRINT_SCREEN_REFUSAL = "Print Screen only works as the capture hotkey; pick another key here.";
+/** What the recorder says when a modifier was pressed and released alone. */
+export const MODIFIER_ALONE_REFUSAL = "A shortcut needs a key besides Ctrl, Alt or Shift: a modifier alone cannot be a shortcut.";
 
-const MODIFIER_KEYS = new Set(["control", "alt", "shift", "meta", "altgraph", "os"]);
+const MODIFIER_KEYS = new Set(["control", "alt", "shift", "altgraph"]);
 const MODIFIER_NAMES = new Set(["ctrl", "alt", "shift"]);
 const WINDOWS_NAMES = new Set(["win", "windows", "meta", "super", "cmd", "os"]);
 
 /** Ticket 28 decision 8: keys that can never be assigned to another action (Esc, copy/paste, undo, editing, arrows). */
-const RESERVED = new Set(
-  ["Escape", "Ctrl+Z", "Ctrl+Y", "Ctrl+C", "Ctrl+V", "Ctrl+X", "Ctrl+A", "Delete", "Backspace", "Enter", "Tab", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].map((s) => normalize(s)),
-);
+const RESERVED_SPECS = ["Escape", "Ctrl+Z", "Ctrl+Y", "Ctrl+C", "Ctrl+V", "Ctrl+X", "Ctrl+A", "Delete", "Backspace", "Enter", "Tab", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"];
+const RESERVED = new Set(RESERVED_SPECS.map(normalizeKeySpec));
 
-interface Parts {
-  mods: Set<string>;
-  key: string;
-}
-
-function parts(spec: string): Parts {
-  const pieces = spec.endsWith("++") ? [...spec.slice(0, -2).split("+").filter(Boolean), "+"] : spec.split("+");
-  const key = pieces[pieces.length - 1] ?? "";
-  return { mods: new Set(pieces.slice(0, -1).map((p) => p.toLowerCase())), key };
-}
-
-/** A comparison form: lower case, modifiers in a fixed order. */
-function normalize(spec: string): string {
-  const { mods, key } = parts(spec);
-  return [mods.has("ctrl") ? "ctrl" : "", mods.has("alt") ? "alt" : "", mods.has("shift") ? "shift" : "", key.toLowerCase()]
-    .filter(Boolean)
-    .join("+");
+/**
+ * The reserved keys that no registry row shows (paste, cut, select all, Enter, Tab, the arrows):
+ * Settings lists them read-only so the whole fixed set of decision 8 is visible.
+ */
+export function reservedKeysWithoutAction(): string[] {
+  const shown = new Set(SHORTCUT_REGISTRY.map((a) => normalizeKeySpec(a.defaultKey)));
+  return RESERVED_SPECS.filter((spec) => !shown.has(normalizeKeySpec(spec)));
 }
 
 function actionById(id: string): ShortcutAction | undefined {
   return SHORTCUT_REGISTRY.find((a) => a.id === id);
 }
 
-/** The key spec text as the UI prints it in messages ("Ctrl+Shift+K"). */
-function shown(spec: string): string {
-  return spec
-    .split("+")
-    .map((part) => (part === "Escape" ? "Esc" : part.length === 1 ? part.toUpperCase() : part))
-    .join("+");
+/** The key `action` holds under `overrides`: its stored override when it may be remapped and has a text one, else its default. */
+function currentKey(action: ShortcutAction, overrides: StoredOverrides): string {
+  const value = overrides[action.id];
+  return typeof value === "string" && action.remappable ? value : action.defaultKey;
 }
 
 function shapeProblem(spec: string): string | null {
-  const { mods, key } = parts(spec);
+  const { mods, key } = parseKeySpec(spec);
   if (key === "" || MODIFIER_NAMES.has(key.toLowerCase()) || WINDOWS_NAMES.has(key.toLowerCase())) {
-    return WINDOWS_NAMES.has(key.toLowerCase()) ? "Shortcuts with the Windows key are not allowed." : "A shortcut needs a key besides Ctrl, Alt or Shift: a modifier alone cannot be a shortcut.";
+    return WINDOWS_NAMES.has(key.toLowerCase()) ? WINDOWS_KEY_REFUSAL : MODIFIER_ALONE_REFUSAL;
   }
   for (const m of mods) {
-    if (WINDOWS_NAMES.has(m)) return "Shortcuts with the Windows key are not allowed.";
+    if (WINDOWS_NAMES.has(m)) return WINDOWS_KEY_REFUSAL;
     if (!MODIFIER_NAMES.has(m)) return `"${m}" is not a modifier key.`;
   }
-  if (key.toLowerCase() === "printscreen") return "Print Screen only works as the capture hotkey; pick another key here.";
+  if (key.toLowerCase() === "printscreen") return PRINT_SCREEN_REFUSAL;
   return null;
 }
 
@@ -73,17 +75,16 @@ function shapeProblem(spec: string): string | null {
  */
 export function validateBinding(actionId: string, spec: string, overrides: StoredOverrides): Validation {
   const action = actionById(actionId);
-  if (!action) return { ok: false, message: "That shortcut does not exist." };
+  if (!action) return { ok: false, message: NO_SUCH_SHORTCUT };
   if (!action.remappable) return { ok: false, message: `${action.label} is a fixed shortcut and cannot be changed.` };
   const shape = shapeProblem(spec);
   if (shape) return { ok: false, message: shape };
-  const wanted = normalize(spec);
-  if (RESERVED.has(wanted)) return { ok: false, message: `${shown(spec)} is a fixed key in this app (reserved) and cannot be assigned to another action.` };
+  const wanted = normalizeKeySpec(spec);
+  if (RESERVED.has(wanted)) return { ok: false, message: `${formatKeySpec(spec)} is a fixed key in this app (reserved) and cannot be assigned to another action.` };
   for (const other of shortcutsIn(action.context)) {
     if (other.id === action.id) continue;
-    const current = typeof overrides[other.id] === "string" && other.remappable ? (overrides[other.id] as string) : other.defaultKey;
-    if (normalize(current) === wanted) {
-      return { ok: false, message: `${shown(spec)} is already used by "${other.label}" in ${CONTEXT_NAME[action.context]}. Change that one first.` };
+    if (normalizeKeySpec(currentKey(other, overrides)) === wanted) {
+      return { ok: false, message: `${formatKeySpec(spec)} is already used by "${other.label}" in ${CONTEXT_NAME[action.context]}. Change that one first.` };
     }
   }
   return { ok: true };
@@ -100,9 +101,10 @@ export type RecordedKey =
 /** What a key press means to the recorder: a spec, still waiting (only a modifier so far), Esc to cancel, or a refusal. */
 export function specFromKeyEvent(event: KeyEventLike): RecordedKey {
   if (event.key === "Escape") return { kind: "cancel" };
+  // The Windows key alone is "Meta" (or "OS" in older engines): say so, not that a modifier is missing a key.
+  if (WINDOWS_NAMES.has(event.key.toLowerCase()) || event.metaKey) return { kind: "refused", message: WINDOWS_KEY_REFUSAL };
   if (MODIFIER_KEYS.has(event.key.toLowerCase())) return { kind: "pending" };
-  if (event.metaKey) return { kind: "refused", message: "Shortcuts with the Windows key are not allowed." };
-  if (event.key === "PrintScreen") return { kind: "refused", message: "Print Screen only works as the capture hotkey; pick another key here." };
+  if (event.key === "PrintScreen") return { kind: "refused", message: PRINT_SCREEN_REFUSAL };
   const name = event.key === " " ? "Space" : event.key === "+" ? "=" : event.key.length === 1 ? event.key.toUpperCase() : event.key;
   const spec = [event.ctrlKey ? "Ctrl" : "", event.altKey ? "Alt" : "", event.shiftKey ? "Shift" : "", name].filter(Boolean).join("+");
   return { kind: "spec", spec };
@@ -113,13 +115,13 @@ export function specFromKeyEvent(event: KeyEventLike): RecordedKey {
  * override is valid. A missing, unknown, non-text or invalid entry (including a hand-edited clash:
  * the earlier action in registry order wins) is ignored and the default stays.
  */
-export function resolveBindings(context: "overlay" | "editor", stored: StoredOverrides | null | undefined): Bindings {
+export function resolveBindings(context: ShortcutContext, stored: StoredOverrides | null | undefined): Bindings {
   const raw = stored !== null && typeof stored === "object" && !Array.isArray(stored) ? stored : {};
   const accepted: Record<string, string> = {};
   for (const action of shortcutsIn(context)) {
     const value = raw[action.id];
     if (!action.remappable || typeof value !== "string") continue;
-    if (normalize(value) === normalize(action.defaultKey)) continue;
+    if (normalizeKeySpec(value) === normalizeKeySpec(action.defaultKey)) continue;
     if (validateBinding(action.id, value, accepted).ok) accepted[action.id] = value;
   }
   return { ...defaultBindings(context), ...accepted };
@@ -138,14 +140,13 @@ export function validOverrides(stored: StoredOverrides | null | undefined): Reco
  */
 export function validateReset(actionId: string, overrides: StoredOverrides): Validation {
   const action = actionById(actionId);
-  if (!action) return { ok: false, message: "That shortcut does not exist." };
+  if (!action) return { ok: false, message: NO_SUCH_SHORTCUT };
   const { [actionId]: _drop, ...rest } = overrides;
   void _drop;
   for (const other of shortcutsIn(action.context)) {
     if (other.id === action.id) continue;
-    const current = typeof rest[other.id] === "string" && other.remappable ? (rest[other.id] as string) : other.defaultKey;
-    if (normalize(current) === normalize(action.defaultKey)) {
-      return { ok: false, message: `${shown(action.defaultKey)} is now used by "${other.label}" in ${CONTEXT_NAME[action.context]}. Change that one first, then reset this.` };
+    if (normalizeKeySpec(currentKey(other, rest)) === normalizeKeySpec(action.defaultKey)) {
+      return { ok: false, message: `${formatKeySpec(action.defaultKey)} is now used by "${other.label}" in ${CONTEXT_NAME[action.context]}. Change that one first, then reset this.` };
     }
   }
   return { ok: true };

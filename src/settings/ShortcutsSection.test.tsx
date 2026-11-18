@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import { createFakeBridge } from "../platform/fakeBridge";
@@ -37,6 +37,15 @@ describe("Settings > Shortcuts", () => {
     expect(undo).toHaveTextContent("Ctrl+Z");
     expect(undo).toHaveTextContent("Fixed");
     expect(within(group("Editor")).getByRole("listitem", { name: "Arrow" })).not.toHaveTextContent("Fixed");
+  });
+
+  it("also lists the fixed editing keys that have no action of their own, read-only", () => {
+    render(<Settings bridge={createFakeBridge()} />);
+    const editor = within(group("Editor"));
+    const fixedKeys = editor.getByLabelText("Other fixed keys");
+    const shown = Array.from(fixedKeys.querySelectorAll("dt")).map((t) => t.textContent);
+    expect(shown).toEqual(["Ctrl+V", "Ctrl+X", "Ctrl+A", "Enter", "Tab", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"]);
+    expect(within(fixedKeys as HTMLElement).queryByRole("button")).toBeNull();
   });
 
   it("keeps the capture hotkey recorder under Capture", async () => {
@@ -145,5 +154,11 @@ describe("Settings > Shortcuts remapping", () => {
     await waitFor(() => expect(bridge.shortcutOverrides).toEqual({}));
     expect(changer("Arrow")).toHaveTextContent("A");
     expect(changer("Toggle the magnifier")).toHaveTextContent("M");
+  });
+
+  it("follows a change made in another open Settings window", async () => {
+    const { bridge } = await setup();
+    await act(() => bridge.setShortcutOverrides({ "tool.arrow": "K" }));
+    expect(changer("Arrow")).toHaveTextContent("K");
   });
 });

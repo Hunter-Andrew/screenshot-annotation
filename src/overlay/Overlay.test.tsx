@@ -92,6 +92,19 @@ describe("Overlay region mode", () => {
     await waitFor(() => expect(bridge.overlayOutcomes).toEqual([{ kind: "monitor" }]));
   });
 
+  it("Space still captures the monitor when Ctrl or Alt is held (it did before shortcuts were remappable)", async () => {
+    await showOverlay(1);
+    fireEvent.keyDown(window, { key: " ", ctrlKey: true });
+    await waitFor(() => expect(bridge.overlayOutcomes).toEqual([{ kind: "monitor" }]));
+  });
+
+  it("M still toggles the magnifier when Alt is held", async () => {
+    await showOverlay(1);
+    move(100, 100);
+    fireEvent.keyDown(window, { key: "m", altKey: true });
+    expect(await screen.findByTestId("magnifier")).toBeVisible();
+  });
+
   it("Esc cancels", async () => {
     await showOverlay(1);
     fireEvent.keyDown(window, { key: "Escape" });

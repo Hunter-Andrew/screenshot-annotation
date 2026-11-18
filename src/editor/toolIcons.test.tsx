@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { defaultBindings, SHORTCUT_ACTIONS } from "./shortcuts";
+import { defaultBindings } from "../shared/shortcutRegistry";
+import { SHORTCUT_ACTIONS } from "./shortcuts";
 import { ToolIcon, TOOL_ICONS } from "./toolIcons";
 import { ToolColumn } from "./ToolColumn";
 import { TOOLS } from "./tools";
@@ -34,7 +35,7 @@ describe("tool icons", () => {
 
 describe("the tool column with icons", () => {
   it("each button shows icon, name and key, and keeps its accessible name and tooltip", () => {
-    render(<ToolColumn tools={TOOLS} active="pen" disabled={false} bindings={defaultBindings()} onPick={() => {}} />);
+    render(<ToolColumn tools={TOOLS} active="pen" disabled={false} bindings={defaultBindings("editor")} onPick={() => {}} />);
 
     const pen = screen.getByRole("button", { name: "Pen (P)" });
     expect(pen).toHaveAttribute("title", "Pen (P)");

@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { specFromKeyEvent } from "../shared/shortcutBindings";
+import { MODIFIER_ALONE_REFUSAL, specFromKeyEvent } from "../shared/shortcutBindings";
 
 /**
  * The shared key recorder of the shortcut rows (ticket 28 decision 4): a button that shows the
@@ -53,7 +53,7 @@ export function ShortcutRecorder({
       // A modifier pressed and released alone: say why nothing was recorded.
       if (!sawKey && specFromKeyEvent(e).kind === "pending") {
         handlers.current.onStop();
-        handlers.current.onRefuse("A shortcut needs a key besides Ctrl, Alt or Shift: a modifier alone cannot be a shortcut.");
+        handlers.current.onRefuse(MODIFIER_ALONE_REFUSAL);
       }
     };
     window.addEventListener("keydown", onKeyDown, true);

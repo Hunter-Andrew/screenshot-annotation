@@ -24,6 +24,13 @@ describe("specFromKeyEvent", () => {
     expect(specFromKeyEvent(key("Control", { ctrlKey: true }))).toEqual({ kind: "pending" });
     expect(specFromKeyEvent(key("Shift", { shiftKey: true }))).toEqual({ kind: "pending" });
   });
+  it("refuses a lone Windows key with the Windows-key message, not the modifier one", () => {
+    for (const k of ["Meta", "OS"]) {
+      const r = specFromKeyEvent(key(k, { metaKey: true }));
+      expect(r).toMatchObject({ kind: "refused" });
+      expect((r as { message: string }).message).toMatch(/Windows key/);
+    }
+  });
   it("treats Escape as cancel", () => {
     expect(specFromKeyEvent(key("Escape"))).toEqual({ kind: "cancel" });
   });

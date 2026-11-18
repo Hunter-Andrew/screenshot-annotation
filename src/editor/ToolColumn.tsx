@@ -1,4 +1,4 @@
-import { type Bindings, keyLabel } from "./shortcuts";
+import { type Bindings, keyLabel } from "../shared/shortcutRegistry";
 import { ToolIcon } from "./toolIcons";
 import type { Tool } from "./tools";
 

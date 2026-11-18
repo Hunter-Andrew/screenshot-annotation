@@ -38,8 +38,9 @@ import "./editor.css";
 import { createPersister, type Persister } from "./persister";
 import { createHistoryStore } from "./historyStore";
 import { imageOnClipboard, pictureAsPng } from "./clipboardImage";
-import { resolveBindings } from "../shared/shortcutBindings";
-import { actionForKeyEvent, allowedWhileTyping, defaultBindings, isTypingTarget, keyLabel, type Bindings } from "./shortcuts";
+import { actionForKeyEvent, keyLabel } from "../shared/shortcutRegistry";
+import { useShortcutBindings } from "../shared/useShortcutBindings";
+import { allowedWhileTyping, isTypingTarget } from "./shortcuts";
 import { Stage } from "./Stage";
 import { StylePanel } from "./StylePanel";
 import { CROP_TOOL, SELECT_TOOL, TOOLS } from "./tools";
@@ -65,7 +66,6 @@ interface Entry {
 const READ_ONLY_NOTICE = "Opened read-only: it was saved by a newer version of Screenshot Annotation";
 const NOTHING_OPEN_NOTICE = "Take or open a capture before pasting an image";
 
-
 function useSessionImage(session: EditSession | null): AnnotatedImage | null {
   return useSyncExternalStore(
     useCallback((onChange) => session?.subscribe(onChange) ?? (() => {}), [session]),
@@ -90,29 +90,8 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
   const [screen, setScreen] = useState<"editor" | "grid">("editor");
   const screenRef = useRef(screen);
   screenRef.current = screen;
-  // Thumbnails picked with Ctrl/Shift+click, for deleting several at once.
   // The user's remapped keys: read at start, then pushed here whenever Settings changes them.
-  const [bindings, setBindings] = useState<Bindings>(() => defaultBindings());
-  useEffect(() => {
-    let alive = true;
-    const load = () =>
-      bridge.getShortcutOverrides().then(
-        (stored) => alive && setBindings(resolveBindings("editor", stored)),
-        () => {},
-      );
-    void load();
-    let off: (() => void) | undefined;
-    void bridge
-      .onShortcutOverrides((stored) => alive && setBindings(resolveBindings("editor", stored)))
-      .then((unsubscribe) => {
-        if (alive) off = unsubscribe;
-        else unsubscribe();
-      });
-    return () => {
-      alive = false;
-      off?.();
-    };
-  }, [bridge]);
+  const bindings = useShortcutBindings(bridge, "editor", (message) => void bridge.logSettings(message));
   const [selection, setSelection] = useState(NO_SELECTION);
   const openToken = useRef(0);
   const image = useSessionImage(current?.session ?? null);
@@ -598,8 +577,6 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
   };
   const deleteSelection = () => void del.deletePaths([...selection.selected]);
 
-  // --- keyboard: every key goes through the one shortcut table ------------------------------------
-
   // --- paste: Ctrl+V with a picture on the clipboard (ticket 38) ------------------------------------
 
   /** Make `file` an image Annotation on the open image: refused, with a plain message, when it does not fit the limits. */
@@ -646,6 +623,8 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
     window.addEventListener("paste", onPaste);
     return () => window.removeEventListener("paste", onPaste);
   }, []);
+
+  // --- keyboard: every key goes through the one shortcut table ------------------------------------
 
   const selectionSize = selection.selected.size;
   const keys = { chooseTool, copy, discard, view, selectedId, hasImage: image !== null, undo, redo, deleteSelected, moveSelected, selectionSize, deleteSelection, clearSelection };

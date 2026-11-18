@@ -1,14 +1,10 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import type { PlatformBridge } from "../platform/bridge";
-import { resolveBindings, validateBinding, validateReset, validOverrides } from "../shared/shortcutBindings";
-import { keyLabel, shortcutsIn, type ShortcutContext } from "../shared/shortcutRegistry";
+import { reservedKeysWithoutAction, resolveBindings, validateBinding, validateReset } from "../shared/shortcutBindings";
+import { CONTEXT_NAME, keyLabel, SHORTCUT_CONTEXTS, shortcutsIn } from "../shared/shortcutRegistry";
+import { useShortcutOverrides } from "../shared/useShortcutBindings";
 import { HotkeyRecorder } from "./HotkeyRecorder";
 import { ShortcutRecorder } from "./ShortcutRecorder";
-
-const GROUPS: { context: ShortcutContext; name: string }[] = [
-  { context: "overlay", name: "Capture overlay" },
-  { context: "editor", name: "Editor" },
-];
 
 const ROW_STYLE = {
   display: "flex",
@@ -25,27 +21,16 @@ const ROW_STYLE = {
  * anything: the row says why, naming the clashing action.
  */
 export function ShortcutsSection({ bridge }: { bridge: PlatformBridge }) {
-  const [overrides, setOverrides] = useState<Record<string, string>>({});
+  const [overrides, setOverrides] = useShortcutOverrides(bridge, (message) => void bridge.logSettings(message));
   const [recording, setRecording] = useState<string | null>(null);
   const [problem, setProblem] = useState<{ id: string; message: string } | null>(null);
-
-  useEffect(() => {
-    let alive = true;
-    bridge.getShortcutOverrides().then(
-      (stored) => alive && setOverrides(validOverrides(stored)),
-      (e) => void bridge.logSettings(`getShortcutOverrides failed: ${e}`),
-    );
-    return () => {
-      alive = false;
-    };
-  }, [bridge]);
 
   const save = useCallback(
     (next: Record<string, string>) => {
       setOverrides(next);
       bridge.setShortcutOverrides(next).catch((e) => void bridge.logSettings(`setShortcutOverrides failed: ${e}`));
     },
-    [bridge],
+    [bridge, setOverrides],
   );
 
   const record = (id: string, spec: string) => {
@@ -73,7 +58,8 @@ export function ShortcutsSection({ bridge }: { bridge: PlatformBridge }) {
         <h3 style={{ fontSize: 13 }}>Capture</h3>
         <HotkeyRecorder bridge={bridge} />
       </div>
-      {GROUPS.map(({ context, name }) => {
+      {SHORTCUT_CONTEXTS.map((context) => {
+        const name = CONTEXT_NAME[context];
         const bindings = resolveBindings(context, overrides);
         return (
           <div key={context} role="group" aria-label={name}>
@@ -117,6 +103,17 @@ export function ShortcutsSection({ bridge }: { bridge: PlatformBridge }) {
                 </li>
               ))}
             </ul>
+            {context === "editor" && (
+              // The rest of the fixed keys (ticket 28 decision 8): they have no action of their own, so no row above.
+              <dl aria-label="Other fixed keys" style={{ margin: 0 }}>
+                {reservedKeysWithoutAction().map((spec) => (
+                  <div key={spec} style={ROW_STYLE}>
+                    <dt>{spec}</dt>
+                    <dd style={{ margin: 0, opacity: 0.7 }}>Fixed</dd>
+                  </div>
+                ))}
+              </dl>
+            )}
           </div>
         );
       })}

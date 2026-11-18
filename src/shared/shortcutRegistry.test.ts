@@ -59,6 +59,19 @@ describe("reading keys from the registry", () => {
     expect(actionForKeyEvent(key("Escape"), defaultBindings("editor"))).toBe("editor.deselect");
   });
 
+  it("can ignore Ctrl and Alt for bare-key bindings, but keeps exact matching otherwise", () => {
+    const overlay = defaultBindings("overlay");
+    const loose = { ignoreCtrlAlt: true };
+    expect(actionForKeyEvent(key(" ", { ctrl: true }), overlay)).toBeNull();
+    expect(actionForKeyEvent(key(" ", { ctrl: true }), overlay, loose)).toBe("overlay.monitor");
+    expect(actionForKeyEvent(key("m", { alt: true }), overlay, loose)).toBe("overlay.magnifier");
+    // A binding that spells Ctrl out still means exactly that, and wins over a looser bare key.
+    const remapped = { ...overlay, "overlay.magnifier": "Ctrl+M", "overlay.monitor": "M" };
+    expect(actionForKeyEvent(key("m", { ctrl: true }), remapped, loose)).toBe("overlay.magnifier");
+    expect(actionForKeyEvent(key("m"), remapped, loose)).toBe("overlay.monitor");
+    expect(actionForKeyEvent(key("m", { alt: true }), remapped, loose)).toBe("overlay.monitor");
+  });
+
   it("prints keys for display", () => {
     const overlay = defaultBindings("overlay");
     expect(keyLabel("overlay.monitor", overlay)).toBe("Space");
