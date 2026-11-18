@@ -1,8 +1,8 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
-import { FIT, effectiveScale, fitScale, scrollAfterZoom, zoomStep } from "./view";
+import { FIT, effectiveScale, fitScale, marginPx, scrollAfterZoom, visibleCaptureArea, zoomStep } from "./view";
 
-// The well is the grey area around the canvas; it keeps 16 px of padding on every side.
+// The well is the area around the canvas; with no margin setting given it keeps 16 px on every side.
 describe("fitScale: whole image visible, never enlarged", () => {
   it("fits a tall Capture by height, so there is nothing to scroll", () => {
     // 100 x 1000 in an 800 x 600 well: (600 - 2 * 16) / 1000
@@ -109,5 +109,99 @@ describe("scrollAfterZoom: the point in the middle of the view stays in the midd
     });
 
     expect(next).toEqual({ left: 0, top: 0 });
+  });
+});
+
+describe("visibleCaptureArea: the part of the Capture the well shows, in Capture pixels", () => {
+  const rect = (left: number, top: number, width: number, height: number) => ({ left, top, right: left + width, bottom: top + height });
+
+  it("is the whole Capture when it fits in the well", () => {
+    expect(visibleCaptureArea(rect(0, 0, 800, 600), rect(100, 50, 300, 200), 1)).toEqual({ x: 0, y: 0, width: 300, height: 200 });
+  });
+
+  it("is the scrolled-to part when the Capture is bigger than the well, at the zoom shown", () => {
+    // A 2000 x 1000 Capture at 200%: 4000 x 2000 on screen, scrolled 600 px right and 100 down, in an 800 x 600 well.
+    expect(visibleCaptureArea(rect(0, 0, 800, 600), rect(-600, -100, 4000, 2000), 2)).toEqual({ x: 300, y: 50, width: 400, height: 300 });
+  });
+
+  it("is null when none of the Capture is in view (or nothing is laid out)", () => {
+    expect(visibleCaptureArea(rect(0, 0, 800, 600), rect(900, 0, 100, 100), 1)).toBeNull();
+    expect(visibleCaptureArea(rect(0, 0, 0, 0), rect(0, 0, 0, 0), 1)).toBeNull();
+  });
+});
+
+// Ticket 37: the visible area is what Fit fits; the dark margin around it is shown as far as there is room.
+describe("the visible area is what Fit fits", () => {
+  it("an expanded area is fitted like any image: it fills the same space", () => {
+    const well = { width: 800, height: 600 };
+    expect(fitScale({ width: 1600, height: 400 }, well)).toBeCloseTo(0.48);
+    expect(fitScale({ width: 700, height: 200 }, well)).toBe(1);
+  });
+});
+
+describe("fitScale with the canvas margin setting", () => {
+  it("leaves the margin free on every side of the area", () => {
+    // 2000 x 1000 in a 1000 x 700 well with 48 px: (1000 - 96) / 2000 wide, (700 - 96) / 1000 high
+    expect(fitScale({ width: 2000, height: 1000 }, { width: 1000, height: 700 }, 48)).toBeCloseTo(0.452);
+    expect(fitScale({ width: 400, height: 300 }, { width: 1000, height: 700 }, 48)).toBe(1);
+    // exactly fits at 100%: 400 + 96 wide
+    expect(fitScale({ width: 400, height: 300 }, { width: 496, height: 396 }, 48)).toBe(1);
+    expect(fitScale({ width: 400, height: 300 }, { width: 480, height: 396 }, 48)).toBeCloseTo(384 / 400);
+  });
+
+  it("a bigger margin leaves less for the image, and effectiveScale passes it on", () => {
+    expect(fitScale({ width: 1000, height: 500 }, { width: 1000, height: 700 }, 200)).toBeCloseTo(0.6);
+    expect(effectiveScale(FIT, { width: 1000, height: 500 }, { width: 1000, height: 700 }, 200)).toBeCloseTo(0.6);
+    expect(effectiveScale({ kind: "zoom", scale: 2 }, { width: 1000, height: 500 }, { width: 1000, height: 700 }, 200)).toBe(2);
+  });
+});
+
+describe("marginPx: the dark margin around the visible area, in screen pixels per side", () => {
+  const well = { width: 1000, height: 700 };
+
+  it("in Fit it is exactly the canvas margin on all four sides, whatever the shape of the area", () => {
+    expect(marginPx({ width: 400, height: 300 }, 1, well, FIT, 48)).toEqual({ x: 48, y: 48 });
+    const scale = fitScale({ width: 2000, height: 1000 }, well, 48);
+    expect(marginPx({ width: 2000, height: 1000 }, scale, well, FIT, 48)).toEqual({ x: 48, y: 48 });
+    expect(marginPx({ width: 2000, height: 1000 }, scale, well, FIT, 120)).toEqual({ x: 120, y: 120 });
+  });
+
+  it("a fitted area plus its margins never needs more than the well", () => {
+    for (const margin of [16, 48, 200]) {
+      for (const area of [{ width: 2000, height: 1000 }, { width: 333, height: 777 }, { width: 5000, height: 90 }]) {
+        const scale = fitScale(area, well, margin);
+        const m = marginPx(area, scale, well, FIT, margin);
+        expect(area.width * scale + 2 * m.x).toBeLessThanOrEqual(well.width + 1e-9);
+        expect(area.height * scale + 2 * m.y).toBeLessThanOrEqual(well.height + 1e-9);
+      }
+    }
+  });
+
+  it("after a manual zoom the full quarter is there to scroll to, and never less than the margin", () => {
+    expect(marginPx({ width: 2000, height: 1000 }, 1, well, { kind: "zoom", scale: 1 }, 48)).toEqual({ x: 500, y: 250 });
+    expect(marginPx({ width: 100, height: 100 }, 1, well, { kind: "zoom", scale: 1 }, 48)).toEqual({ x: 48, y: 48 });
+    // A huge image keeps the whole quarter (gestures can reach it), not a capped part of it.
+    expect(marginPx({ width: 4000, height: 4000 }, 1, well, { kind: "zoom", scale: 1 }, 48)).toEqual({ x: 1000, y: 1000 });
+  });
+
+  it("is whole pixels, so it never makes Fit scroll", () => {
+    const m = marginPx({ width: 333, height: 333 }, 0.37, { width: 600, height: 600 }, { kind: "zoom", scale: 0.37 }, 48);
+    expect(Number.isInteger(m.x) && Number.isInteger(m.y)).toBe(true);
+  });
+});
+
+describe("scrollAfterZoom with a margin", () => {
+  it("anchors with the margin that the content has at each zoom", () => {
+    const next = scrollAfterZoom({
+      image: { width: 4000, height: 3000 },
+      view: { width: 800, height: 600 },
+      scroll: { left: 100, top: 50 },
+      from: 1,
+      to: 2,
+      padding: { from: { x: 1000, y: 750 }, to: { x: 2000, y: 1500 } },
+    });
+    // The view's middle is image point (100 + 400 - 1000) / 1 = -500: in the margin.
+    expect(next.left).toBeCloseTo(Math.max(0, 2000 + -500 * 2 - 400));
+    expect(next.top).toBeCloseTo(Math.max(0, 1500 + (50 + 300 - 750) * 2 - 300));
   });
 });

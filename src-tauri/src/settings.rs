@@ -15,6 +15,28 @@
 //!   you draw with that tool starts the way you left it. One entry per tool ("arrow", "rect"...). The
 //!   editor writes and checks it; a missing or unreadable entry just means that tool uses its default.
 //!   Deleting the whole field (with the app closed) resets every tool to its default style.
+//! - `launchAtSignIn`: true (the default, also when the field is missing) starts the app in the tray when
+//!   you sign in to Windows, through a value in the per-user Run key. Change it in Settings.
+//! - `imageBackground`: what fills the part of a new image outside the Capture when it is made bigger than
+//!   the Capture: "white", "dark" or "transparent" (the default, also when the field is missing or not one of
+//!   those). The image keeps its own choice once it has one; this is only where it starts.
+//! - `transparencyCheckerboard`: "light" (the default) or "dark": the checkerboard drawn behind transparent
+//!   pixels in the editor and the Library. It changes how transparency looks, never an exported picture.
+//! - `canvasMargin` (0 to 200 pixels, default 16): the room kept around the canvas in the editor view. (Before
+//!   v0.5 the range was 16 to 200 with default 48; a stored value, 48 included, stays as stored, and a
+//!   missing one is the new default.)
+//! - `cropMargin` (0 to 400 pixels, default 150): the same room while the Crop tool is active.
+//! - `darkBackground` (`#RRGGBB`, default `#191919`): the colour of a Dark image background, applied when the
+//!   image is drawn (never stored with an image). Anything that is not `#RRGGBB` is the default.
+//! - `outsideDarkness` (0 to 99.9 percent, to a tenth, default 95): how dark the area outside the canvas is shown.
+//!   A stored value such as 60 stays as stored; one with more decimals is rounded to a tenth.
+//! - `showOutsideDefault` (true by default): whether a new image shows the area outside its canvas.
+//!   A number outside its range is brought into the range; anything that is not a number is the default.
+//!   (A whole-number setting also takes a fraction as the default.)
+//! - `libraryStripCollapsed` (false by default): whether the Library Strip along the bottom of the editor is
+//!   collapsed to a thin bar. The chevron on the strip's edge changes it; it is kept between launches.
+//! - `trayNoticeShown`: true once the one-time "still running in the tray" message, shown the first time
+//!   the editor is closed, has been shown. Setting it back to false (with the app closed) shows it once more.
 
 use std::fs;
 use std::io;
@@ -40,6 +62,190 @@ pub struct Settings {
     /// editor owns the shape (and validates it on read), so a new tool or group needs no change here.
     #[serde(deserialize_with = "object_or_empty")]
     pub tool_styles: serde_json::Map<String, serde_json::Value>,
+    /// Start the app when the user signs in to Windows (default true), through the HKCU Run key.
+    pub launch_at_sign_in: bool,
+    /// The one-time "still running in the tray" notice, shown the first time the editor is closed, was shown.
+    pub tray_notice_shown: bool,
+    /// What fills a new image outside the Capture once it is made bigger: one of `BACKGROUNDS`.
+    #[serde(deserialize_with = "background_or_default")]
+    pub image_background: String,
+    /// The checkerboard behind transparent pixels: one of `CHECKERBOARDS`.
+    #[serde(deserialize_with = "checkerboard_or_default")]
+    pub transparency_checkerboard: String,
+    /// The room kept around the canvas in the editor view, in pixels (`CANVAS_MARGIN`).
+    #[serde(deserialize_with = "canvas_margin_or_default")]
+    pub canvas_margin: u32,
+    /// The room kept around the canvas while the Crop tool is active, in pixels (`CROP_MARGIN`).
+    #[serde(deserialize_with = "crop_margin_or_default")]
+    pub crop_margin: u32,
+    /// The colour of a Dark image background, `#rrggbb` (`DEFAULT_DARK_BACKGROUND`).
+    #[serde(deserialize_with = "dark_background_or_default")]
+    pub dark_background: String,
+    /// How dark the area outside the canvas is shown, in percent to a tenth (`OUTSIDE_DARKNESS`).
+    #[serde(deserialize_with = "outside_darkness_or_default")]
+    pub outside_darkness: f64,
+    /// Whether a new image shows the area outside its canvas.
+    #[serde(deserialize_with = "bool_or_true")]
+    pub show_outside_default: bool,
+    /// The Library Strip is collapsed to a thin bar (the chevron on its edge toggles it).
+    #[serde(deserialize_with = "bool_or_false")]
+    pub library_strip_collapsed: bool,
+}
+
+pub const BACKGROUNDS: [&str; 3] = ["white", "dark", "transparent"];
+pub const CHECKERBOARDS: [&str; 2] = ["dark", "light"];
+pub const DEFAULT_IMAGE_BACKGROUND: &str = "transparent";
+pub const DEFAULT_CHECKERBOARD: &str = "light";
+
+/// An inclusive range of whole numbers a numeric setting may take.
+#[derive(Debug, Clone, Copy)]
+pub struct Range {
+    pub min: u32,
+    pub max: u32,
+    pub default: u32,
+}
+
+impl Range {
+    pub fn clamp(&self, value: u32) -> u32 {
+        value.clamp(self.min, self.max)
+    }
+    pub fn contains(&self, value: u32) -> bool {
+        (self.min..=self.max).contains(&value)
+    }
+}
+
+/// An inclusive range of numbers kept to a tenth (the outside darkness).
+#[derive(Debug, Clone, Copy)]
+pub struct DecimalRange {
+    pub min: f64,
+    pub max: f64,
+    pub default: f64,
+}
+
+/// `value` rounded to a tenth.
+fn tenths(value: f64) -> f64 {
+    (value * 10.0).round() / 10.0
+}
+
+impl DecimalRange {
+    /// A number brought into the range and rounded to a tenth.
+    pub fn clamp(&self, value: f64) -> f64 {
+        tenths(value).clamp(self.min, self.max)
+    }
+    /// True for a finite number inside the range that has no more than one decimal place.
+    pub fn contains(&self, value: f64) -> bool {
+        value.is_finite() && tenths(value) == value && value >= self.min && value <= self.max
+    }
+}
+
+pub const CANVAS_MARGIN: Range = Range { min: 0, max: 200, default: 16 };
+pub const CROP_MARGIN: Range = Range { min: 0, max: 400, default: 150 };
+pub const DEFAULT_DARK_BACKGROUND: &str = "#191919";
+
+/// True for `#` followed by exactly six hex digits (either case).
+pub fn is_hex_color(value: &str) -> bool {
+    value.len() == 7 && value.starts_with('#') && value[1..].chars().all(|c| c.is_ascii_hexdigit())
+}
+pub const OUTSIDE_DARKNESS: DecimalRange = DecimalRange { min: 0.0, max: 99.9, default: 95.0 };
+pub const DEFAULT_SHOW_OUTSIDE: bool = true;
+
+/// What the editor and the Library read: both image settings, as the frontend spells them.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ImageSettings {
+    pub background: String,
+    pub checkerboard: String,
+    pub canvas_margin: u32,
+    pub crop_margin: u32,
+    pub dark_background: String,
+    pub outside_darkness: f64,
+    pub show_outside_default: bool,
+    pub library_strip_collapsed: bool,
+}
+
+/// A stored choice that is not one of `allowed` (a hand edit, a newer version) is the default, not an error.
+fn choice_or<'de, D>(d: D, allowed: &[&str], default: &str) -> Result<String, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    Ok(match serde_json::Value::deserialize(d)? {
+        serde_json::Value::String(s) if allowed.contains(&s.as_str()) => s,
+        _ => default.to_string(),
+    })
+}
+
+fn background_or_default<'de, D: serde::Deserializer<'de>>(d: D) -> Result<String, D::Error> {
+    choice_or(d, &BACKGROUNDS, DEFAULT_IMAGE_BACKGROUND)
+}
+
+fn checkerboard_or_default<'de, D: serde::Deserializer<'de>>(d: D) -> Result<String, D::Error> {
+    choice_or(d, &CHECKERBOARDS, DEFAULT_CHECKERBOARD)
+}
+
+/// A stored whole number is brought into `range`; anything else (text, a fraction, null) is the default.
+fn number_in<'de, D: serde::Deserializer<'de>>(d: D, range: Range) -> Result<u32, D::Error> {
+    Ok(match serde_json::Value::deserialize(d)? {
+        serde_json::Value::Number(n) => match (n.as_u64(), n.as_i64()) {
+            (Some(v), _) => range.clamp(v.min(u32::MAX as u64) as u32),
+            (None, Some(_)) => range.min,
+            _ => range.default,
+        },
+        _ => range.default,
+    })
+}
+
+/// A stored number is rounded to a tenth and brought into `range`; anything else (text, null) is the default.
+fn tenths_in<'de, D: serde::Deserializer<'de>>(d: D, range: DecimalRange) -> Result<f64, D::Error> {
+    Ok(match serde_json::Value::deserialize(d)? {
+        serde_json::Value::Number(n) => n.as_f64().filter(|v| v.is_finite()).map_or(range.default, |v| range.clamp(v)),
+        _ => range.default,
+    })
+}
+
+fn canvas_margin_or_default<'de, D: serde::Deserializer<'de>>(d: D) -> Result<u32, D::Error> {
+    number_in(d, CANVAS_MARGIN)
+}
+
+fn crop_margin_or_default<'de, D: serde::Deserializer<'de>>(d: D) -> Result<u32, D::Error> {
+    number_in(d, CROP_MARGIN)
+}
+
+/// A stored `#RRGGBB` is kept (lower-cased); anything else is the default.
+fn dark_background_or_default<'de, D: serde::Deserializer<'de>>(d: D) -> Result<String, D::Error> {
+    Ok(match serde_json::Value::deserialize(d)? {
+        serde_json::Value::String(s) if is_hex_color(&s) => s.to_ascii_lowercase(),
+        _ => DEFAULT_DARK_BACKGROUND.to_string(),
+    })
+}
+
+fn outside_darkness_or_default<'de, D: serde::Deserializer<'de>>(d: D) -> Result<f64, D::Error> {
+    tenths_in(d, OUTSIDE_DARKNESS)
+}
+
+fn bool_or_true<'de, D: serde::Deserializer<'de>>(d: D) -> Result<bool, D::Error> {
+    Ok(match serde_json::Value::deserialize(d)? {
+        serde_json::Value::Bool(b) => b,
+        _ => DEFAULT_SHOW_OUTSIDE,
+    })
+}
+
+fn bool_or_false<'de, D: serde::Deserializer<'de>>(d: D) -> Result<bool, D::Error> {
+    Ok(matches!(serde_json::Value::deserialize(d)?, serde_json::Value::Bool(true)))
+}
+
+impl Settings {
+    pub fn image_settings(&self) -> ImageSettings {
+        ImageSettings {
+            background: self.image_background.clone(),
+            checkerboard: self.transparency_checkerboard.clone(),
+            canvas_margin: self.canvas_margin,
+            crop_margin: self.crop_margin,
+            dark_background: self.dark_background.clone(),
+            outside_darkness: self.outside_darkness,
+            show_outside_default: self.show_outside_default,
+            library_strip_collapsed: self.library_strip_collapsed,
+        }
+    }
 }
 
 impl Default for Settings {
@@ -49,6 +255,16 @@ impl Default for Settings {
             print_screen_notice_dismissed: false,
             magnifier: true,
             tool_styles: serde_json::Map::new(),
+            launch_at_sign_in: true,
+            tray_notice_shown: false,
+            image_background: DEFAULT_IMAGE_BACKGROUND.into(),
+            transparency_checkerboard: DEFAULT_CHECKERBOARD.into(),
+            canvas_margin: CANVAS_MARGIN.default,
+            crop_margin: CROP_MARGIN.default,
+            dark_background: DEFAULT_DARK_BACKGROUND.into(),
+            outside_darkness: OUTSIDE_DARKNESS.default,
+            show_outside_default: DEFAULT_SHOW_OUTSIDE,
+            library_strip_collapsed: false,
         }
     }
 }
@@ -115,6 +331,108 @@ pub fn set_tool_styles(
 ) -> io::Result<()> {
     settings.tool_styles = styles;
     save(dir, settings)
+}
+
+/// Sets "launch at sign-in" and then tries to save; like `set_magnifier`, the in-memory value changes
+/// even when the write fails.
+pub fn set_launch_at_sign_in(dir: &Path, settings: &mut Settings, enabled: bool) -> io::Result<()> {
+    settings.launch_at_sign_in = enabled;
+    save(dir, settings)
+}
+
+fn invalid_choice(what: &str, value: &str) -> io::Error {
+    io::Error::new(io::ErrorKind::InvalidInput, format!("{value:?} is not a {what}"))
+}
+
+/// Sets the default background for new images and then tries to save; like `set_magnifier`, the in-memory
+/// value changes even when the write fails. A value that is not one of `BACKGROUNDS` changes nothing.
+pub fn set_image_background(dir: &Path, settings: &mut Settings, background: &str) -> io::Result<()> {
+    if !BACKGROUNDS.contains(&background) {
+        return Err(invalid_choice("background", background));
+    }
+    settings.image_background = background.to_string();
+    save(dir, settings)
+}
+
+/// Sets the transparency checkerboard and then tries to save; same rules as `set_image_background`.
+pub fn set_transparency_checkerboard(dir: &Path, settings: &mut Settings, theme: &str) -> io::Result<()> {
+    if !CHECKERBOARDS.contains(&theme) {
+        return Err(invalid_choice("checkerboard", theme));
+    }
+    settings.transparency_checkerboard = theme.to_string();
+    save(dir, settings)
+}
+
+fn out_of_range(what: &str, value: u32, range: Range) -> io::Error {
+    io::Error::new(io::ErrorKind::InvalidInput, format!("{value} is not a {what} ({} to {})", range.min, range.max))
+}
+
+/// Sets the canvas margin in pixels; a value outside `CANVAS_MARGIN` changes nothing.
+pub fn set_canvas_margin(dir: &Path, settings: &mut Settings, value: u32) -> io::Result<()> {
+    if !CANVAS_MARGIN.contains(value) {
+        return Err(out_of_range("canvas margin", value, CANVAS_MARGIN));
+    }
+    settings.canvas_margin = value;
+    save(dir, settings)
+}
+
+/// Sets the canvas margin used while the Crop tool is active; a value outside `CROP_MARGIN` changes nothing.
+pub fn set_crop_margin(dir: &Path, settings: &mut Settings, value: u32) -> io::Result<()> {
+    if !CROP_MARGIN.contains(value) {
+        return Err(out_of_range("crop margin", value, CROP_MARGIN));
+    }
+    settings.crop_margin = value;
+    save(dir, settings)
+}
+
+/// Sets the colour of the Dark image background; anything but `#RRGGBB` changes nothing. Stored lower-case.
+pub fn set_dark_background(dir: &Path, settings: &mut Settings, color: &str) -> io::Result<()> {
+    if !is_hex_color(color) {
+        return Err(invalid_choice("colour (#RRGGBB)", color));
+    }
+    settings.dark_background = color.to_ascii_lowercase();
+    save(dir, settings)
+}
+
+/// Sets the outside-canvas darkness in percent; a value outside `OUTSIDE_DARKNESS`, or with more than one decimal, changes nothing.
+pub fn set_outside_darkness(dir: &Path, settings: &mut Settings, value: f64) -> io::Result<()> {
+    if !OUTSIDE_DARKNESS.contains(value) {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            format!("{value} is not an outside darkness ({} to {}, to a tenth)", OUTSIDE_DARKNESS.min, OUTSIDE_DARKNESS.max),
+        ));
+    }
+    settings.outside_darkness = value;
+    save(dir, settings)
+}
+
+/// Sets whether new images show the area outside the canvas.
+pub fn set_show_outside_default(dir: &Path, settings: &mut Settings, show: bool) -> io::Result<()> {
+    settings.show_outside_default = show;
+    save(dir, settings)
+}
+
+/// Sets whether the Library Strip is collapsed to a thin bar.
+pub fn set_library_strip_collapsed(dir: &Path, settings: &mut Settings, collapsed: bool) -> io::Result<()> {
+    settings.library_strip_collapsed = collapsed;
+    save(dir, settings)
+}
+
+/// Forgets every sticky tool style (and the per-tool choices stored beside them) and tries to save.
+pub fn reset_tool_styles(dir: &Path, settings: &mut Settings) -> io::Result<()> {
+    settings.tool_styles = serde_json::Map::new();
+    save(dir, settings)
+}
+
+/// True exactly once: the first time the editor is closed to the tray. Records that the notice was
+/// shown (in memory at once, then on disk; a failed write only means it may be shown once more after a restart).
+pub fn take_tray_notice(dir: &Path, settings: &mut Settings) -> bool {
+    if settings.tray_notice_shown {
+        return false;
+    }
+    settings.tray_notice_shown = true;
+    let _ = save(dir, settings);
+    true
 }
 
 #[cfg(test)]
@@ -311,6 +629,253 @@ mod tests {
         let mut s = Settings::default();
         assert!(set_tool_styles(&blocker, &mut s, styles(r#"{"line":{}}"#)).is_err());
         assert!(s.tool_styles.contains_key("line"));
+        fs::remove_file(&blocker).unwrap();
+    }
+
+    #[test]
+    fn launch_at_sign_in_is_on_by_default_and_for_files_from_before_it_existed() {
+        assert!(Settings::default().launch_at_sign_in);
+        let dir = temp_dir("launch-old-file");
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(dir.join(FILE_NAME), br#"{"hotkey":"alt+x"}"#).unwrap();
+        assert!(load(&dir).launch_at_sign_in);
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn turning_launch_at_sign_in_off_is_saved_and_leaves_the_rest_alone() {
+        let dir = temp_dir("launch-off");
+        let mut s = Settings { hotkey: "alt+x".into(), ..Settings::default() };
+        set_launch_at_sign_in(&dir, &mut s, false).unwrap();
+        let back = load(&dir);
+        assert!(!back.launch_at_sign_in);
+        assert_eq!(back.hotkey, "alt+x");
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn launch_at_sign_in_keeps_the_new_value_in_memory_when_the_file_cannot_be_written() {
+        let blocker = temp_dir("launch-blocked");
+        fs::write(&blocker, b"not a folder").unwrap();
+        let mut s = Settings::default();
+        assert!(set_launch_at_sign_in(&blocker, &mut s, false).is_err());
+        assert!(!s.launch_at_sign_in);
+        fs::remove_file(&blocker).unwrap();
+    }
+
+    #[test]
+    fn reset_tool_styles_clears_every_sticky_style_and_nothing_else() {
+        let dir = temp_dir("reset-styles");
+        let mut s = Settings { hotkey: "alt+x".into(), magnifier: false, ..Settings::default() };
+        set_tool_styles(&dir, &mut s, styles(r#"{"rect":{"stroke":{"width":8}},"toolBehavior":{"pen":true}}"#)).unwrap();
+        reset_tool_styles(&dir, &mut s).unwrap();
+        let back = load(&dir);
+        assert!(back.tool_styles.is_empty());
+        assert_eq!(back.hotkey, "alt+x");
+        assert!(!back.magnifier);
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn the_tray_notice_is_taken_once_and_stays_taken_after_a_restart() {
+        let dir = temp_dir("tray-notice");
+        let mut s = Settings::default();
+        assert!(!s.tray_notice_shown);
+        assert!(take_tray_notice(&dir, &mut s));
+        assert!(!take_tray_notice(&dir, &mut s));
+        let mut after_restart = load(&dir);
+        assert!(after_restart.tray_notice_shown);
+        assert!(!take_tray_notice(&dir, &mut after_restart));
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn a_tray_notice_that_could_not_be_recorded_is_not_repeated_in_the_same_run() {
+        let blocker = temp_dir("tray-notice-blocked");
+        fs::write(&blocker, b"not a folder").unwrap();
+        let mut s = Settings::default();
+        assert!(take_tray_notice(&blocker, &mut s));
+        assert!(!take_tray_notice(&blocker, &mut s));
+        fs::remove_file(&blocker).unwrap();
+    }
+
+    #[test]
+    fn a_fresh_install_starts_transparent_with_the_light_checkerboard_and_the_view_defaults() {
+        let s = load(&temp_dir("fresh-image"));
+        assert_eq!((s.image_background.as_str(), s.transparency_checkerboard.as_str()), ("transparent", "light"));
+        assert_eq!(
+            s.image_settings(),
+            ImageSettings {
+                background: "transparent".into(),
+                checkerboard: "light".into(),
+                canvas_margin: 16,
+                crop_margin: 150,
+                dark_background: "#191919".into(),
+                outside_darkness: 95.0,
+                show_outside_default: true,
+                library_strip_collapsed: false,
+            }
+        );
+    }
+
+    #[test]
+    fn the_image_settings_reach_the_page_in_camel_case() {
+        let json = serde_json::to_value(Settings::default().image_settings()).unwrap();
+        assert_eq!(json["canvasMargin"], 16);
+        assert_eq!(json["cropMargin"], 150);
+        assert_eq!(json["darkBackground"], "#191919");
+        assert_eq!(json["outsideDarkness"], 95.0);
+        assert_eq!(json["showOutsideDefault"], true);
+        assert_eq!(json["libraryStripCollapsed"], false);
+    }
+
+    #[test]
+    fn a_stored_checkerboard_is_kept_and_a_missing_one_is_now_light() {
+        let dir = temp_dir("old-checkerboard");
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(dir.join(FILE_NAME), br#"{"transparencyCheckerboard":"dark"}"#).unwrap();
+        assert_eq!(load(&dir).transparency_checkerboard, "dark");
+        fs::write(dir.join(FILE_NAME), br#"{"hotkey":"alt+x"}"#).unwrap();
+        assert_eq!(load(&dir).transparency_checkerboard, "light");
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn the_numeric_settings_are_validated_on_set_and_clamped_or_defaulted_on_load() {
+        let dir = temp_dir("numeric");
+        let mut s = Settings::default();
+        assert!(set_canvas_margin(&dir, &mut s, 201).is_err());
+        set_canvas_margin(&dir, &mut s, 0).unwrap();
+        set_canvas_margin(&dir, &mut s, 200).unwrap();
+        assert!(set_crop_margin(&dir, &mut s, 401).is_err());
+        assert_eq!(s.crop_margin, 150);
+        set_crop_margin(&dir, &mut s, 0).unwrap();
+        set_crop_margin(&dir, &mut s, 400).unwrap();
+        assert!(set_outside_darkness(&dir, &mut s, 100.0).is_err());
+        assert!(set_outside_darkness(&dir, &mut s, 50.55).is_err());
+        assert!(set_outside_darkness(&dir, &mut s, f64::NAN).is_err());
+        assert!(set_outside_darkness(&dir, &mut s, -0.1).is_err());
+        assert_eq!(s.outside_darkness, 95.0);
+        set_outside_darkness(&dir, &mut s, 99.9).unwrap();
+        assert_eq!(s.outside_darkness, 99.9);
+        set_outside_darkness(&dir, &mut s, 0.0).unwrap();
+        set_show_outside_default(&dir, &mut s, false).unwrap();
+        let back = load(&dir);
+        assert_eq!((back.canvas_margin, back.outside_darkness, back.show_outside_default), (200, 0.0, false));
+        assert_eq!(back.crop_margin, 400);
+        let text = fs::read_to_string(dir.join(FILE_NAME)).unwrap();
+        assert!(text.contains("\"canvasMargin\": 200") && text.contains("\"showOutsideDefault\": false"), "{text}");
+
+        fs::write(
+            dir.join(FILE_NAME),
+            br#"{"canvasMargin":3,"outsideDarkness":"x","showOutsideDefault":"no"}"#,
+        )
+        .unwrap();
+        let back = load(&dir);
+        assert_eq!((back.canvas_margin, back.outside_darkness, back.show_outside_default), (3, 95.0, true));
+        fs::write(dir.join(FILE_NAME), br#"{"canvasMargin":1.5,"outsideDarkness":null}"#).unwrap();
+        let back = load(&dir);
+        assert_eq!((back.canvas_margin, back.outside_darkness), (16, 95.0));
+        // A margin saved before the new default (48) stays as stored.
+        fs::write(dir.join(FILE_NAME), br#"{"canvasMargin":48,"cropMargin":999}"#).unwrap();
+        let back = load(&dir);
+        assert_eq!((back.canvas_margin, back.crop_margin), (48, 400));
+        fs::write(dir.join(FILE_NAME), br#"{"cropMargin":"x"}"#).unwrap();
+        assert_eq!(load(&dir).crop_margin, 150);
+        // A stored whole number stays as stored; a fraction is kept to a tenth; a value past the range is brought into it.
+        for (stored, expected) in [("60", 60.0), ("72.5", 72.5), ("72.54", 72.5), ("99.9", 99.9), ("100", 99.9), ("-4", 0.0), ("0", 0.0)] {
+            fs::write(dir.join(FILE_NAME), format!(r#"{{"outsideDarkness":{stored}}}"#)).unwrap();
+            assert_eq!(load(&dir).outside_darkness, expected, "stored {stored}");
+        }
+        assert!(!dir.join(CORRUPT_FILE_NAME).exists());
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn the_dark_background_must_be_a_hex_colour_and_is_stored_lower_case() {
+        let dir = temp_dir("dark-background");
+        let mut s = Settings::default();
+        for bad in ["", "191919", "#19191", "#1919199", "#gggggg", "red", "#12345é"] {
+            assert!(set_dark_background(&dir, &mut s, bad).is_err(), "{bad}");
+        }
+        assert_eq!(s.dark_background, "#191919");
+        set_dark_background(&dir, &mut s, "#AbCdEf").unwrap();
+        assert_eq!(load(&dir).dark_background, "#abcdef");
+        fs::write(dir.join(FILE_NAME), br##"{"darkBackground":"#102030"}"##).unwrap();
+        assert_eq!(load(&dir).dark_background, "#102030");
+        for (stored, expected) in [(r##""pink""##, "#191919"), ("5", "#191919"), ("null", "#191919"), (r##""#12345""##, "#191919"), (r##""#FFFFFF""##, "#ffffff")] {
+            fs::write(dir.join(FILE_NAME), format!(r#"{{"darkBackground":{stored}}}"#)).unwrap();
+            assert_eq!(load(&dir).dark_background, expected, "stored {stored}");
+        }
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn the_library_strip_collapse_is_kept_between_launches_and_anything_but_true_is_expanded() {
+        let dir = temp_dir("strip-collapsed");
+        let mut s = Settings::default();
+        assert!(!s.library_strip_collapsed);
+        set_library_strip_collapsed(&dir, &mut s, true).unwrap();
+        assert!(load(&dir).library_strip_collapsed);
+        for (stored, expected) in [("true", true), ("false", false), ("1", false), (r#""yes""#, false), ("null", false)] {
+            fs::write(dir.join(FILE_NAME), format!(r#"{{"libraryStripCollapsed":{stored}}}"#)).unwrap();
+            assert_eq!(load(&dir).library_strip_collapsed, expected, "stored {stored}");
+        }
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn a_file_from_before_the_image_settings_keeps_what_it_has_and_gets_the_defaults() {
+        let dir = temp_dir("old-image");
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(dir.join(FILE_NAME), br#"{"hotkey":"alt+x"}"#).unwrap();
+        let s = load(&dir);
+        assert_eq!(s.hotkey, "alt+x");
+        assert_eq!((s.image_background.as_str(), s.transparency_checkerboard.as_str()), ("transparent", "light"));
+        assert!(!dir.join(CORRUPT_FILE_NAME).exists());
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn the_image_settings_are_stored_camel_case_and_round_trip() {
+        let dir = temp_dir("image-roundtrip");
+        let mut s = Settings::default();
+        set_image_background(&dir, &mut s, "white").unwrap();
+        set_transparency_checkerboard(&dir, &mut s, "light").unwrap();
+        let text = fs::read_to_string(dir.join(FILE_NAME)).unwrap();
+        assert!(text.contains("\"imageBackground\": \"white\""), "{text}");
+        assert!(text.contains("\"transparencyCheckerboard\": \"light\""), "{text}");
+        let back = load(&dir);
+        assert_eq!((back.image_background.as_str(), back.transparency_checkerboard.as_str()), ("white", "light"));
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn a_value_that_is_not_a_choice_is_refused_and_a_stored_one_falls_back_to_the_default() {
+        let dir = temp_dir("image-invalid");
+        let mut s = Settings::default();
+        assert!(set_image_background(&dir, &mut s, "pink").is_err());
+        assert!(set_transparency_checkerboard(&dir, &mut s, "").is_err());
+        assert_eq!(s.image_background, "transparent");
+        assert_eq!(s.transparency_checkerboard, "light");
+
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(dir.join(FILE_NAME), br#"{"hotkey":"alt+x","imageBackground":"pink","transparencyCheckerboard":5}"#).unwrap();
+        let back = load(&dir);
+        assert_eq!(back.hotkey, "alt+x");
+        assert_eq!((back.image_background.as_str(), back.transparency_checkerboard.as_str()), ("transparent", "light"));
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn image_settings_keep_the_new_value_in_memory_when_the_file_cannot_be_written() {
+        let blocker = temp_dir("image-blocked");
+        fs::write(&blocker, b"not a folder").unwrap();
+        let mut s = Settings::default();
+        assert!(set_image_background(&blocker, &mut s, "dark").is_err());
+        assert_eq!(s.image_background, "dark");
+        assert!(set_transparency_checkerboard(&blocker, &mut s, "light").is_err());
+        assert_eq!(s.transparency_checkerboard, "light");
         fs::remove_file(&blocker).unwrap();
     }
 }

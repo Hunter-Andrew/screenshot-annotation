@@ -12,9 +12,13 @@ export interface Tool {
 
 export const SELECT_TOOL: Tool = { id: "select", label: "Select", shortcutAction: "tool.select" };
 
+/** Crop is a tool but not an Annotation kind: it sets the image's visible area (core/crop.ts). */
+export const CROP_TOOL: Tool = { id: "crop", label: "Crop", shortcutAction: "tool.crop" };
+
 export const TOOLS: readonly Tool[] = [
   SELECT_TOOL,
-  ...ANNOTATION_KINDS.map((k) => ({ id: k.type as string, label: k.label, shortcutAction: k.shortcutAction })),
+  ...ANNOTATION_KINDS.filter((k) => !k.pasted).map((k) => ({ id: k.type as string, label: k.label, shortcutAction: k.shortcutAction })),
+  CROP_TOOL,
 ];
 
 /**
@@ -29,6 +33,9 @@ export const DEFAULT_RETURN_TO_SELECT: Readonly<Record<string, boolean>> = {
   rect: true,
   ellipse: true,
   text: true,
+  callout: true,
   pen: false,
-  // Tickets 18-21 add: callout, highlight, blur, crop.
+  highlight: false,
+  blur: true,
+  crop: true,
 };

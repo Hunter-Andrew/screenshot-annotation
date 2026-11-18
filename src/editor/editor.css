@@ -50,6 +50,9 @@
 .editor button:disabled {
   opacity: 0.45;
   cursor: default;
+  /* A disabled button swallows the mouse-up of a drag that is released over it (the canvas then never hears that
+     the drag ended); let the pointer fall through to what is beneath. */
+  pointer-events: none;
 }
 .editor button[aria-pressed="true"] {
   background: var(--pressed);
@@ -69,6 +72,10 @@
   align-items: center;
   padding: 8px 16px;
   border-bottom: 1px solid var(--line);
+}
+.delay-capture {
+  display: inline-flex;
+  gap: 2px;
 }
 .topbar .spacer {
   flex: 1;
@@ -120,7 +127,12 @@
   overflow: auto;
   min-width: 0;
   min-height: 0;
-  background: var(--well);
+  /* The margin and everything outside the visible area: the well colour darkened by the Outside-canvas darkness
+     setting (set on this element as 0 to 0.999). The canvas dims what it draws outside the area by the same amount,
+     and draws nothing at all there when "Show outside the canvas" is off, so this shows through as one flat fill. */
+  background:
+    linear-gradient(rgba(6, 8, 12, var(--outside-darkness, 0.95)), rgba(6, 8, 12, var(--outside-darkness, 0.95))),
+    var(--well);
 }
 .well .empty {
   margin: auto;
@@ -129,11 +141,22 @@
 .stage-pad {
   margin: auto;
   flex: none;
-  padding: 16px; /* WELL_PADDING in view.ts */
+  /* Set inline: the dark margin around the visible area (the Canvas margin setting, see view.ts). */
+  padding: 48px;
 }
-.stage {
+/* The visible area: what Copy and Export produce. The Capture, the background and the canvas sit in it. */
+.area {
   position: relative;
-  box-shadow: 0 2px 14px rgba(0, 0, 0, 0.25);
+}
+/* Shows only the part of the Capture inside the visible area (and keeps the rest from making the well scroll). */
+.stage-clip {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+/* The Capture's own box (what its pixels map to); it may be bigger or smaller than the area. */
+.stage {
+  position: absolute;
 }
 .stage img {
   display: block;
@@ -144,7 +167,42 @@
 }
 .canvas-host {
   position: absolute;
+}
+/* An inline canvas leaves a few pixels for descenders below it, which would make the well scroll. */
+.canvas-host canvas {
+  display: block;
+}
+/* Transparency shows as a checkerboard (Settings: Dark or Light), in the editor and the Library only. */
+.editor {
+  --checker-a: #2b2f3a;
+  --checker-b: #3a3f4d;
+}
+.editor[data-checker="light"] {
+  --checker-a: #ffffff;
+  --checker-b: #d9dce3;
+}
+.checker,
+.lib-thumb img {
+  background-color: var(--checker-a);
+  background-image: conic-gradient(var(--checker-b) 25%, transparent 0 50%, var(--checker-b) 0 75%, transparent 0);
+  background-size: 16px 16px;
+}
+.checker {
+  position: absolute;
   inset: 0;
+  pointer-events: none;
+}
+.presets[role="radiogroup"] {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 0;
+}
+.radio {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-right: 10px;
+  cursor: pointer;
 }
 
 .style-panel {
@@ -153,6 +211,7 @@
   padding: 12px;
   border-left: 1px solid var(--line);
   overflow-y: auto;
+  overflow-x: hidden;
 }
 .style-panel h2 {
   margin: 0 0 8px;
@@ -228,6 +287,7 @@
 }
 .style-panel .row {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 6px;
   margin-bottom: 6px;
@@ -238,6 +298,8 @@
 }
 .presets {
   display: flex;
+  /* Wraps onto a second row when the panel is too narrow: the style controls never need a horizontal scroll. */
+  flex-wrap: wrap;
   gap: 6px;
 }
 
@@ -281,6 +343,34 @@
   padding: 8px 16px;
   border-top: 1px solid var(--line);
   background: var(--bg);
+}
+.library-strip {
+  position: relative;
+}
+.library-strip.collapsed {
+  padding-top: 0;
+  padding-bottom: 0;
+  min-height: 14px;
+}
+/* The chevron sits on the strip's top edge, centred; the collapsed strip is just a thin bar holding it. */
+.editor .strip-chevron {
+  position: absolute;
+  top: -10px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2;
+  width: 36px;
+  height: 18px;
+  padding: 0;
+  line-height: 1;
+  font-size: 11px;
+  border-radius: 9px;
+}
+.library-strip.collapsed .strip-chevron {
+  top: -2px;
+}
+.library-strip [hidden] {
+  display: none;
 }
 .strip-scroll {
   flex: 1;

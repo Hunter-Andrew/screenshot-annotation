@@ -4,5 +4,5 @@ import type { CanvasKit } from "./types";
 
 export const fabricKit: CanvasKit = {
   mount: async (host, options) => (await import("./fabricCanvas")).createFabricCanvas(host, options),
-  render: async (image) => (await import("./renderFinished")).renderFinished(image),
+  render: async (image, options) => (await import("./renderFinished")).renderFinished(image, options),
 };

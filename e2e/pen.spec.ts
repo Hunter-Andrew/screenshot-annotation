@@ -18,6 +18,7 @@ interface Bridge {
 type InPage = { __fakeBridge: Bridge };
 
 async function capture(page: Page, width: number, height: number) {
+  await page.waitForFunction(() => Boolean((window as unknown as { __fakeBridge?: unknown }).__fakeBridge)); // the app installs the fake bridge a moment after load
   await page.evaluate(
     ({ width, height }) => {
       const rgba = new Uint8Array(width * height * 4).fill(200);
@@ -72,7 +73,7 @@ test.describe("a Pen stroke's life", () => {
     const view = await mapper(page, 600);
 
     await page.keyboard.press("p");
-    await expect(page.getByRole("button", { name: /^Pen/ })).toHaveAttribute("aria-pressed", "true");
+    await expect(page.getByRole("button", { name: /^Pen \(P\)/ })).toHaveAttribute("aria-pressed", "true");
     // A wave from x=80 to x=400.
     const wave = Array.from({ length: 17 }, (_, i) => view.at(80 + i * 20, 150 + Math.sin(i / 2) * 40));
     await stroke(page, wave);
@@ -85,7 +86,7 @@ test.describe("a Pen stroke's life", () => {
     const [saved] = await savedAnnotations(page);
     expect(saved!.stroke).toEqual({ color: "#e02424", width: 4 });
     // The Pen keeps drawing by default (see behavior.spec.ts): still the Pen, nothing selected. V for Select.
-    await expect(page.getByRole("button", { name: /^Pen/ })).toHaveAttribute("aria-pressed", "true");
+    await expect(page.getByRole("button", { name: /^Pen \(P\)/ })).toHaveAttribute("aria-pressed", "true");
     await page.keyboard.press("v");
     await expect(page.getByRole("button", { name: /^Select/ })).toHaveAttribute("aria-pressed", "true");
 

@@ -5,6 +5,9 @@
 /// The private chunk type that carries the editable data (`EMBED_CHUNK` in annotatedImage.ts).
 pub const EMBED_CHUNK: &[u8; 4] = b"snAP";
 
+/// The private chunk that carries a pasted image's own PNG (`IMAGE_CHUNK` in annotatedImage.ts, ticket 38).
+pub const IMAGE_CHUNK: &[u8; 4] = b"snIM";
+
 const SIGNATURE: [u8; 8] = [137, 80, 78, 71, 13, 10, 26, 10];
 
 /// Ok if `bytes` start with the PNG signature and walk as well-formed chunks.
@@ -14,7 +17,7 @@ pub fn require_png(bytes: &[u8]) -> Result<(), String> {
 
 /// Ok if `bytes` is a PNG with no `snAP` chunk; otherwise a message saying why the Export is refused.
 pub fn require_plain_png(bytes: &[u8]) -> Result<(), String> {
-    if chunk_types(bytes)?.iter().any(|t| t == EMBED_CHUNK) {
+    if chunk_types(bytes)?.iter().any(|t| t == EMBED_CHUNK || t == IMAGE_CHUNK) {
         return Err("refusing to export: the PNG still carries the private editable-data chunk".into());
     }
     Ok(())
@@ -90,6 +93,13 @@ mod tests {
     }
 
     #[test]
+    fn a_png_carrying_a_pasted_image_chunk_is_refused_too() {
+        let bytes = png(&[b"IHDR", b"snIM", b"IDAT", b"IEND"]);
+        assert!(require_plain_png(&bytes).unwrap_err().contains("editable-data"));
+        assert_eq!(require_png(&bytes), Ok(()));
+    }
+
+    #[test]
     fn a_chunk_longer_than_the_data_is_refused_not_panicked_on() {
         let mut bytes = png(&[b"IHDR"]);
         bytes.extend_from_slice(&u32::MAX.to_be_bytes());
@@ -102,5 +112,6 @@ mod tests {
     fn the_chunk_name_matches_the_frontend() {
         let ts = include_str!("../../src/core/annotatedImage.ts");
         assert!(ts.contains(&format!("EMBED_CHUNK = \"{}\"", std::str::from_utf8(EMBED_CHUNK).unwrap())));
+        assert!(ts.contains(&format!("IMAGE_CHUNK = \"{}\"", std::str::from_utf8(IMAGE_CHUNK).unwrap())));
     }
 }

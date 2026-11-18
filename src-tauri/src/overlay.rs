@@ -3,8 +3,11 @@
 //! user's choice into the Capture. Windows-only in practice (the frames come from capture.rs);
 //! the geometry (clamping, negative coordinates, cropping) lives in geometry.rs.
 //!
-//! The overlay windows are created per capture for now; keeping them pre-warmed and hidden
-//! (ADR 0003) is ticket 24.
+//! The overlay windows are pre-warmed (ADR 0003, ticket 24): `prewarm` creates one hidden window
+//! per monitor at startup, each page loads and sits idle, and a capture only freezes the screen,
+//! moves the windows onto their monitors and tells the pages to show their frames (the
+//! `overlay-attempt` event). When the capture ends the windows are hidden again, not closed. Which
+//! windows to create, reuse or close when the monitors differ is decided by warm.rs.
 
 use std::collections::HashSet;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -13,15 +16,20 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
 use tauri::ipc::Response;
-use tauri::{AppHandle, Manager, PhysicalPosition, PhysicalSize, WebviewUrl};
+use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, PhysicalSize, WebviewUrl};
 
 use crate::capture::{self, MonitorFrame};
 use crate::capture_image::encode_png;
 use crate::diag;
 use crate::geometry::{self, MonitorBounds, Region};
+use crate::warm;
 use crate::watchdog::{self, Verdict};
 
 const LABEL_PREFIX: &str = "overlay-";
+/// Event telling every overlay page which capture to show: the attempt number when one begins, null
+/// when it ends (the page then drops its frame and idles). A page that loads later asks
+/// `overlay_attempt` instead.
+pub const ATTEMPT_EVENT: &str = "overlay-attempt";
 /// Event carrying the new magnifier setting (a bool) to every window: a key press only reaches one
 /// overlay, and the Settings checkbox changes it from yet another window. Sent by `set_magnifier`.
 pub const MAGNIFIER_EVENT: &str = "overlay-magnifier";
@@ -105,17 +113,24 @@ fn label(monitor: usize) -> String {
 }
 
 /// The one teardown every path ends through (Esc/cancel, a choice, an error, the watchdog): clear
-/// `busy` first so it can never stay stuck, close every overlay window and release the session.
-fn end(app: &AppHandle) -> Option<Session> {
+/// `busy` first so it can never stay stuck, send every overlay page back to idle, release the
+/// session, and hide the overlay windows (`keep`: they stay loaded for the next capture) or close
+/// them (after a failure, so the next capture starts from fresh windows; see `fail`).
+fn end(app: &AppHandle, keep: bool) -> Option<Session> {
     let state = app.state::<OverlayState>();
     let session = state.session.lock().unwrap_or_else(|p| p.into_inner()).take();
     state.busy.store(false, Ordering::SeqCst);
+    let _ = app.emit(ATTEMPT_EVENT, None::<u64>);
     for (name, window) in app.webview_windows() {
         if name.starts_with(LABEL_PREFIX) {
-            let _ = window.destroy();
+            let _ = if keep { window.hide() } else { window.destroy() };
         }
     }
-    diag::log(&format!("overlay: torn down (session {})", if session.is_some() { "released" } else { "was already gone" }));
+    diag::log(&format!(
+        "overlay: {} (session {})",
+        if keep { "hidden, windows kept warm" } else { "torn down, windows closed" },
+        if session.is_some() { "released" } else { "was already gone" }
+    ));
     session
 }
 
@@ -142,9 +157,11 @@ fn show_error(app: &AppHandle, message: &str) {
 /// Give up on the capture: log it, tear everything down, put the editor back and tell the user.
 fn fail(app: &AppHandle, message: &str) {
     diag::log(&format!("capture failed: {message}"));
-    let session = end(app);
+    // A failure may be a broken overlay window: close them all and warm up fresh ones.
+    let session = end(app, false);
     restore_editor(app, session.is_some_and(|s| s.editor_was_visible));
     show_error(app, message);
+    prewarm_in_background(app);
 }
 
 /// Native handles of the overlay windows, so window enumeration can never offer them as targets.
@@ -169,19 +186,72 @@ pub fn begin(app: AppHandle, source: &str) {
     let source = source.to_string();
     std::thread::spawn(move || {
         diag::log(&format!("capture requested ({source})"));
-        let state = app.state::<OverlayState>();
-        if state.busy.swap(true, Ordering::SeqCst) {
-            diag::log("capture ignored: an earlier capture is still open (the watchdog clears one that never shows)");
-            return;
-        }
-        let attempt = state.attempt.fetch_add(1, Ordering::SeqCst) + 1;
-        watch(app.clone(), attempt);
-        // A panic must not leave `busy` set.
-        let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| run(&app, attempt)));
-        if outcome.is_err() {
-            fail(&app, "The capture code crashed (a panic).");
+        if claim(&app) {
+            start(&app, false);
         }
     });
+}
+
+/// Delay timer (ticket 22; tray menu and the editor's top bar): the editor steps out of the way at
+/// once, a countdown badge follows the pointer for `seconds`, then the capture starts like after the
+/// hotkey. Anything but a delay in `delay::CHOICES` is refused. Runs on its own thread.
+pub fn begin_delayed(app: AppHandle, seconds: u32) {
+    let Some(total) = crate::delay::delay_for(seconds) else {
+        diag::log(&format!("delayed capture refused: {seconds} s is not one of {:?}", crate::delay::CHOICES));
+        return;
+    };
+    std::thread::spawn(move || {
+        diag::log(&format!("capture requested (delay timer, {seconds} s)"));
+        if !claim(&app) {
+            return;
+        }
+        // The user needs the screen to arrange it (open a menu, hover a tooltip): hide the editor now,
+        // and remember to bring it back if nothing is captured.
+        let editor_hidden = match app.get_webview_window(crate::EDITOR_LABEL) {
+            Some(win) if win.is_visible().unwrap_or(false) => {
+                crate::hide_editor(&win);
+                true
+            }
+            _ => false,
+        };
+        // A panic must not leave `busy` set, which would block every later capture.
+        let counted = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| crate::countdown::run(&app, total)));
+        if let Ok(false) = counted {
+            // Esc during the countdown: no capture; release the slot and bring the editor back.
+            app.state::<OverlayState>().busy.store(false, Ordering::SeqCst);
+            restore_editor(&app, editor_hidden);
+            diag::log("delay timer cancelled with Esc; nothing was captured");
+            return;
+        }
+        if counted.is_err() {
+            app.state::<OverlayState>().busy.store(false, Ordering::SeqCst);
+            restore_editor(&app, editor_hidden);
+            diag::log("countdown crashed (a panic); the capture was dropped");
+            return;
+        }
+        start(&app, editor_hidden);
+    });
+}
+
+/// Claim the one capture slot; false (logged) while an earlier capture or countdown holds it.
+fn claim(app: &AppHandle) -> bool {
+    let busy = app.state::<OverlayState>().busy.swap(true, Ordering::SeqCst);
+    if busy {
+        diag::log("capture ignored: an earlier capture is still open (the watchdog clears one that never shows)");
+    }
+    !busy
+}
+
+/// Run a claimed capture: number the attempt, watch it, freeze the screen and show the overlays.
+/// `editor_hidden`: the delay timer already hid the editor, so it counts as visible for restoring.
+fn start(app: &AppHandle, editor_hidden: bool) {
+    let attempt = app.state::<OverlayState>().attempt.fetch_add(1, Ordering::SeqCst) + 1;
+    watch(app.clone(), attempt);
+    // A panic must not leave `busy` set.
+    let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| run(app, attempt, editor_hidden)));
+    if outcome.is_err() {
+        fail(app, "The capture code crashed (a panic).");
+    }
 }
 
 /// True while `attempt` is still the capture in progress.
@@ -190,12 +260,17 @@ fn current(app: &AppHandle, attempt: u64) -> bool {
     state.busy.load(Ordering::SeqCst) && state.attempt.load(Ordering::SeqCst) == attempt
 }
 
-fn run(app: &AppHandle, attempt: u64) {
+fn run(app: &AppHandle, attempt: u64, editor_hidden_already: bool) {
     let started = Instant::now();
     let editor_was_visible = match app.get_webview_window(crate::EDITOR_LABEL) {
+        _ if editor_hidden_already => {
+            diag::log("editor was hidden by the delay timer");
+            true
+        }
         Some(win) if win.is_visible().unwrap_or(false) => {
             crate::hide_editor(&win);
-            std::thread::sleep(crate::HIDE_SETTLE);
+            // The editor fades out: wait for it to be fully gone, or it is partly in the picture.
+            std::thread::sleep(crate::delay::wait_after_hiding_editor(crate::HIDE_SETTLE));
             diag::log("editor was visible: hidden for the capture");
             true
         }
@@ -260,19 +335,47 @@ fn run(app: &AppHandle, attempt: u64) {
         });
     }
 
+    // Pre-warmed windows are only moved onto their monitors; any that is missing (a monitor was plugged
+    // in since startup, or warm-up has not finished) is created now, the slow way; windows for monitors
+    // that are gone are closed.
+    let plan = warm::plan_overlays(&existing_overlays(app), layout.len());
+    diag::log(&format!(
+        "overlay windows: {} pre-warmed, {} to create now, {} to close",
+        plan.reuse.len(),
+        plan.create.len(),
+        plan.destroy.len()
+    ));
+    for index in &plan.destroy {
+        if let Some(window) = app.get_webview_window(&label(*index)) {
+            let _ = window.destroy();
+        }
+    }
     for (index, bounds) in layout.iter().enumerate() {
         if !current(app, attempt) {
             return;
         }
-        match open_window(app, index, bounds) {
-            Ok(()) => diag::log(&format!("overlay window {index} opened (hidden until its page reports ready)")),
+        match place_window(app, index, bounds) {
+            Ok(created) => diag::log(&format!(
+                "overlay window {index} {} (hidden until its page reports ready)",
+                if created { "created" } else { "moved onto its monitor" }
+            )),
             Err(e) => {
                 fail(app, &format!("Could not open the capture overlay on monitor {index}: {e}"));
                 return;
             }
         }
     }
-    diag::log("all overlay windows opened; waiting for a page to report ready");
+    // Every page now shows its monitor's frame; pages still loading learn the attempt by asking.
+    let _ = app.emit(ATTEMPT_EVENT, Some(attempt));
+    diag::log("all overlay windows placed; waiting for a page to report ready");
+}
+
+/// Monitor indexes that have an overlay window right now.
+fn existing_overlays(app: &AppHandle) -> Vec<usize> {
+    app.webview_windows()
+        .keys()
+        .filter_map(|name| name.strip_prefix(LABEL_PREFIX)?.parse().ok())
+        .collect()
 }
 
 /// Watch one capture attempt from its own thread: if no overlay ever reports ready, tear it all
@@ -307,23 +410,82 @@ fn watch(app: AppHandle, attempt: u64) {
     });
 }
 
-/// Create the (still hidden) overlay window covering exactly one monitor. It is shown by
-/// `overlay_ready` once its frozen frame is decoded, so there is no flash of an empty window.
-fn open_window(app: &AppHandle, index: usize, bounds: &MonitorBounds) -> tauri::Result<()> {
-    let window = crate::new_window(app, &label(index),WebviewUrl::App(format!("index.html#overlay/{index}").into()))
-        .title("Capture")
-        .decorations(false)
-        .resizable(false)
-        .shadow(false)
-        .skip_taskbar(true)
-        .always_on_top(true)
-        .visible(false)
-        .build()?;
-    // Physical coordinates: x and y are negative for monitors left of or above the primary. The
-    // position is set before the size so the size is applied at the target monitor's DPI.
-    window.set_position(PhysicalPosition::new(bounds.x, bounds.y))?;
-    window.set_size(PhysicalSize::new(bounds.width, bounds.height))?;
-    Ok(())
+/// Create the (still hidden) overlay window for one monitor, or return the one that exists already
+/// (`false`: not created now). It is shown by `overlay_ready` once its frozen frame is decoded, so
+/// there is no flash of an empty window. Call from a worker thread (see `create_or_existing`).
+fn open_window(app: &AppHandle, index: usize) -> Option<(tauri::WebviewWindow, bool)> {
+    let make = || {
+        crate::new_window(app, &label(index), WebviewUrl::App(format!("index.html#overlay/{index}").into()))
+            .title("Capture")
+            .decorations(false)
+            .resizable(false)
+            .shadow(false)
+            .skip_taskbar(true)
+            .always_on_top(true)
+            .visible(false)
+            .build()
+    };
+    crate::create_or_existing(app, &label(index), make)
+}
+
+/// Put monitor `index`'s overlay window exactly over its monitor, creating the window first if it
+/// does not exist. Returns whether it had to be created. Physical coordinates: x and y are negative
+/// for monitors left of or above the primary; the position is set before the size so the size is
+/// applied at the target monitor's DPI.
+fn place_window(app: &AppHandle, index: usize, bounds: &MonitorBounds) -> Result<bool, String> {
+    let (window, created) = open_window(app, index).ok_or("the window could not be created (see the log)")?;
+    window.set_position(PhysicalPosition::new(bounds.x, bounds.y)).map_err(|e| e.to_string())?;
+    window.set_size(PhysicalSize::new(bounds.width, bounds.height)).map_err(|e| e.to_string())?;
+    Ok(created)
+}
+
+/// Create the hidden, idle overlay windows (one per monitor) that do not exist yet, so the first
+/// hotkey press only has to show them (ADR 0003). Blocks while WebView2 builds them: call from a
+/// worker thread, never the main thread. Not finding the monitors, or failing to create a window,
+/// only costs speed: the capture creates what is missing itself.
+pub fn prewarm(app: &AppHandle) {
+    let monitors = match app.available_monitors() {
+        Ok(monitors) if !monitors.is_empty() => monitors,
+        other => {
+            diag::log(&format!("overlay pre-warm skipped: no monitors found ({other:?})"));
+            return;
+        }
+    };
+    let plan = warm::plan_overlays(&existing_overlays(app), monitors.len());
+    for index in plan.destroy {
+        if let Some(window) = app.get_webview_window(&label(index)) {
+            let _ = window.destroy();
+        }
+    }
+    for index in plan.create {
+        let started = Instant::now();
+        match open_window(app, index) {
+            Some((window, true)) => {
+                let m = &monitors[index];
+                let _ = window.set_position(PhysicalPosition::new(m.position().x, m.position().y));
+                let _ = window.set_size(PhysicalSize::new(m.size().width, m.size().height));
+                diag::log(&format!("overlay window {index} pre-warmed in {} ms", started.elapsed().as_millis()));
+            }
+            Some((_, false)) => {}
+            None => diag::log(&format!("overlay window {index} could not be pre-warmed")),
+        }
+    }
+}
+
+/// `prewarm` on a thread of its own, for callers that must not wait (the error path of a capture).
+fn prewarm_in_background(app: &AppHandle) {
+    let app = app.clone();
+    std::thread::spawn(move || prewarm(&app));
+}
+
+/// The capture attempt an overlay page should show now, or null while it sits idle and hidden. A page
+/// that loaded after `overlay-attempt` was sent asks this once; the event covers every later change.
+#[tauri::command]
+pub fn overlay_attempt(state: tauri::State<'_, OverlayState>) -> Option<u64> {
+    if !state.busy.load(Ordering::SeqCst) {
+        return None;
+    }
+    state.session.lock().unwrap_or_else(|p| p.into_inner()).as_ref().map(|s| s.id)
 }
 
 /// Log a command's outcome: its name, the monitor, and how it ended.
@@ -416,7 +578,7 @@ fn kind(outcome: &Outcome) -> &'static str {
 #[tauri::command]
 pub async fn overlay_finish(app: AppHandle, outcome: Outcome) -> Result<(), String> {
     let kind = kind(&outcome);
-    let Some(session) = end(&app) else {
+    let Some(session) = end(&app, true) else {
         diag::log(&format!("overlay_finish({kind}): ignored, no capture in progress"));
         return Ok(());
     };

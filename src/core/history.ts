@@ -5,9 +5,10 @@
 // same `applyEdit` as any other edit. The inverse is computed from the image as it was before the
 // edit, generically: an update inverts to the old values of the keys it patched, so a new Annotation
 // kind (tickets 10-12, 18-20) needs nothing here. A new kind of `Edit` (ticket 21's `setCrop`) adds
-// one case to `invert`.
+// one case to `invert`; `setCrop` inverts to the crop it replaced.
 import type { AnnotatedImage } from "./annotatedImage";
-import type { Edit } from "./editSession";
+import { sameCrop } from "./crop";
+import { applyEdit, type Edit, growthOf, sameGrowth } from "./editSession";
 
 /** Most steps kept per image (spec: undo history, 200 steps). */
 export const HISTORY_CAP = 200;
@@ -47,7 +48,11 @@ export function invert(before: AnnotatedImage, edit: Edit): Edit | null {
       const current = list.find((a) => a.id === edit.id);
       if (!current) return null;
       const patch: Record<string, unknown> = {};
-      for (const key of Object.keys(edit.patch)) patch[key] = (current as unknown as Record<string, unknown>)[key];
+      for (const key of Object.keys(edit.patch)) {
+        const before = (current as unknown as Record<string, unknown>)[key];
+        // A box with no styled ranges has no `runs`; the saved history file cannot hold "absent", so it says "no ranges".
+        patch[key] = before === undefined && key === "runs" ? [] : before;
+      }
       return { kind: "update", id: edit.id, patch };
     }
     case "delete": {
@@ -59,12 +64,46 @@ export function invert(before: AnnotatedImage, edit: Edit): Edit | null {
       const to = Math.max(0, Math.min(edit.to, list.length - 1));
       return index < 0 || index === to ? null : { kind: "reorder", id: edit.id, to: index };
     }
+    case "setCrop":
+      return sameCrop(before.model.crop, edit.crop) ? null : { kind: "setCrop", crop: before.model.crop };
+    case "setBackground":
+      return (before.model.background ?? null) === edit.background ? null : { kind: "setBackground", background: before.model.background ?? null };
+    case "setShowOutside":
+      return (before.model.showOutside ?? null) === edit.showOutside ? null : { kind: "setShowOutside", showOutside: before.model.showOutside ?? null };
+    case "setGrowth": {
+      const growth = growthOf(before.model);
+      return sameGrowth(growth, edit.growth) ? null : { kind: "setGrowth", growth };
+    }
+    case "batch": {
+      // Each part is inverted against the image as the parts before it left it; undo runs them in reverse.
+      const inverses: Edit[] = [];
+      let image = before;
+      for (const part of edit.edits) {
+        const inverse = invert(image, part);
+        if (inverse) inverses.unshift(inverse);
+        image = applyEdit(image, part);
+      }
+      return inverses.length > 0 ? { kind: "batch", edits: inverses } : null;
+    }
     default:
       return null;
   }
 }
 
-const sameKeys = (a: object, b: object) => {
+/** The pasted images (ticket 38) the steps would put back (an Annotation they add), each id once. */
+export function historyImageIds(history: HistoryState): string[] {
+  const ids = new Set<string>();
+  for (const step of [...history.undo, ...history.redo]) {
+    for (const edit of [step.undo, step.redo]) {
+      for (const part of edit.kind === "batch" ? edit.edits : [edit]) {
+        if (part.kind === "add" && part.annotation.type === "image") ids.add(part.annotation.imageId);
+      }
+    }
+  }
+  return [...ids];
+}
+
+const sameKeys =(a: object, b: object) => {
   const [x, y] = [Object.keys(a).sort(), Object.keys(b).sort()];
   return x.length === y.length && x.every((key, i) => key === y[i]);
 };

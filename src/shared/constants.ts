@@ -11,3 +11,6 @@ export const OVERLAY_HASH_PREFIX = "#overlay/";
 
 /** Shared page-container style for every window's `<main>`. */
 export const MAIN_STYLE: CSSProperties = { fontFamily: "system-ui, sans-serif", padding: 16 };
+
+/** Route of the delay timer's countdown badge window; `src-tauri/src/countdown.rs` must open the same hash (see rustParity.test.ts). */
+export const COUNTDOWN_HASH = "#countdown";

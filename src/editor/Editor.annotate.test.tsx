@@ -92,16 +92,22 @@ describe("tools and shortcut keys", () => {
     await waitFor(() => expect(kit.latest.tool).toBe("select"));
   });
 
-  it("ignores a key for a tool that does not exist yet (B is in the table, but there is no Blur tool)", async () => {
+  it("B picks the Blur tool, whose Style panel has only Strength, and it returns to Select after one use", async () => {
     const bridge = createFakeBridge();
     const kit = await openEditor(bridge);
     await capture(bridge);
-    await userEvent.keyboard("a");
 
     await userEvent.keyboard("b");
 
-    expect(screen.getByRole("button", { name: /^Arrow/ })).toHaveAttribute("aria-pressed", "true");
-    expect(kit.latest.tool).toBe("arrow");
+    expect(screen.getByRole("button", { name: /^Blur/ })).toHaveAttribute("aria-pressed", "true");
+    await waitFor(() => expect(kit.latest.tool).toBe("blur"));
+    expect(screen.getByRole("region", { name: "Strength" })).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Stroke" })).not.toBeInTheDocument();
+
+    await act(async () =>
+      kit.latest.draw({ id: "b1", type: "blur", x: 10, y: 10, width: 80, height: 40, strength: { blockSize: 12 } }),
+    );
+    expect(screen.getByRole("button", { name: /^Select/ })).toHaveAttribute("aria-pressed", "true");
   });
 
   it("Esc deselects the Annotation and returns to Select", async () => {

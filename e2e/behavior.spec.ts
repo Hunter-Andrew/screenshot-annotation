@@ -10,6 +10,7 @@ interface Bridge {
 type InPage = { __fakeBridge: Bridge };
 
 async function capture(page: Page, width: number, height: number) {
+  await page.waitForFunction(() => Boolean((window as unknown as { __fakeBridge?: unknown }).__fakeBridge)); // the app installs the fake bridge a moment after load
   await page.evaluate(
     ({ width, height }) => {
       const rgba = new Uint8Array(width * height * 4).fill(200);
@@ -64,10 +65,10 @@ test("the Pen keeps drawing, a Rectangle returns to Select; each is switchable a
   await expect(option(page)).not.toBeChecked();
   await drag(page, at(60, 60), at(260, 120));
   await expectSaved(page, ["pen"]);
-  await expect(tool(page, /^Pen/)).toHaveAttribute("aria-pressed", "true");
+  await expect(tool(page, /^Pen \(P\)/)).toHaveAttribute("aria-pressed", "true");
   await drag(page, at(60, 160), at(260, 220));
   await expectSaved(page, ["pen", "pen"]);
-  await expect(tool(page, /^Pen/)).toHaveAttribute("aria-pressed", "true");
+  await expect(tool(page, /^Pen \(P\)/)).toHaveAttribute("aria-pressed", "true");
 
   // Rectangle: back to Select after one.
   await page.keyboard.press("r");

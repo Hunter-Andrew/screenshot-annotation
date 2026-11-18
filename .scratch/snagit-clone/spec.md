@@ -201,7 +201,7 @@ The app makes no network calls. Updates are manual installs from public GitHub R
 | Border (image) | on, color, width 1–30; drawn inside the edge |
 | Opacity (image) | 10–100% |
 
-- **Callout:** adds `tail { on, x, y }`.
+- **Callout:** adds a `tail: { enabled }` group plus an optional `tip` offset from the text box's top-left corner (absent until the tail is dragged).
 - **Blur:** adds a pixelate strength.
 - **Crop:** a rectangle on the Annotated Image, not an Annotation.
 

@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { sanitizeImageSettings } from "../shared/imageSettings";
 import { formatStamp } from "../shared/stamp";
 import { watchLibrary } from "./libraryWatch";
 import type {
@@ -69,6 +70,10 @@ export function createTauriBridge(): PlatformBridge {
     getVersion: () => invoke<string>("app_version"),
     openUrl: (url) => invoke<void>("open_url", { url }),
     startCapture: () => invoke<void>("start_capture"),
+    startDelayedCapture: (seconds) => invoke<void>("start_delayed_capture", { seconds }),
+    getCountdown: () => invoke<number | null>("countdown_remaining"),
+    onCountdown: (handler) =>
+      listen<number | null>("countdown", (event) => handler(typeof event.payload === "number" ? event.payload : null)),
     onCapture: async (handler) => {
       const deliverPending = async () => {
         const capture = await takeCapture();
@@ -122,6 +127,15 @@ export function createTauriBridge(): PlatformBridge {
     deleteHistory: (key) => invoke<void>("history_delete", { key }),
     purgeHistoryBefore: (cutoffMs) => invoke<number>("history_purge_before", { cutoffMs }),
     openSettings: () => invoke<void>("open_settings"),
+    getLaunchAtSignIn: () => invoke<boolean>("get_launch_at_sign_in"),
+    setLaunchAtSignIn: (enabled) => invoke<void>("set_launch_at_sign_in", { enabled }),
+    getLibraryFolder: () => invoke<string>("library_folder"),
+    openLibraryFolder: () => invoke<void>("open_library_folder"),
+    resetToolStyles: () => invoke<void>("reset_tool_styles"),
+    onToolStylesReset: (handler) => listen("tool-styles-reset", () => handler()),
+    overlayAttempt: () => invoke<number | null>("overlay_attempt"),
+    onOverlayAttempt: (handler) =>
+      listen<number | null>("overlay-attempt", (event) => handler(typeof event.payload === "number" ? event.payload : null)),
     overlayFrame: async (monitor) => unpackFrame(await invoke<ArrayBuffer>("overlay_frame", { monitor })),
     overlayWindows: (monitor) => invoke<OverlayRect[]>("overlay_windows", { monitor }),
     overlayReady: (monitor) => invoke<void>("overlay_ready", { monitor }),
@@ -137,6 +151,16 @@ export function createTauriBridge(): PlatformBridge {
     getMagnifier: () => invoke<boolean>("get_magnifier"),
     setMagnifier: (enabled) => invoke<void>("set_magnifier", { enabled }),
     onOverlayMagnifier: (handler) => listen<boolean>("overlay-magnifier", (event) => handler(event.payload === true)),
+    getImageSettings: async () => sanitizeImageSettings(await invoke<unknown>("get_image_settings")),
+    setImageBackground: (background) => invoke<void>("set_image_background", { background }),
+    setCheckerboard: (theme) => invoke<void>("set_checkerboard", { theme }),
+    setCanvasMargin: (pixels) => invoke<void>("set_canvas_margin", { pixels }),
+    setLibraryStripCollapsed: (collapsed) => invoke<void>("set_library_strip_collapsed", { collapsed }),
+    setCropMargin: (pixels) => invoke<void>("set_crop_margin", { pixels }),
+    setDarkBackground: (color) => invoke<void>("set_dark_background", { color }),
+    setOutsideDarkness: (percent) => invoke<void>("set_outside_darkness", { percent }),
+    setShowOutsideDefault: (show) => invoke<void>("set_show_outside_default", { show }),
+    onImageSettings: (handler) => listen<unknown>("image-settings", (event) => handler(sanitizeImageSettings(event.payload))),
     getToolStyles: () => invoke<Record<string, unknown>>("get_tool_styles"),
     setToolStyles: (styles) => invoke<void>("set_tool_styles", { styles }),
     savePngAs: (png, suggestedName) =>

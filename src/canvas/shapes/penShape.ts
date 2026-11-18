@@ -2,17 +2,21 @@
 // `smoothPath` (the same smoothing the Export renderer gets, because the renderer uses this shape too).
 // A stroke can be selected and moved, not resized: it has no handles.
 import { FabricObject } from "fabric";
+import type { HighlightAnnotation } from "../../core/annotations/highlight";
 import { penBounds, smoothPath, type PenAnnotation } from "../../core/annotations/pen";
+
+/** The Highlighter is a Pen stroke with an opacity, so one shape draws both. */
+type Stroked = PenAnnotation | HighlightAnnotation;
 
 export class PenShape extends FabricObject {
   static override type = "PenShape";
 
   /** The Annotation as last applied: where it was when the box was at (boundsLeft, boundsTop). */
-  private annotation!: PenAnnotation;
+  private annotation!: Stroked;
   private boundsLeft = 0;
   private boundsTop = 0;
 
-  constructor(annotation: PenAnnotation) {
+  constructor(annotation: Stroked) {
     super({
       originX: "left",
       originY: "top",
@@ -31,7 +35,7 @@ export class PenShape extends FabricObject {
     this.setModel(annotation);
   }
 
-  setModel(annotation: PenAnnotation): void {
+  setModel(annotation: Stroked): void {
     const bounds = penBounds(annotation);
     this.annotation = annotation;
     this.boundsLeft = bounds.left;
@@ -42,7 +46,7 @@ export class PenShape extends FabricObject {
   }
 
   /** The Annotation as it is on screen now, after the user moved it. */
-  toModel(): PenAnnotation {
+  toModel(): Stroked {
     const dx = this.left - this.boundsLeft;
     const dy = this.top - this.boundsTop;
     const a = this.annotation;
@@ -55,6 +59,19 @@ export class PenShape extends FabricObject {
     const oy = -this.boundsTop - this.height / 2;
     const { color, width } = this.annotation.stroke;
 
+    ctx.globalAlpha *= "opacity" in this.annotation ? this.annotation.opacity.value : 1;
+    // A highlighter multiplies with what is beneath it (like a marker: dark text stays dark, white
+    // text on a dark ground comes out in the marker's colour). The context is put back for whatever is drawn next.
+    ctx.save();
+    try {
+      if (this.annotation.type === "highlight") ctx.globalCompositeOperation = "multiply";
+      this.paintStroke(ctx, ox, oy, color, width);
+    } finally {
+      ctx.restore();
+    }
+  }
+
+  private paintStroke(ctx: CanvasRenderingContext2D, ox: number, oy: number, color: string, width: number): void {
     ctx.strokeStyle = color;
     ctx.lineWidth = width;
     ctx.lineCap = "round";

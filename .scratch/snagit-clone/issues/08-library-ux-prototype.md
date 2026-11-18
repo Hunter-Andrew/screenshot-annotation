@@ -34,3 +34,7 @@ Verdict below.
 - **Empty state:** "No captures yet. Press Print Screen to take one."
 
 The in-canvas grid (A) and grid with preview pane (C) were rejected. The Library Strip stays as prototyped (~150 px thumbnails with hover Copy/✕).
+
+## M4 addition (2026-11-18): collapsible strip
+
+A small chevron on the Library Strip's top edge collapses it to a thin bar and expands it again. The state is the Rust-validated `libraryStripCollapsed` setting, so it survives restarts.

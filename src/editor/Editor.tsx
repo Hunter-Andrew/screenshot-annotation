@@ -1,19 +1,28 @@
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { type CSSProperties, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { fabricKit } from "../canvas/kit";
-import type { AnnotationCanvas, CanvasEvents, CanvasKit } from "../canvas/types";
+import type { AnnotationCanvas, CanvasEvents, CanvasKit, TextSelection } from "../canvas/types";
 import {
   type AnnotatedImage,
+  type FinishedRenderer,
   createFromCapture,
   decodeLibraryPng,
-  EMBED_CHUNK,
   exportPng,
+  imageIdFor,
+  stripEmbedded,
 } from "../core/annotatedImage";
-import { type Annotation, emptyModel } from "../core/annotation";
+import { type Annotation, type Background, type Crop, emptyModel, newAnnotationId } from "../core/annotation";
+import { eraseEdit } from "../core/annotations/erase";
+import { changedRunKeys, resetRunKeys } from "../core/annotations/runs";
+import { AREA_LIMIT_MESSAGE, followAreaEdit, setAreaEdit } from "../core/area";
+import type { Edit } from "../core/editSession";
+import { DEFAULT_IMAGE_SETTINGS, type ImageSettings } from "../shared/imageSettings";
 import { kindOf } from "../core/annotations";
+import { DEFAULT_IMAGE_STYLE } from "../core/annotations/image";
+import { checkPastedImage, placeImage } from "../core/pasteImage";
 import { createEditSession, type EditSession } from "../core/editSession";
 import type { HistoryState } from "../core/history";
-import { readSize, removeChunks } from "../core/png";
-import type { GroupId, PropertyGroups, Style } from "../core/propertyGroups";
+import { readSize } from "../core/png";
+import type { Font, GroupId, PropertyGroups, Style } from "../core/propertyGroups";
 import type { PlatformBridge } from "../platform/bridge";
 import { LibraryGrid } from "../library/LibraryGrid";
 import { fileName, type LibraryImage, neighbourAfterRemoval, toLibraryImages } from "../library/libraryModel";
@@ -28,14 +37,18 @@ import { formatCombo } from "../settings/hotkey";
 import "./editor.css";
 import { createPersister, type Persister } from "./persister";
 import { createHistoryStore } from "./historyStore";
+import { imageOnClipboard, pictureAsPng } from "./clipboardImage";
 import { actionForKeyEvent, allowedWhileTyping, defaultBindings, isTypingTarget, keyLabel } from "./shortcuts";
 import { Stage } from "./Stage";
 import { StylePanel } from "./StylePanel";
-import { SELECT_TOOL, TOOLS } from "./tools";
+import { CROP_TOOL, SELECT_TOOL, TOOLS } from "./tools";
 import { returnsToSelect } from "./toolBehavior";
 import { ToolColumn } from "./ToolColumn";
+import { DelayCapture } from "./DelayCapture";
+import { useEasedNumber } from "./useEasedNumber";
 import { useStickyStyles } from "./stickyStyles";
 import { useWellView } from "./useWellView";
+import { visibleCaptureArea } from "./view";
 
 /** An image opened in this session: its edit session (the model), and the persister that keeps its Library file current. */
 interface Entry {
@@ -46,6 +59,10 @@ interface Entry {
   /** Saved by a newer version of the app: shown, never edited or written. */
   readOnly: boolean;
 }
+
+/** The status line when a read-only image (saved by a newer version) is opened, and when a paste is refused on it. */
+const READ_ONLY_NOTICE = "Opened read-only: it was saved by a newer version of Screenshot Annotation";
+const NOTHING_OPEN_NOTICE = "Take or open a capture before pasting an image";
 
 const BINDINGS = defaultBindings(); // ticket 28 will read the user's remapping here
 
@@ -81,12 +98,25 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
   const [status, setStatus] = useState<string | null>(null);
   // The real capture hotkey, for the empty-state hint; null until the platform has answered.
   const [hotkey, setHotkey] = useState<string | null>(null);
+  // The Settings choices for new images (default background) and for how transparency looks (checkerboard).
+  const [imageSettings, setImageSettings] = useState<ImageSettings>(DEFAULT_IMAGE_SETTINGS);
+  const imageSettingsRef = useRef(imageSettings);
+  imageSettingsRef.current = imageSettings;
+  /** The Export renderer with the Dark background's colour from the Settings as of the moment it draws (never stored with the image). */
+  const renderForExport = useCallback<FinishedRenderer>(
+    (finished) => kit.render(finished, { darkBackground: imageSettingsRef.current.darkBackground }),
+    [kit],
+  );
+  // The status line says the 8192 px limit stopped a growth until the next edit (a save would otherwise replace it).
+  const limitNotice = useRef<string | null>(null);
 
   const [tool, setTool] = useState(SELECT_TOOL.id);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   // Last-used style per tool: loaded from the settings at start, stored again (after a short pause) when changed.
   const [toolStyles, setToolStyles] = useState<Record<string, Style>>({});
   const [canvas, setCanvas] = useState<AnnotationCanvas | null>(null);
+  /** What the characters selected in the Text or Callout being typed in look like (null: none selected, or not typing). */
+  const [textSelection, setTextSelection] = useState<TextSelection | null>(null);
   // The user's own "return to Select after drawing" choice per tool (sticky too); a tool not in here uses its default.
   const [behavior, setBehavior] = useState<Record<string, boolean>>({});
   const stickyStyles = useStickyStyles(bridge, setToolStyles, setBehavior);
@@ -101,6 +131,23 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
     );
     return () => {
       cancelled = true;
+    };
+  }, [bridge]);
+
+  useEffect(() => {
+    let cancelled = false;
+    let off: (() => void) | undefined;
+    void bridge.onImageSettings((next) => !cancelled && setImageSettings(next)).then((unsubscribe) => {
+      if (cancelled) unsubscribe();
+      else off = unsubscribe;
+    });
+    bridge.getImageSettings().then(
+      (next) => !cancelled && setImageSettings(next),
+      () => {},
+    );
+    return () => {
+      cancelled = true;
+      off?.();
     };
   }, [bridge]);
 
@@ -120,11 +167,11 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
         bridge,
         session,
         capturedAt,
-        render: kit.render,
+        render: renderForExport,
         path: options.path,
         readOnly: options.readOnly,
         // The history is stored against the exact PNG just written, so a PNG changed elsewhere voids it.
-        onSaved: ({ path, png, history }) => historyStore.save(path, png, history),
+        onSaved: ({ path, png, history, images, embedded }) => historyStore.save(path, png, history, { images, embedded }),
         onEvent: (event) => {
           // The Library Strip shows the new file, or the edited image's new thumbnail, right away.
           if (event.kind === "saved") void refreshLibrary();
@@ -132,7 +179,7 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
             event.kind === "saved"
               ? event.first
                 ? `${note}Saved to ${event.path}`
-                : "All changes saved"
+                : (limitNotice.current ?? "All changes saved")
               : `Could not save to the Library: ${event.message}`,
           );
         },
@@ -140,7 +187,7 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
       session.subscribe(() => persister.markDirty());
       return { id, session, persister, capturedAt, readOnly: options.readOnly === true };
     },
-    [bridge, kit, historyStore, refreshLibrary],
+    [bridge, renderForExport, historyStore, refreshLibrary],
   );
 
   /**
@@ -159,9 +206,12 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
       if (token !== openToken.current) return; // a newer open (or a new Capture) won
       try {
         const file = await bridge.readLibraryFile(path);
-        const decoded = decodeLibraryPng(file.png);
-        const history = decoded.readOnly ? undefined : await historyStore.open(file.path, file.png);
+        const fromFile = decodeLibraryPng(file.png);
+        const restored = fromFile.readOnly ? undefined : await historyStore.openWithImages(file.path, file.png);
         if (token !== openToken.current) return;
+        // The pixels of pasted images that were deleted come back with the history, for Undo.
+        const decoded = restored ? { ...fromFile, images: { ...restored.images, ...fromFile.images } } : fromFile;
+        const history = restored?.history;
         const entry = createEntry(decoded, capturedAtFromPath(file.path) ?? new Date(), {
           path: file.path,
           readOnly: decoded.readOnly,
@@ -169,7 +219,7 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
         });
         setCurrent(entry);
         setScreen("editor");
-        setStatus(decoded.readOnly ? "Opened read-only: it was saved by a newer version of Screenshot Annotation" : null);
+        setStatus(decoded.readOnly ? READ_ONLY_NOTICE : null);
         // An edit made while the file was being read is saved too (the file is only ever read again after this).
         void previous?.persister.flush();
       } catch (e) {
@@ -202,7 +252,7 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
             : capture.clipboard === "failed"
               ? "Could not copy to the clipboard (see capture.log). "
               : "";
-        const entry = createEntry(createFromCapture(capture.png), capture.capturedAt, { note });
+        const entry = createEntry(createFromCapture(capture.png, { showOutside: imageSettingsRef.current.showOutsideDefault }), capture.capturedAt, { note });
         openToken.current++; // an open that is still reading loses to the new Capture
         void currentRef.current?.persister.flush();
         setCurrent(entry);
@@ -251,8 +301,21 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
   );
   useEffect(() => () => (imageUrl ? URL.revokeObjectURL(imageUrl) : undefined), [imageUrl]);
   const size = useMemo(() => (captureBytes ? readSize(captureBytes) : null), [captureBytes]);
-
-  const view = useWellView(size, current?.id ?? null);
+  // The visible area: the whole Capture, a Crop of it, or (ticket 37) an area reaching past its edges.
+  const crop = image?.model.crop ?? null;
+  const area = useMemo<Crop | null>(
+    () => (crop ? crop : size ? { x: 0, y: 0, ...size } : null),
+    [crop?.x, crop?.y, crop?.width, crop?.height, size], // eslint-disable-line react-hooks/exhaustive-deps
+  );
+  // While the Crop tool is active the view keeps the Crop margin around the canvas (room to drag the handles out), and
+  // a view in Fit re-fits to it, gliding, when the tool is entered or left (a zoom the user chose stays as chosen).
+  const cropping = tool === CROP_TOOL.id;
+  const wellMargin = useEasedNumber(cropping ? imageSettings.cropMargin : imageSettings.canvasMargin, cropping);
+  const view = useWellView(area, current?.id ?? null, area ?? undefined, wellMargin);
+  /** What fills the area outside the Capture: the image's own choice, else the Settings default. */
+  const background: Background = image?.model.background ?? imageSettings.background;
+  /** Whether the editor shows what lies outside the visible area: the image's own choice; a file without one shows it. */
+  const showOutside = image?.model.showOutside ?? true;
   const readOnly = current?.readOnly ?? false;
 
   // --- model <-> canvas -------------------------------------------------------------------------
@@ -263,6 +326,10 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
   const styleOf = (type: string, annotation: Annotation | null): Style => {
     const kind = kindOf(type);
     const base = { ...kind?.defaultStyle, ...toolStyles[type] };
+    // A tool style stored before vertical alignment existed still starts NEW boxes in the default alignment
+    // (an older saved text keeps Top: its own font is read below, as stored).
+    const defaultValign = kind?.defaultStyle.font?.valign;
+    if (base.font && defaultValign && base.font.valign === undefined) base.font = { ...base.font, valign: defaultValign };
     if (!annotation) return base;
     const own: Style = {};
     for (const group of kind?.groups ?? []) (own as Record<string, unknown>)[group] = annotation[group as keyof Annotation];
@@ -270,24 +337,61 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
   };
   const panelStyle = styledKind ? styleOf(styledKind.type, selected) : {};
 
+  const report = (message: string) => {
+    limitNotice.current = message;
+    setStatus(message);
+  };
+  /**
+   * An Annotation added, changed or deleted, with the visible area following it (what it covers is `bounds`: it
+   * grows to include it, and shrinks back when the Annotation that grew it shrinks, moves inside or goes) as one
+   * undo step. The growth stops at the 8192 px limit, with a message.
+   */
+  const commit = (edit: Edit, bounds?: Crop) => {
+    if (!current) return;
+    limitNotice.current = null;
+    const grown = followAreaEdit(current.session.image, edit, bounds, imageSettings.background);
+    current.session.apply(grown.edit);
+    if (grown.limited) report(AREA_LIMIT_MESSAGE);
+  };
+
   const events: CanvasEvents = {
-    onCreate: (annotation) => {
+    onCreate: (annotation, bounds) => {
       if (!current) return;
-      current.session.apply({ kind: "add", annotation });
+      commit({ kind: "add", annotation }, bounds);
       // Like the layout prototype Andrew chose: after drawing, the new Annotation is selected and the tool is Select
       // again, unless this tool is set to keep drawing (the Pen by default): then it stays active, nothing selected.
       if (!returnsToSelect(tool, behavior)) return;
       setTool(SELECT_TOOL.id);
       setSelectedId(annotation.id);
     },
-    onUpdate: (id, patch) => current?.session.apply({ kind: "update", id, patch }),
+    onErase: (path, radius) => {
+      if (!current || readOnly) return;
+      limitNotice.current = null;
+      // Every Pen stroke the drag cut, with the area following them, is ONE undo step (a batch).
+      const { edit, limited } = eraseEdit(current.session.image, path, radius, imageSettings.background, newAnnotationId);
+      if (edit) current.session.apply(edit);
+      if (limited) report(AREA_LIMIT_MESSAGE);
+    },
+    onUpdate: (id, patch, bounds) => commit({ kind: "update", id, patch }, bounds),
+    onCrop: (next, how) => {
+      if (!current) return;
+      limitNotice.current = null;
+      const { edit, limited } = setAreaEdit(current.session.image, next, imageSettings.background);
+      if (edit) current.session.apply(edit);
+      if (limited) report(AREA_LIMIT_MESSAGE);
+      // Dragging a handle leaves the Crop tool on, to fine-tune the other edges; a fresh rectangle follows the tool's option.
+      if (how !== "handle" && returnsToSelect(CROP_TOOL.id, behavior)) setTool(SELECT_TOOL.id);
+    },
+    // A drag went further than the image may grow: it stopped at the limit (the edit it made was applied first).
+    onLimit: () => report(AREA_LIMIT_MESSAGE),
+    onTextSelection: setTextSelection,
     onSelect: (id) => {
       setSelectedId(id);
       if (id !== null) setSelection(NO_SELECTION); // working on an Annotation: Delete means it, not the picked thumbnails
     },
   };
 
-  useEffect(() => canvas?.sync(image?.model ?? emptyModel()), [canvas, image?.model]);
+  useEffect(() => canvas?.sync(image?.model ?? emptyModel(), image?.images), [canvas, image?.model, image?.images]);
   useEffect(() => canvas?.setTool(tool), [canvas, tool]);
   useEffect(() => canvas?.select(selectedId), [canvas, selectedId, image?.model]);
   useEffect(
@@ -298,10 +402,21 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
   const restyle = <K extends GroupId>(group: K, value: PropertyGroups[K]) => {
     const type = styledKind?.type;
     if (!type) return;
-    setToolStyles((all) => ({ ...all, [type]: { ...all[type], [group]: value } }));
-    stickyStyles.remember(type, { ...toolStyles[type], [group]: value });
-    if (selected && !readOnly) {
-      current?.session.apply({ kind: "update", id: selected.id, patch: { [group]: value } as Partial<Annotation> });
+    // A pasted image has no sticky style: every paste starts plain (ticket 38).
+    if (!styledKind.pasted) {
+      setToolStyles((all) => ({ ...all, [type]: { ...all[type], [group]: value } }));
+      stickyStyles.remember(type, { ...toolStyles[type], [group]: value });
+    }
+    // A tool-only group (the Pen's Mode) is never part of a stroke.
+    if (selected && !readOnly && !styledKind.toolGroups?.includes(group)) {
+      const patch: Record<string, unknown> = { [group]: value };
+      // A change of the whole box's size, Bold, Italic, Underline or color means all of the text, so no character keeps
+      // its own value of what changed. It is one edit, so one undo step restores both.
+      if (group === "font" && (selected.type === "text" || selected.type === "callout") && selected.runs?.length) {
+        const kept = resetRunKeys(selected.runs, changedRunKeys(selected.font, value as Font));
+        if (JSON.stringify(kept) !== JSON.stringify(selected.runs)) patch.runs = kept;
+      }
+      current?.session.apply({ kind: "update", id: selected.id, patch: patch as Partial<Annotation> });
     }
   };
 
@@ -327,7 +442,7 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
   const stackSize = image?.model.annotations.length ?? 0;
   const deleteSelected = () => {
     if (!current || readOnly || selectedIndex < 0) return;
-    current.session.apply({ kind: "delete", id: selectedId! });
+    commit({ kind: "delete", id: selectedId! });
     setSelectedId(null);
   };
   const moveSelected = (by: 1 | -1) => {
@@ -335,10 +450,30 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
     current.session.apply({ kind: "reorder", id: selectedId!, to: selectedIndex + by });
   };
 
+  /** Widen back to the whole Capture. A step of its own, so Undo brings the crop back. */
+  const removeCrop = () => {
+    if (!current || readOnly || !size) return;
+    // Setting the area explicitly (here: the whole Capture), so what grew it is forgotten in the same step.
+    const { edit } = setAreaEdit(current.session.image, { x: 0, y: 0, ...size }, imageSettings.background);
+    if (edit) current.session.apply(edit);
+  };
+
+  /** The Image section's "Show outside the canvas": one undo step, kept with the image. */
+  const chooseShowOutside = (next: boolean) => {
+    if (!current || readOnly) return;
+    current.session.apply({ kind: "setShowOutside", showOutside: next });
+  };
+
+  /** The Image section's Background: one undo step, kept with the image. */
+  const chooseBackground = (next: Background) => {
+    if (!current || readOnly) return;
+    current.session.apply({ kind: "setBackground", background: next });
+  };
+
   const copy = async () => {
     if (!current) return;
     try {
-      await bridge.copyImage(await exportPng(current.session.image, kit.render));
+      await bridge.copyImage(await exportPng(current.session.image, renderForExport));
       setStatus("Copied");
     } catch (e) {
       setStatus(`Could not copy: ${String(e)}`);
@@ -349,7 +484,7 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
     if (!current) return;
     try {
       // A plain Export (ADR 0004): never the Library file, which carries the Capture.
-      const png = await exportPng(current.session.image, kit.render);
+      const png = await exportPng(current.session.image, renderForExport);
       const path = await bridge.savePngAs(png, `${formatStamp(current.capturedAt)}.png`);
       if (path !== null) setStatus(`Saved a copy to ${path}`);
     } catch (e) {
@@ -433,7 +568,7 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
       // The open image may have an edit not saved yet.
       if (currentRef.current?.persister.path === image.path) await currentRef.current.persister.flush();
       const file = await bridge.readLibraryFile(image.path);
-      await bridge.copyImage(removeChunks(file.png, EMBED_CHUNK));
+      await bridge.copyImage(stripEmbedded(file.png));
       setStatus("Copied");
     } catch (e) {
       setStatus(`Could not copy: ${String(e)}`);
@@ -442,6 +577,53 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
   const deleteSelection = () => void del.deletePaths([...selection.selected]);
 
   // --- keyboard: every key goes through the one shortcut table ------------------------------------
+
+  // --- paste: Ctrl+V with a picture on the clipboard (ticket 38) ------------------------------------
+
+  /** Make `file` an image Annotation on the open image: refused, with a plain message, when it does not fit the limits. */
+  const pasteImage = async (file: Blob) => {
+    const entry = currentRef.current;
+    if (!entry) return setStatus(NOTHING_OPEN_NOTICE);
+    if (entry.readOnly) return setStatus(READ_ONLY_NOTICE);
+    try {
+      const bytes = await pictureAsPng(file);
+      const existing = entry.session.image.model.annotations.filter((a) => a.type === "image").length;
+      const checked = checkPastedImage(bytes, existing);
+      if (!checked.ok) return setStatus(checked.message);
+      const imageId = await imageIdFor(bytes);
+      if (currentRef.current !== entry) return; // another image was shown while this was read
+      const captureSize = readSize(entry.session.image.capture);
+      // The part of the Capture on screen; with nothing laid out (or none visible) the whole Capture counts.
+      const well = view.wellRef.current;
+      const stage = well?.querySelector(".stage");
+      const visible =
+        well && stage ? visibleCaptureArea(well.getBoundingClientRect(), stage.getBoundingClientRect(), view.scale) : null;
+      const box = placeImage(checked, captureSize, visible ?? { x: 0, y: 0, ...captureSize });
+      entry.session.registerImage(imageId, bytes);
+      const annotation: Annotation = { id: newAnnotationId(), type: "image", ...box, imageId, ...DEFAULT_IMAGE_STYLE };
+      entry.session.apply({ kind: "add", annotation });
+      // Selected, and a drawing tool that was active goes back to Select.
+      setTool(SELECT_TOOL.id);
+      setSelectedId(annotation.id);
+    } catch (e) {
+      setStatus("The clipboard picture could not be read as an image");
+    }
+  };
+  const pasteRef = useRef(pasteImage);
+  pasteRef.current = pasteImage;
+  useEffect(() => {
+    const onPaste = (event: ClipboardEvent) => {
+      // The full-window grid is not an editor; typing in a field or in a text box is a text paste.
+      if (screenRef.current === "grid") return;
+      if (isTypingTarget(event.target as HTMLElement | null) || isTypingTarget(document.activeElement as HTMLElement | null)) return;
+      const file = imageOnClipboard(event.clipboardData);
+      if (!file) return; // text (or nothing): not ours; the image wins only when there is one
+      event.preventDefault();
+      void pasteRef.current(file);
+    };
+    window.addEventListener("paste", onPaste);
+    return () => window.removeEventListener("paste", onPaste);
+  }, []);
 
   const selectionSize = selection.selected.size;
   const keys = { chooseTool, copy, discard, view, selectedId, hasImage: image !== null, undo, redo, deleteSelected, moveSelected, selectionSize, deleteSelection, clearSelection };
@@ -522,12 +704,13 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
   }, []);
 
   return (
-    <div className="editor">
+    <div className="editor" data-checker={imageSettings.checkerboard}>
       {/* The grid covers the editor; the editor stays mounted (its canvas and view survive) but out of reach. */}
       <div className="editor-body" inert={screen === "grid"}>
         <header className="topbar">
           <strong>Screenshot Annotation</strong>
           <button onClick={() => void bridge.startCapture()}>Capture</button>
+          <DelayCapture bridge={bridge} />
           <button
             onClick={undo}
             disabled={!current || readOnly || !current.session.canUndo}
@@ -557,13 +740,19 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
           </button>
         </header>
         <ToolColumn tools={TOOLS} active={tool} disabled={!image || readOnly} bindings={BINDINGS} onPick={chooseTool} />
-        <main className="well" ref={view.wellRef}>
-          {image && imageUrl && size ? (
+        <main className="well" ref={view.wellRef} style={{ "--outside-darkness": Number((imageSettings.outsideDarkness / 100).toFixed(4)) } as CSSProperties}>
+          {image && imageUrl && size && area ? (
             <Stage
               key={current!.id}
               kit={kit}
               imageUrl={imageUrl}
               size={size}
+              area={area}
+              background={background}
+              darkBackground={imageSettings.darkBackground}
+              darkness={imageSettings.outsideDarkness}
+              showOutside={showOutside}
+              margin={view.margin}
               scale={view.scale}
               interactive={!readOnly}
               events={events}
@@ -577,6 +766,23 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
           kind={readOnly ? null : (styledKind ?? null)}
           style={panelStyle}
           onChange={restyle}
+          textEditing={
+            canvas && styledKind?.typedInPlace
+              ? { selection: textSelection, onStyle: (patch) => canvas.styleTextSelection(patch), focusText: () => canvas.focusText() }
+              : null
+          }
+          toolGroups={!selected && tool !== SELECT_TOOL.id ? styledKind?.toolGroups : undefined}
+          image={
+            // With the Select tool and nothing selected, and while the Crop tool is on: the image's own settings.
+            image && !readOnly && ((tool === SELECT_TOOL.id && selectedId === null) || tool === CROP_TOOL.id)
+              ? { background, onChange: chooseBackground, showOutside, onShowOutside: chooseShowOutside }
+              : null
+          }
+          crop={
+            readOnly || (tool !== CROP_TOOL.id && !image?.model.crop)
+              ? null
+              : { active: tool === CROP_TOOL.id, hasCrop: !!image?.model.crop, onRemove: removeCrop }
+          }
           toolOption={
             // About the ACTIVE TOOL (never the selected Annotation): only while a drawing tool is picked.
             readOnly || !styledKind
@@ -615,6 +821,12 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
           onCopy={(i) => void copyLibraryImage(i)}
           onDelete={(i) => void del.deletePaths([i.path])}
           onShowAll={() => setScreen("grid")}
+          collapsed={imageSettings.libraryStripCollapsed}
+          onToggleCollapsed={() => {
+            const collapsed = !imageSettings.libraryStripCollapsed;
+            setImageSettings((now) => ({ ...now, libraryStripCollapsed: collapsed }));
+            bridge.setLibraryStripCollapsed(collapsed).catch(() => {});
+          }}
         />
         <footer className="statusbar">
           <span role="status">{status}</span>

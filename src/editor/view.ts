@@ -19,23 +19,23 @@ export type ViewMode = { kind: "fit" } | { kind: "zoom"; scale: number };
 
 export const FIT: ViewMode = { kind: "fit" };
 
-/** Space kept free around the image inside the well, in screen pixels. */
+/** Space kept free around the image inside the well when no margin setting is given, in screen pixels. */
 export const WELL_PADDING = 16;
 
 const MIN_SCALE = 0.05;
 const ZOOM_LADDER = [0.1, 0.25, 0.33, 0.5, 0.67, 0.75, 1, 1.5, 2, 3, 4, 6, 8] as const;
 
-/** The scale that shows the whole image in the well: shrinks to fit, never enlarges. */
-export function fitScale(image: Size, well: Size): number {
-  const availableWidth = well.width - 2 * WELL_PADDING;
-  const availableHeight = well.height - 2 * WELL_PADDING;
+/** The scale that shows the whole image in the well with `margin` px free on every side: shrinks to fit, never enlarges. */
+export function fitScale(image: Size, well: Size, margin: number = WELL_PADDING): number {
+  const availableWidth = well.width - 2 * margin;
+  const availableHeight = well.height - 2 * margin;
   // The well has not been laid out yet (or is collapsed): show the image as it is.
   if (availableWidth <= 0 || availableHeight <= 0 || image.width <= 0 || image.height <= 0) return 1;
   return Math.max(MIN_SCALE, Math.min(1, availableWidth / image.width, availableHeight / image.height));
 }
 
-export function effectiveScale(mode: ViewMode, image: Size, well: Size): number {
-  return mode.kind === "fit" ? fitScale(image, well) : mode.scale;
+export function effectiveScale(mode: ViewMode, image: Size, well: Size, margin: number = WELL_PADDING): number {
+  return mode.kind === "fit" ? fitScale(image, well, margin) : mode.scale;
 }
 
 /** The next zoom level up (1) or down (-1) from `scale`, which need not be on the ladder (e.g. a fitted 56.8%). */
@@ -45,8 +45,25 @@ export function zoomStep(scale: number, direction: 1 | -1): number {
   return [...ZOOM_LADDER].reverse().find((z) => z < scale - epsilon) ?? ZOOM_LADDER[0]!;
 }
 
+/** Share of the visible area shown as dark margin on each side after a manual zoom, so gestures reach a quarter past it. */
+const ZOOM_MARGIN_FRACTION = 0.25;
+
+/**
+ * The dark margin around the visible area, in whole screen pixels on each side. In Fit it is exactly `margin`
+ * (the Canvas margin setting) on all four sides, which `fitScale` left room for, so the margin never makes the
+ * well scroll. After a manual zoom it is a quarter of the area when that is more (the well scrolls to all of it,
+ * and a drawing gesture or a handle can reach it all), never less than `margin`.
+ */
+export function marginPx(area: Size, scale: number, well: Size, mode: ViewMode, margin: number = WELL_PADDING): { x: number; y: number } {
+  if (mode.kind === "fit") return { x: margin, y: margin };
+  const axis = (length: number) => Math.max(margin, Math.ceil(length * scale * ZOOM_MARGIN_FRACTION));
+  return { x: axis(area.width), y: axis(area.height) };
+}
+
 export interface ScrollRequest {
   image: Size;
+  /** The margin around the image at `from` and at `to` (screen pixels); the default is the plain well padding. */
+  padding?: { from: { x: number; y: number }; to: { x: number; y: number } };
   /** The visible part of the well (its client size). */
   view: Size;
   scroll: { left: number; top: number };
@@ -55,15 +72,37 @@ export interface ScrollRequest {
 }
 
 /** The scroll position that keeps whatever is in the middle of the view in the middle after a zoom. */
-export function scrollAfterZoom({ image, view, scroll, from, to }: ScrollRequest): { left: number; top: number } {
-  const axis = (imageLength: number, viewLength: number, scrolled: number) => {
-    const oldContent = imageLength * from + 2 * WELL_PADDING;
+export function scrollAfterZoom({ image, view, scroll, from, to, padding }: ScrollRequest): { left: number; top: number } {
+  const same = { x: WELL_PADDING, y: WELL_PADDING };
+  const [before, after] = [padding?.from ?? same, padding?.to ?? same];
+  const axis = (imageLength: number, viewLength: number, scrolled: number, padFrom: number, padTo: number) => {
+    const oldContent = imageLength * from + 2 * padFrom;
     // Smaller than the view means it was centred, not scrolled: anchor on the image's own middle.
-    const anchor = oldContent <= viewLength ? imageLength / 2 : (scrolled + viewLength / 2 - WELL_PADDING) / from;
-    return Math.max(0, WELL_PADDING + anchor * to - viewLength / 2);
+    const anchor = oldContent <= viewLength ? imageLength / 2 : (scrolled + viewLength / 2 - padFrom) / from;
+    return Math.max(0, padTo + anchor * to - viewLength / 2);
   };
   return {
-    left: axis(image.width, view.width, scroll.left),
-    top: axis(image.height, view.height, scroll.top),
+    left: axis(image.width, view.width, scroll.left, before.x, after.x),
+    top: axis(image.height, view.height, scroll.top, before.y, after.y),
   };
+}
+
+interface ScreenRect {
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+}
+
+/**
+ * The part of the Capture that is on screen, in Capture pixels: the well's rectangle intersected with
+ * the stage's (both in the same screen coordinates), divided by the zoom. Null when none of it shows.
+ */
+export function visibleCaptureArea(well: ScreenRect, stage: ScreenRect, scale: number): { x: number; y: number; width: number; height: number } | null {
+  const left = Math.max(well.left, stage.left);
+  const top = Math.max(well.top, stage.top);
+  const right = Math.min(well.right, stage.right);
+  const bottom = Math.min(well.bottom, stage.bottom);
+  if (right <= left || bottom <= top || scale <= 0) return null;
+  return { x: (left - stage.left) / scale, y: (top - stage.top) / scale, width: (right - left) / scale, height: (bottom - top) / scale };
 }

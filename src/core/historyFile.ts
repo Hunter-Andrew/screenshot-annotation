@@ -18,10 +18,30 @@ export interface HistoryFile {
   /** When the image was last opened or edited (ms since the epoch). */
   touchedAt: number;
   history: HistoryState;
+  /**
+   * The PNG bytes of pasted images (ticket 38) that the steps can put back but the Library PNG no longer
+   * holds, by `imageId`: a deleted image's pixels, so Undo restores it after a restart too.
+   */
+  images?: Record<string, Uint8Array>;
+}
+
+function toBase64(bytes: Uint8Array): string {
+  let binary = "";
+  for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(binary);
+}
+
+function fromBase64(text: string): Uint8Array {
+  return Uint8Array.from(atob(text), (c) => c.charCodeAt(0));
 }
 
 export function serializeHistory(file: HistoryFile): string {
-  return JSON.stringify({ version: HISTORY_FORMAT_VERSION, ...file });
+  const { images, ...rest } = file;
+  const stored =
+    images && Object.keys(images).length > 0
+      ? { images: Object.fromEntries(Object.entries(images).map(([id, png]) => [id, toBase64(png)])) }
+      : {};
+  return JSON.stringify({ version: HISTORY_FORMAT_VERSION, ...rest, ...stored });
 }
 
 const isObject = (value: unknown): value is Record<string, unknown> =>
@@ -29,8 +49,10 @@ const isObject = (value: unknown): value is Record<string, unknown> =>
 const isString = (value: unknown): value is string => typeof value === "string";
 const isNumber = (value: unknown): value is number => typeof value === "number" && Number.isFinite(value);
 
+const isCrop = (value: unknown): boolean => isObject(value) && ["x", "y", "width", "height"].every((k) => isNumber(value[k]));
+
 /** Shallow check that is enough for `applyEdit` to never throw: kind and ids, not Annotation contents. */
-function isEdit(value: unknown): value is Edit {
+function isEdit(value: unknown, depth = 0): value is Edit {
   if (!isObject(value)) return false;
   switch (value.kind) {
     case "add":
@@ -46,6 +68,20 @@ function isEdit(value: unknown): value is Edit {
       return isString(value.id);
     case "reorder":
       return isString(value.id) && isNumber(value.to);
+    case "setCrop":
+      return value.crop === null || (isObject(value.crop) && ["x", "y", "width", "height"].every((k) => isNumber((value.crop as Record<string, unknown>)[k])));
+    case "setBackground":
+      return value.background === null || value.background === "white" || value.background === "dark" || value.background === "transparent";
+    case "setShowOutside":
+      return value.showOutside === null || typeof value.showOutside === "boolean";
+    case "setGrowth":
+      return (
+        value.growth === null ||
+        (isObject(value.growth) && isCrop(value.growth.base) && Array.isArray(value.growth.causes) && value.growth.causes.every((c) => isObject(c) && isString(c.id) && isCrop(c.bounds)))
+      );
+    case "batch":
+      // One level only: a batch holds plain edits.
+      return depth === 0 && Array.isArray(value.edits) && value.edits.every((part) => isEdit(part, 1));
     default:
       return false;
   }
@@ -68,7 +104,23 @@ export function parseHistory(text: string): HistoryFile | null {
   if (!isString(hash) || !isNumber(touchedAt) || !isObject(history)) return null;
   const { undo, redo } = history;
   if (!Array.isArray(undo) || !Array.isArray(redo) || !undo.every(isStep) || !redo.every(isStep)) return null;
-  return { hash, touchedAt, history: { undo, redo } };
+  const images = readImages(data.images);
+  return { hash, touchedAt, history: { undo, redo }, ...(Object.keys(images).length > 0 ? { images } : {}) };
+}
+
+/** The stored pasted images; an entry that is not valid base64 text is dropped (its Undo then has nothing to restore). */
+function readImages(raw: unknown): Record<string, Uint8Array> {
+  const images: Record<string, Uint8Array> = {};
+  if (!isObject(raw)) return images;
+  for (const [id, text] of Object.entries(raw)) {
+    if (!isString(text)) continue;
+    try {
+      images[id] = fromBase64(text);
+    } catch {
+      // Not base64: skipped.
+    }
+  }
+  return images;
 }
 
 /** The instant a history last touched at that moment expires: purge files older than this. */
@@ -92,16 +144,17 @@ export function restoreHistory(
   stored: string | null,
   currentHash: string,
   now: number,
-): { history: HistoryState; reason: RestoreReason } {
+): { history: HistoryState; reason: RestoreReason; images: Record<string, Uint8Array> } {
   const empty = { undo: [], redo: [] };
-  if (stored === null) return { history: empty, reason: "none" };
+  if (stored === null) return { history: empty, reason: "none", images: {} };
   const file = parseHistory(stored);
-  if (!file) return { history: empty, reason: "corrupt" };
-  if (file.hash !== currentHash) return { history: empty, reason: "changed" };
-  if (isExpired(file.touchedAt, now)) return { history: empty, reason: "expired" };
+  if (!file) return { history: empty, reason: "corrupt", images: {} };
+  if (file.hash !== currentHash) return { history: empty, reason: "changed", images: {} };
+  if (isExpired(file.touchedAt, now)) return { history: empty, reason: "expired", images: {} };
   return {
     history: { undo: file.history.undo.slice(-HISTORY_CAP), redo: file.history.redo.slice(-HISTORY_CAP) },
     reason: "restored",
+    images: file.images ?? {},
   };
 }
 

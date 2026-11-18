@@ -3,8 +3,16 @@
 // (ticket 13) hooks in here: `apply` records each edit's inverse (src/core/history.ts) and
 // undo/redo replay those through the same `applyEdit`.
 import type { AnnotatedImage } from "./annotatedImage";
-import type { Annotation } from "./annotation";
+import type { Annotation, AnnotationModel, Background, Crop, GrowCause } from "./annotation";
+import { tidyRuns } from "./annotations/runs";
+import { sameCrop } from "./crop";
 import { emptyHistory, invert, popRedo, popUndo, record, type HistoryState } from "./history";
+
+/** What the model records about an auto-grown area: the base it grew from and the Annotations that reach past it. */
+export interface Growth {
+  base: Crop;
+  causes: GrowCause[];
+}
 
 export type Edit =
   /** `index` (back-to-front position) is how undoing a delete puts the Annotation back where it was; default: on top. */
@@ -13,8 +21,17 @@ export type Edit =
   | { kind: "update"; id: string; patch: Partial<Annotation> }
   | { kind: "delete"; id: string }
   /** Move to back-to-front position `to` (clamped): `to` one higher is "bring forward". */
-  | { kind: "reorder"; id: string; to: number };
-  // | { kind: "setCrop"; crop } (ticket 21)
+  | { kind: "reorder"; id: string; to: number }
+  /** The visible area in Capture pixels; null shows the whole Capture again (ticket 21). */
+  | { kind: "setCrop"; crop: Crop | null }
+  /** What fills the area outside the Capture (ticket 37); null is "not chosen yet" (the Settings default applies). */
+  | { kind: "setBackground"; background: Background | null }
+  /** Whether the editor shows what lies outside the visible area; null is "not stored" (counts as true). */
+  | { kind: "setShowOutside"; showOutside: boolean | null }
+  /** The base area and the Annotations that grew the area past it (M4 polish B); null: nothing grew it (or the user set the area). */
+  | { kind: "setGrowth"; growth: Growth | null }
+  /** Several edits applied in order as one step: an Annotation and the growth of the area that includes it. */
+  | { kind: "batch"; edits: Edit[] };
 
 /** The image after `edit`. Returns the same image when the edit changes nothing (unknown id). */
 export function applyEdit(image: AnnotatedImage, edit: Edit): AnnotatedImage {
@@ -22,13 +39,13 @@ export function applyEdit(image: AnnotatedImage, edit: Edit): AnnotatedImage {
   switch (edit.kind) {
     case "add":
       const annotations = model.annotations.slice();
-      annotations.splice(edit.index ?? annotations.length, 0, edit.annotation);
+      annotations.splice(edit.index ?? annotations.length, 0, tidyRuns(edit.annotation));
       return { ...image, model: { ...model, annotations } };
     case "update": {
       const index = model.annotations.findIndex((a) => a.id === edit.id);
       if (index < 0) return image;
       const current = model.annotations[index]!;
-      const updated = { ...current, ...edit.patch, id: current.id, type: current.type } as Annotation;
+      const updated = tidyRuns({ ...current, ...edit.patch, id: current.id, type: current.type } as Annotation);
       const annotations = model.annotations.slice();
       annotations[index] = updated;
       return { ...image, model: { ...model, annotations } };
@@ -46,9 +63,44 @@ export function applyEdit(image: AnnotatedImage, edit: Edit): AnnotatedImage {
       annotations.splice(to, 0, moved!);
       return { ...image, model: { ...model, annotations } };
     }
+    case "setCrop":
+      return sameCrop(model.crop, edit.crop) ? image : { ...image, model: { ...model, crop: edit.crop } };
+    case "setBackground": {
+      if ((model.background ?? null) === edit.background) return image;
+      const { background: _old, ...rest } = model;
+      return { ...image, model: edit.background === null ? rest : { ...rest, background: edit.background } };
+    }
+    case "setShowOutside": {
+      if ((model.showOutside ?? null) === edit.showOutside) return image;
+      const { showOutside: _old, ...rest } = model;
+      return { ...image, model: edit.showOutside === null ? rest : { ...rest, showOutside: edit.showOutside } };
+    }
+    case "setGrowth": {
+      if (sameGrowth(growthOf(model), edit.growth)) return image;
+      const { areaBase: _base, grownBy: _causes, ...rest } = model;
+      return { ...image, model: edit.growth ? { ...rest, areaBase: edit.growth.base, grownBy: edit.growth.causes } : rest };
+    }
+    case "batch": {
+      const result = edit.edits.reduce(applyEdit, image);
+      return result;
+    }
     default:
       return image;
   }
+}
+
+/** The growth record of a model, or null when the area was not grown by Annotations. */
+export function growthOf(model: AnnotationModel): Growth | null {
+  return model.areaBase && model.grownBy?.length ? { base: model.areaBase, causes: model.grownBy } : null;
+}
+
+export function sameGrowth(a: Growth | null, b: Growth | null): boolean {
+  if (!a || !b) return a === b;
+  return (
+    sameCrop(a.base, b.base) &&
+    a.causes.length === b.causes.length &&
+    a.causes.every((cause, i) => cause.id === b.causes[i]!.id && sameCrop(cause.bounds, b.causes[i]!.bounds))
+  );
 }
 
 export interface EditChange {
@@ -60,6 +112,11 @@ export interface EditSession {
   /** The image as it is now. */
   readonly image: AnnotatedImage;
   apply(edit: Edit): void;
+  /**
+   * Hand the session the PNG bytes of a pasted image before an `add` that refers to it. Not an edit: no
+   * undo step. The bytes stay for the whole session (Undo of a delete needs them).
+   */
+  registerImage(imageId: string, png: Uint8Array): void;
   /** Take back the last edit. False when there is nothing to undo. */
   undo(): boolean;
   /** Reapply the last undone edit. False when there is nothing to redo. */
@@ -127,6 +184,10 @@ export function createEditSession(initial: AnnotatedImage, options: SessionOptio
       if (inverse) history = record(history, { undo: inverse, redo: edit, at: now() });
       image = next;
       notify(edit);
+    },
+    registerImage(imageId, png) {
+      if (image.images?.[imageId]) return;
+      image = { ...image, images: { ...image.images, [imageId]: png } };
     },
     undo: () => replay(popUndo, "undo"),
     redo: () => replay(popRedo, "redo"),

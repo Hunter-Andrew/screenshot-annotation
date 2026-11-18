@@ -3,10 +3,16 @@
 import type { FabricObject } from "fabric";
 import type { Annotation } from "../../core/annotation";
 
+/** What a shape may need besides the model: the decoded pictures of pasted images (ticket 38). */
+export interface ShapeAssets {
+  /** The decoded picture for an `imageId`, or undefined while it is not decoded (the shape then draws nothing yet). */
+  image(imageId: string): CanvasImageSource | undefined;
+}
+
 export interface ShapeAdapter<A extends Annotation = Annotation> {
   readonly type: A["type"];
   /** A new Fabric object showing `annotation`. */
-  create(annotation: A): FabricObject;
+  create(annotation: A, assets?: ShapeAssets): FabricObject;
   /** Make an existing object show `annotation` (after a restyle, an undo...). */
   update(object: FabricObject, annotation: A): void;
   /**

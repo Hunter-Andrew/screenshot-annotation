@@ -57,6 +57,13 @@ describe("Pen kind", () => {
     expect(penKind.groups).toEqual(["stroke"]);
   });
 
+  it("has the Mode group for the active tool only (never for a stroke), starting in Pen mode with a 20 px eraser", () => {
+    expect(penKind.toolGroups).toEqual(["eraser"]);
+    expect(penKind.defaultStyle.eraser).toEqual({ mode: "pen", size: 20 });
+    // A drawn stroke carries no eraser setting.
+    expect(Object.keys(penKind.fromPath!("p", line(10, 5), style)!).sort()).toEqual(["id", "points", "stroke", "type"]);
+  });
+
   it("stores the decimated captured points and the style", () => {
     const raw = line(20, 1);
     const pen = penKind.fromPath!("p1", raw, style)!;

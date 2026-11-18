@@ -262,3 +262,79 @@ describe("Overlay failures", () => {
     await waitFor(() => expect(bridge.overlayLogs.some((l) => /nope/.test(l.message))).toBe(true));
   });
 });
+
+describe("Overlay pre-warmed (ADR 0003): loaded and hidden until a capture begins", () => {
+  const warm = () => {
+    Object.assign(window, { innerWidth: 1000, innerHeight: 500 });
+    bridge = createFakeBridge({ overlayFrames: { 0: FRAME }, overlayAttempt: null, storage: storedMagnifier("0") });
+    render(<Overlay bridge={bridge} monitor={0} />);
+  };
+  const show = async () => {
+    fireEvent.load(await screen.findByRole("img", { name: "Frozen screen" }));
+    await waitFor(() => expect(bridge.readyOverlays.length).toBeGreaterThan(0));
+  };
+
+  it("while idle it asks for no frame, shows no picture and never reports ready", async () => {
+    warm();
+    await act(async () => {});
+    expect(screen.queryByRole("img", { name: "Frozen screen" })).toBeNull();
+    expect(bridge.overlayFrameRequests).toEqual([]);
+    expect(bridge.overlayWindowRequests).toEqual([]);
+    expect(bridge.readyOverlays).toEqual([]);
+  });
+
+  it("when a capture begins it loads its monitor's frame and reports ready", async () => {
+    warm();
+    await act(async () => {});
+    act(() => bridge.setOverlayAttempt(7));
+    await show();
+    expect(bridge.overlayFrameRequests).toEqual([0]);
+    expect(bridge.readyOverlays).toEqual([0]);
+  });
+
+  it("a page that loads after the capture began still shows it (the event came too early)", async () => {
+    Object.assign(window, { innerWidth: 1000, innerHeight: 500 });
+    bridge = createFakeBridge({ overlayFrames: { 0: FRAME }, overlayAttempt: 4, storage: storedMagnifier("0") });
+    render(<Overlay bridge={bridge} monitor={0} />);
+    await show();
+    expect(bridge.overlayFrameRequests).toEqual([0]);
+  });
+
+  it("is idle again when the capture ends: the frozen frame is dropped", async () => {
+    warm();
+    await act(async () => {});
+    act(() => bridge.setOverlayAttempt(1));
+    await show();
+    act(() => bridge.setOverlayAttempt(null));
+    await waitFor(() => expect(screen.queryByRole("img", { name: "Frozen screen" })).toBeNull());
+    expect(screen.queryByTestId("guide-x")).toBeNull();
+  });
+
+  it("works for the next capture too, from a clean slate (a finished capture does not block it)", async () => {
+    warm();
+    await act(async () => {});
+    act(() => bridge.setOverlayAttempt(1));
+    await show();
+    fireEvent.keyDown(window, { key: "Escape" });
+    await waitFor(() => expect(bridge.overlayOutcomes).toEqual([{ kind: "cancel" }]));
+    act(() => bridge.setOverlayAttempt(null));
+    await waitFor(() => expect(screen.queryByRole("img", { name: "Frozen screen" })).toBeNull());
+
+    act(() => bridge.setOverlayAttempt(2));
+    await show();
+    fireEvent.keyDown(window, { key: "Escape" });
+    await waitFor(() => expect(bridge.overlayOutcomes).toEqual([{ kind: "cancel" }, { kind: "cancel" }]));
+    expect(bridge.overlayFrameRequests).toEqual([0, 0]);
+  });
+
+  it("hearing the same attempt twice (event, then the page's own query) loads the frame once", async () => {
+    warm();
+    await act(async () => {});
+    act(() => {
+      bridge.setOverlayAttempt(3);
+      bridge.setOverlayAttempt(3);
+    });
+    await show();
+    expect(bridge.overlayFrameRequests).toEqual([0]);
+  });
+});

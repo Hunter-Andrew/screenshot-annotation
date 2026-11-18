@@ -13,13 +13,22 @@ interface Props {
   onCopy: (image: LibraryImage) => void;
   onDelete: (image: LibraryImage) => void;
   onShowAll: () => void;
+  /** Collapsed to a thin bar (only the chevron shows), and the chevron's action. */
+  collapsed?: boolean;
+  onToggleCollapsed?: () => void;
 }
 
 /** The Library Strip: thumbnails along the bottom of the editor, newest on the left, then "All captures (N)". */
-export function LibraryStrip({ images, loaded, loader, currentPath, selected, onClick, onCopy, onDelete, onShowAll }: Props) {
+export function LibraryStrip({ images, loaded, loader, currentPath, selected, onClick, onCopy, onDelete, onShowAll, collapsed = false, onToggleCollapsed }: Props) {
+  const label = collapsed ? "Expand Library Strip" : "Collapse Library Strip";
   return (
-    <section className="library-strip" aria-label="Library Strip">
-      <div className="strip-scroll" role="list" aria-label="Recent captures">
+    <section className={collapsed ? "library-strip collapsed" : "library-strip"} aria-label="Library Strip" data-collapsed={collapsed}>
+      {onToggleCollapsed && (
+        <button type="button" className="strip-chevron" aria-label={label} title={label} aria-expanded={!collapsed} onClick={onToggleCollapsed}>
+          {collapsed ? "▴" : "▾"}
+        </button>
+      )}
+      <div className="strip-scroll" hidden={collapsed} role="list" aria-label="Recent captures">
         {loaded && images.length === 0 && <span className="strip-empty">No captures yet</span>}
         {images.map((image) => (
           <ImageCard
@@ -34,7 +43,7 @@ export function LibraryStrip({ images, loaded, loader, currentPath, selected, on
           />
         ))}
       </div>
-      <button type="button" className="all-captures" onClick={onShowAll}>
+      <button type="button" className="all-captures" hidden={collapsed} onClick={onShowAll}>
         All captures ({images.length})
       </button>
     </section>

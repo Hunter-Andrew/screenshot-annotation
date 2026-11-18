@@ -23,6 +23,51 @@ function setup(now = NOW) {
   return { bridge, clock, store: createHistoryStore({ bridge, now: () => clock.now }) };
 }
 
+describe("the history store and pasted images (ticket 38)", () => {
+  const annotation = (imageId: string) => ({
+    id: `i-${imageId}`,
+    type: "image" as const,
+    x: 0,
+    y: 0,
+    width: 1,
+    height: 1,
+    imageId,
+    border: { enabled: false, color: "#e02424", width: 4 },
+    opacity: { value: 1 },
+  });
+  const deleting = (imageId: string): HistoryState => ({
+    undo: [{ undo: { kind: "add", annotation: annotation(imageId) }, redo: { kind: "delete", id: `i-${imageId}` }, at: NOW }],
+    redo: [],
+  });
+
+  it("keeps the bytes of an image its steps can restore, and hands them back on open", async () => {
+    const { bridge, store } = setup();
+    await store.save(PATH, png(1), deleting("gone"), { images: { gone: png(7) }, embedded: [] });
+
+    const restarted = createHistoryStore({ bridge, now: () => NOW });
+    const opened = await restarted.openWithImages(PATH, png(1));
+    expect(opened.history.undo).toHaveLength(1);
+    expect(opened.images.gone).toEqual(png(7));
+  });
+
+  it("does not copy an image the Library PNG itself already holds, nor one no step refers to", async () => {
+    const { bridge, store } = setup();
+    await store.save(PATH, png(1), deleting("inFile"), { images: { inFile: png(7), unrelated: png(8) }, embedded: ["inFile"] });
+
+    const opened = await createHistoryStore({ bridge, now: () => NOW }).openWithImages(PATH, png(1));
+    expect(opened.images).toEqual({});
+  });
+
+  it("still holds the bytes after being opened (opening only touches the file's time)", async () => {
+    const { bridge, store } = setup();
+    await store.save(PATH, png(1), deleting("gone"), { images: { gone: png(7) }, embedded: [] });
+    await store.openWithImages(PATH, png(1));
+
+    const again = await createHistoryStore({ bridge, now: () => NOW }).openWithImages(PATH, png(1));
+    expect(again.images.gone).toEqual(png(7));
+  });
+});
+
 describe("the history store", () => {
   it("brings back what was saved for the same PNG, after a restart (a new store)", async () => {
     const { bridge, store } = setup();

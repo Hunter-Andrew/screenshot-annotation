@@ -79,6 +79,22 @@ export function insertChunk(png: Uint8Array, type: string, data: Uint8Array): Ui
   return assemble(chunks);
 }
 
+/** Copy of `png` with one more chunk just before IEND; unlike `insertChunk` it keeps chunks of the same type. */
+export function addChunk(png: Uint8Array, type: string, data: Uint8Array): Uint8Array {
+  const chunks = readChunks(png);
+  const iend = chunks.findIndex((c) => c.type === "IEND");
+  if (iend < 0) throw new Error("PNG has no IEND chunk");
+  chunks.splice(iend, 0, { type, data });
+  return assemble(chunks);
+}
+
+/** The data of every chunk of `type`, in file order. */
+export function findChunks(png: Uint8Array, type: string): Uint8Array[] {
+  return readChunks(png)
+    .filter((c) => c.type === type)
+    .map((c) => c.data);
+}
+
 export function findChunk(png: Uint8Array, type: string): Uint8Array | undefined {
   return readChunks(png).find((c) => c.type === type)?.data;
 }

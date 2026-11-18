@@ -1,5 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
 import { decodePixels, hasChunk } from "../src/core/testing";
+import { liveArea } from "./liveCanvas";
 
 // The Text tool in real Chromium with the real Fabric canvas and the fake platform bridge. The model
 // is read back the way the next app start reads it: by decoding the auto-saved Library PNG.
@@ -25,6 +26,7 @@ test.use({ viewport: { width: 1100, height: 760 } });
 
 /** A flat grey (200) Capture, so any pixel's expected value is known. */
 async function capture(page: Page, width: number, height: number) {
+  await page.waitForFunction(() => Boolean((window as unknown as { __fakeBridge?: unknown }).__fakeBridge)); // the app installs the fake bridge a moment after load
   await page.evaluate(
     ({ width, height }) => {
       const rgba = new Uint8Array(width * height * 4).fill(200);
@@ -234,9 +236,8 @@ test("font size: typed, from the presets; bold, italic; the wrap handles leave t
  * scanning that canvas for the border color. Needs 100% zoom (one canvas pixel per Capture pixel).
  */
 async function rightHandle(page: Page, view: { at(x: number, y: number): { x: number; y: number } }) {
-  const box = await page.evaluate(() => {
-    const canvas = document.querySelector("canvas.lower-canvas") as HTMLCanvasElement;
-    const { data, width, height } = canvas.getContext("2d")!.getImageData(0, 0, canvas.width, canvas.height);
+  const { data, width, height } = (await liveArea(page))!;
+  const box = (() => {
     let right = -1;
     let top = height;
     let bottom = -1;
@@ -252,7 +253,7 @@ async function rightHandle(page: Page, view: { at(x: number, y: number): { x: nu
       }
     }
     return { right, top, bottom };
-  });
+  })();
   expect(box.right).toBeGreaterThan(0);
   // The handle is a 12 px circle centred on the box edge, whose outline reaches 6 px beyond it.
   return view.at(box.right - 6, (box.top + box.bottom) / 2);
@@ -295,11 +296,7 @@ test("the Export has the text burned in, pixel for pixel as on the canvas", asyn
 
   await page.evaluate(() => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)))); // let the deselect repaint
   // What the editor canvas shows, composited over the Capture's grey (the canvas itself is transparent).
-  const onScreen = await page.evaluate(() => {
-    const canvas = document.querySelector("canvas.lower-canvas") as HTMLCanvasElement;
-    const { data } = canvas.getContext("2d")!.getImageData(0, 0, canvas.width, canvas.height);
-    return { width: canvas.width, height: canvas.height, data: Array.from(data) };
-  });
+  const onScreen = (await liveArea(page))!;
   await page.getByRole("button", { name: "Copy", exact: true }).click();
   await expect.poll(() => page.evaluate(() => (window as unknown as InPage).__fakeBridge.copiedImages.length)).toBe(1);
   const png = Uint8Array.from(await page.evaluate(() => Array.from((window as unknown as InPage).__fakeBridge.copiedImages[0]!)));
@@ -371,7 +368,7 @@ test("the outline is painted first with a doubled width (letters stay solid, out
   expect(stemLeft - Math.min(...whiteLeft)).toBeLessThanOrEqual(11);
 });
 
-test("clicking a Style panel control while typing keeps the typed words and applies the style", async ({ page }) => {
+test("clicking a Font control while typing keeps the typed words and the edit going, and applies the style", async ({ page }) => {
   await page.goto("/");
   await capture(page, 400, 200);
   const view = await atActualSize(page, 400);
@@ -381,7 +378,18 @@ test("clicking a Style panel control while typing keeps the typed words and appl
 
   await page.getByRole("button", { name: "Bold" }).click(); // the box has not been left with Esc or a click on the image
 
-  await expectSaved(page, ([t]) => t?.text === "Still typing" && t.font.bold === true, "words and style both saved");
+  // Since styled text (M4) the Font group works on the box being typed in: the edit goes on, and the keys still type.
+  await expect(page.locator("textarea")).toBeFocused();
+  await page.keyboard.type("!");
+  await page.keyboard.press("Escape");
+  await expectSaved(page, ([t]) => t?.text === "Still typing!" && t.font.bold === true, "words and style both saved");
+  await expect(page.locator("textarea")).toHaveCount(0);
+
+  // A control of another group (the Text outline) still ends the typing, as before.
+  await page.keyboard.press("t");
+  await page.mouse.click(view.at(40, 120).x, view.at(40, 120).y);
+  await page.keyboard.type("Second");
+  await page.getByRole("checkbox", { name: "Outline" }).click();
   await expect(page.locator("textarea")).toHaveCount(0);
 });
 
@@ -473,18 +481,17 @@ async function exportedRedBounds(page: Page, copiesBefore = 0) {
   return box;
 }
 
-/** True if any pixel in the rectangle of the editor canvas (Capture pixels) is not transparent. */
+/**
+ * True if any pixel in the rectangle of the editor canvas (Capture pixels) is not the plain Capture
+ * (flat grey 200 here): the canvas draws the Capture as its first layer so a Blur can pixelate it.
+ */
 async function canvasHasInk(page: Page, x: number, y: number, w: number, h: number) {
   await page.evaluate(() => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)))); // let it repaint
-  return page.evaluate(
-    ({ x, y, w, h }) => {
-      const canvas = document.querySelector("canvas.lower-canvas") as HTMLCanvasElement;
-      const { data } = canvas.getContext("2d")!.getImageData(x, y, w, h);
-      for (let i = 3; i < data.length; i += 4) if (data[i]! > 0) return true;
-      return false;
-    },
-    { x, y, w, h },
-  );
+  const { data } = (await liveArea(page, { x, y, w, h }))!;
+  for (let i = 0; i < data.length; i += 4) {
+    if (data[i] !== 200 || data[i + 1] !== 200 || data[i + 2] !== 200 || data[i + 3] !== 255) return true;
+  }
+  return false;
 }
 
 test("Text: dragging draws a dashed area, then types in it, wrapping at the dragged width and growing past its height", async ({ page }) => {
