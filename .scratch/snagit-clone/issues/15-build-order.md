@@ -75,7 +75,7 @@ Decided with Andrew on 2026-11-14. Each milestone is a release Andrew installs o
   - Style panel polish (added 2026-11-18, Andrew): the Text and Callout vertical alignment buttons all on the second row, with the horizontal ones alone on the first (ticket 43); better Highlighter thickness presets, dropping 2 and adding 8, 12 and 18 (ticket 44, `needs-triage`).
   - These add global hotkeys beyond the capture hotkey, so ticket 28's "capture hotkey is the only global registration" rule is widened for them: the standard `RegisterHotKey` method only, still no low-level hooks and no key blocking.
 
-- **M5 build order (2026-11-18):** 43 → 44 → 28 → 42 (facelift last).
+- **M5 build order (2026-11-18):** 43 → 44 → 28 (as 45 → 46 → 47 → 48) → 42 (facelift last).
 
 **M6 · Desktop demo tools (v1.0.0), after M5** (split from M5 on 2026-11-18, Andrew)
 - Desktop pointer highlight (ticket 40, absorbing ticket 39 as an editor button that toggles it) and screen annotation (ticket 41), designed together: click-through overlay windows plus their own `RegisterHotKey` global hotkeys.

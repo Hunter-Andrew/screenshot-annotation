@@ -6,7 +6,7 @@
 
 **Blocked by:** nothing (M4 shipped as v0.5.0). Directly builds on 08 (Hotkey settings and the Print Screen notice), 09 (Side-panel editor and Arrow tool) and 27 (Remember the magnifier setting).
 
-**Status:** ready-for-agent
+**Status:** split (2026-11-18) into 45 (registry) → 46 (read-only list) → 47 (remapping) → 48 (live apply and typing suspension). Build those; this ticket keeps the shared decisions.
 
 ## Decisions (grilling, 2026-11-15)
 
