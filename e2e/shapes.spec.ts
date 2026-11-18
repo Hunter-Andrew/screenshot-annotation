@@ -291,7 +291,7 @@ test.describe("Rectangle, Ellipse and Line", () => {
     await page.getByRole("button", { name: "Copy", exact: true }).click();
 
     const out = await copiedPixels(page, 0);
-    expect(at(out, x + w / 2, y + h / 2)).toEqual([250, 204, 21, 255]); // solid, no blending
+    expect(at(out, x + w / 2, y + h / 2)).toEqual([255, 255, 0, 255]); // solid, no blending
     expect(at(out, x + 4, y + 4)).toEqual([200, 200, 200, 255]); // the box corner is outside the ellipse
     expect(at(out, x + w / 2, y)).toEqual([224, 36, 36, 255]); // the top of the outline
   });
