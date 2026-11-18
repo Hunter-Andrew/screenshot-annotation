@@ -1,12 +1,12 @@
 # 28: View and remap all shortcuts in Settings
 
-**What to build:** Settings gains a Shortcuts section that lists every keyboard shortcut in the app with its current binding and lets Andrew remap each one that may be remapped: click the entry, press the new key or combination. This covers the capture-overlay keys (Space captures the whole monitor under the cursor, M toggles the magnifier), the editor's tool keys (V, A, L, P, R, E, T, O, H, B, C), Discard (Ctrl+Delete) and the other editor and grid actions, alongside the capture hotkey that is already rebindable. Planned as milestone M5 (v1.1.0), after the v1.0.0 release; decided with Andrew on 2026-11-15 after M1 testing.
+**What to build:** Settings gains a Shortcuts section that lists every keyboard shortcut in the app with its current binding and lets Andrew remap each one that may be remapped: click the entry, press the new key or combination. This covers the capture-overlay keys (Space captures the whole monitor under the cursor, M toggles the magnifier), the editor's tool keys (V, A, L, P, R, E, T, O, H, B, C), Discard (Ctrl+Delete) and the other editor and grid actions, alongside the capture hotkey that is already rebindable. Planned as milestone M5 (v0.6.0), after M4 (v0.5.0); decided with Andrew on 2026-11-15 after M1 testing.
 
 **Constraint (Andrew):** a low-risk hotkey add-on in the style of Snagit and Greenshot. In-app shortcuts are handled inside the app's own windows. The only global registration stays the capture hotkey, using the standard Windows method plus the passive Print Screen listener (ADR 0007). No hooks into Windows' hotkey system, no key blocking, no low-level keyboard hooks (ticket 10).
 
-**Blocked by:** the v1.0.0 release (M0 to M4 complete). Directly builds on 08 (Hotkey settings and the Print Screen notice), 09 (Side-panel editor and Arrow tool) and 27 (Remember the magnifier setting).
+**Blocked by:** nothing (M4 shipped as v0.5.0). Directly builds on 08 (Hotkey settings and the Print Screen notice), 09 (Side-panel editor and Arrow tool) and 27 (Remember the magnifier setting).
 
-**Status:** ready-for-agent
+**Status:** split (2026-11-18) into 45 (registry) → 46 (read-only list) → 47 (remapping) → 48 (live apply and typing suspension). Build those; this ticket keeps the shared decisions.
 
 ## Decisions (grilling, 2026-11-15)
 

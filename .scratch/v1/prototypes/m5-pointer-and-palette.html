@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Pointer and Palette</title>
+<style>
+:root{--bg:#f4f4f7;--fg:#16161d;--card:#fff;--line:#d9d9e2;--muted:#5d5d6e}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#121218;--fg:#ececf2;--card:#1c1c25;--line:#2e2e3b;--muted:#a0a0b2}}
+:root[data-theme=dark]{--bg:#121218;--fg:#ececf2;--card:#1c1c25;--line:#2e2e3b;--muted:#a0a0b2}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 "Segoe UI",system-ui,sans-serif;padding:24px 16px 60px}
+main{max-width:1100px;margin:auto}h1{font-size:22px;margin:0 0 4px}h2{font-size:18px;margin:36px 0 4px}p.note{color:var(--muted);margin:0 0 14px}
+.grid{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(240px,1fr))}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.card h3{margin:0;padding:10px 12px;font-size:15px;border-bottom:1px solid var(--line)}
+.stage{height:190px;position:relative;cursor:none;background:linear-gradient(135deg,#dfe6ee,#f7f7f7 40%,#cfd8e3);overflow:hidden}
+.stage::before{content:"Move the mouse here · click for the ripple";position:absolute;inset:auto 0 8px;text-align:center;font-size:12px;color:#55606d}
+.ptr{position:absolute;pointer-events:none;transform:translate(-50%,-50%);display:none}
+.ring{position:absolute;pointer-events:none;border-radius:50%;border:3px solid #e01b24;transform:translate(-50%,-50%);animation:rip .4s ease-out forwards}
+@keyframes rip{from{width:10px;height:10px;opacity:.9}to{width:70px;height:70px;opacity:0}}
+label.t{display:flex;gap:8px;align-items:center;margin:8px 0 0;color:var(--muted);font-size:14px}
+/* palette mock */
+.mock{display:grid;grid-template-columns:44px 1fr 120px;height:230px;font-size:12px}
+.mock .tools{display:flex;flex-direction:column;gap:6px;padding:6px;background:var(--m-panel)}
+.mock .tool{height:30px;border-radius:6px;display:grid;place-items:center;color:var(--m-fg)}
+.mock .tool.sel{background:var(--a1);color:var(--on-a1)}
+.mock .canvas{background:var(--m-margin);display:grid;place-items:center;position:relative}
+.mock .img{width:70%;height:60%;background:#e7ebf0;border:2px solid var(--a1);border-radius:2px}
+.mock .side{background:var(--m-panel);color:var(--m-fg);padding:8px;display:flex;flex-direction:column;gap:6px}
+.mock .hdr{color:var(--a2t);font-weight:700;text-transform:uppercase;font-size:10px;letter-spacing:.04em}
+.mock .btn{border-radius:6px;padding:4px 8px;text-align:center;font-weight:600}
+.mock .copy{background:var(--a1);color:var(--on-a1)}.mock .sec{border:1px solid var(--a2);color:var(--a2t)}
+.mock .tog{width:30px;height:16px;border-radius:8px;background:var(--a2);position:relative}.mock .tog::after{content:"";position:absolute;right:2px;top:2px;width:12px;height:12px;border-radius:50%;background:#fff}
+.mock .strip{grid-column:1/-1;background:var(--m-panel);display:flex;gap:6px;padding:6px;height:40px}
+.mock .th{flex:0 0 46px;border-radius:4px;background:#9aa4b1}.mock .th.sel{outline:3px solid var(--a2)}
+.mock{grid-template-rows:1fr 40px}
+.swatches{display:flex;gap:6px;padding:8px 12px;flex-wrap:wrap;font-size:12px;color:var(--muted)}
+.sw{display:flex;align-items:center;gap:4px}.sw i{width:14px;height:14px;border-radius:3px;display:inline-block;border:1px solid #0003}
+.dark{--m-panel:#1d1d26;--m-fg:#d8d8e2;--m-margin:#2a2a35}.light{--m-panel:#f3f3f7;--m-fg:#2a2a35;--m-margin:#c9ccd4}
+</style></head><body><main>
+<h1>M5 prototypes: desktop pointer and colour palettes</h1>
+<p class="note">These are throwaway prototypes for tickets 40 and 42. The pointer is red in every option. The cursor is hidden inside each pointer box so you only see the option.</p>
+<label class="t"><input type="checkbox" id="rip" checked> Click ripple (this will be a setting)</label>
+
+<h2>Pointer: pick a look</h2>
+<p class="note">Each one follows the mouse over the whole desktop and lets clicks pass through.</p>
+<div class="grid" id="ptrs"></div>
+
+<h2>Palette: pick one</h2>
+<p class="note">Green is the main accent: selected tool, Copy and the selection outline. Purple <code>#520DF2</code> is the second accent: section headers, toggles and the Library Strip selection. <code>#520DF2</code> is too dark to read on a dark background, so the dark theme needs a lighter tint for purple text. The options differ in which green they use and how that tint is handled. Each option is shown in dark and light.</p>
+<div class="grid" id="pals" style="grid-template-columns:repeat(auto-fit,minmax(320px,1fr))"></div>
+</main>
+<script>
+const P=[
+ ["A · Soft halo","<div style='width:44px;height:44px;border-radius:50%;background:rgba(224,27,36,.35)'></div>"],
+ ["B · Ring + dot","<div style='width:40px;height:40px;border-radius:50%;border:3px solid #e01b24;display:grid;place-items:center'><div style='width:8px;height:8px;border-radius:50%;background:#e01b24'></div></div>"],
+ ["C · Laser dot","<div style='width:14px;height:14px;border-radius:50%;background:#ff2a2a;box-shadow:0 0 10px 4px rgba(255,40,40,.7),0 0 24px 10px rgba(255,40,40,.3)'></div>"],
+ ["D · Spotlight (dims the rest)","SPOT"],
+];
+const box=document.getElementById('ptrs');
+P.forEach(([n,h])=>{const c=document.createElement('div');c.className='card';c.innerHTML=`<h3>${n}</h3><div class=stage></div>`;const s=c.lastChild;
+ let p=document.createElement('div');p.className='ptr';
+ if(h==='SPOT'){p.style.cssText='width:2000px;height:2000px;background:radial-gradient(circle at center,transparent 38px,rgba(224,27,36,.18) 40px,rgba(0,0,0,.45) 42px)';}else p.innerHTML=h;
+ s.appendChild(p);
+ s.onmousemove=e=>{const r=s.getBoundingClientRect();p.style.display='block';p.style.left=e.clientX-r.left+'px';p.style.top=e.clientY-r.top+'px'};
+ s.onmouseleave=()=>p.style.display='none';
+ s.onmousedown=e=>{if(!rip.checked)return;const r=s.getBoundingClientRect();const g=document.createElement('div');g.className='ring';g.style.left=e.clientX-r.left+'px';g.style.top=e.clientY-r.top+'px';s.appendChild(g);setTimeout(()=>g.remove(),420)};
+ box.appendChild(c)});
+const PAL=[
+ ["1 · Logo green + #520DF2",{d:{a1:"#22c55e",on:"#04210f",a2:"#520DF2",a2t:"#a78bfa"},l:{a1:"#15803d",on:"#fff",a2:"#520DF2",a2t:"#520DF2"}}],
+ ["2 · Neon green + #520DF2",{d:{a1:"#39ff88",on:"#04210f",a2:"#520DF2",a2t:"#b49cff"},l:{a1:"#0a8f43",on:"#fff",a2:"#520DF2",a2t:"#520DF2"}}],
+ ["3 · Purple-led (purple main, green second)",{d:{a1:"#6d32f5",on:"#fff",a2:"#22c55e",a2t:"#4ade80"},l:{a1:"#520DF2",on:"#fff",a2:"#15803d",a2t:"#15803d"}}],
+];
+const pal=document.getElementById('pals');
+const mock=(cls,v)=>`<div class="mock ${cls}" style="--a1:${v.a1};--on-a1:${v.on};--a2:${v.a2};--a2t:${v.a2t}">
+<div class=tools><div class=tool>V</div><div class="tool sel">A</div><div class=tool>R</div><div class=tool>T</div><div class=tool>H</div></div>
+<div class=canvas><div class=img></div></div>
+<div class=side><div class=hdr>Colour</div><div class=hdr>Thickness</div><div class=tog></div><div class="btn copy">Copy</div><div class="btn sec">Save as…</div></div>
+<div class=strip><div class=th></div><div class="th sel"></div><div class=th></div><div class=th></div></div></div>`;
+PAL.forEach(([n,v])=>{const c=document.createElement('div');c.className='card';
+ const sw=Object.entries({...v.d}).filter(([k])=>k!=='on').map(([k,x])=>`<span class=sw><i style="background:${x}"></i>${x}</span>`).join('');
+ c.innerHTML=`<h3>${n}</h3><div class=swatches>${sw}</div>${mock('dark',v.d)}${mock('light',v.l)}`;pal.appendChild(c)});
+</script></body></html>

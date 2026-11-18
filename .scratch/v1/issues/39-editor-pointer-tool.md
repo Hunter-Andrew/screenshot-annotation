@@ -10,8 +10,12 @@
 - Key for the tool (remappable once ticket 28 lands); does it return to Select on Esc?
 - Does the pointer also show outside the canvas (the dark margin)?
 
-**Blocked by:** the v1.0.0 release (M0 to M4 complete).
+**Blocked by:** nothing (M4 shipped as v0.5.0).
 
-**Status:** needs-triage
+**Status:** wontfix (merged into ticket 40, 2026-11-18)
 
-Spec: `.scratch/snagit-clone/spec.md`. Planned for M5 (v1.1.0); requested by Andrew on 2026-11-17.
+Spec: `.scratch/snagit-clone/spec.md`. Planned for M5 (v0.6.0); requested by Andrew on 2026-11-17.
+
+## Resolution (grilling, 2026-11-18)
+
+Merged into ticket 40. A separate editor-only pointer adds nothing once a desktop-wide pointer exists. Instead, the editor's tool column gets a button that switches the **global** pointer of ticket 40 on and off. This moves to M6 (v1.0.0) with ticket 40.

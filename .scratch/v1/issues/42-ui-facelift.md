@@ -2,9 +2,9 @@
 
 **What to build:** Give the app's own UI (editor, Library Strip and grid, Settings, About, tray-adjacent windows) a visual refresh with more colour, especially bright green and purple, so it pops more. The new logo (`assets/icon-source.png`: a green-to-blue "S" on a dark rounded square with cyan accents) is the starting palette. Requested by Andrew on 2026-11-17.
 
-**Blocked by:** the v1.0.0 release (M0 to M4 complete).
+**Blocked by:** nothing (M4 shipped as v0.5.0).
 
-**Status:** needs-triage
+**Status:** ready-for-agent
 
 ## Open questions (grill before building)
 
@@ -15,4 +15,22 @@
 - Does the Annotation palette (the 8 colours, ColorField) change? (Recommended: no, annotation colours are the user's content, not the app's chrome.)
 - Scope guard: purely visual, no layout or behaviour changes; existing e2e locators must keep working.
 
-Spec: `.scratch/snagit-clone/spec.md`. Planned for M5 (v1.1.0).
+Spec: `.scratch/snagit-clone/spec.md`. Planned for M5 (v0.6.0).
+
+## Decisions (grilling, 2026-11-18)
+
+1. **Palette: option 3** in `.scratch/v1/prototypes/m5-pointer-and-palette.html`: **purple leads, green is the second accent.**
+   - Main accent (selected tool, Copy as the primary button, canvas selection handles and border, focus ring): purple. Light theme `#520DF2` (Andrew's pick) with white text; dark theme `#6d32f5` with white text.
+   - Second accent (Style panel section headers, toggles, Library Strip and grid selection): green. Light theme `#15803d`; dark theme fills `#22c55e`, text `#4ade80`.
+   - The old blue `#2f5bea` goes everywhere, including `src/canvas/shapes/lineShape.ts` and `boxShapes.ts`.
+2. **Every colour pair meets WCAG AA**; keyboard focus stays clearly visible.
+3. **Both themes** get the palette; the app keeps following the system theme (no theme picker).
+4. **Every window:** editor, Library Strip and grid, Settings, About, toasts.
+5. **Flat:** no gradients, no per-tool icon colours.
+6. **Visual only:** no layout or behaviour changes; existing e2e locators keep working.
+7. **The Annotation palette (the 8 colours, ColorField) is unchanged:** annotation colours are the user's content, not the app's chrome.
+8. **Built last in M5**, after 43, 44 and 28, so it restyles the finished UI once.
+
+## Build note
+
+Define the palette once as shared CSS variables (light and dark), replacing `--accent: #2f5bea` in `src/editor/editor.css` and the hard-coded `#2f5bea` in `src/canvas/shapes/lineShape.ts` and `boxShapes.ts`. Then apply it window by window (editor, Library Strip and grid, Settings, About, toasts), checking AA contrast and the focus ring in both themes after each window.

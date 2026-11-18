@@ -2,9 +2,9 @@
 
 **What to build:** The Highlighter's thickness presets include 2, which is too thin to be of any use for a highlighter. Replace the Highlighter's preset list with larger, practical ones: add 8, 12 and 18, and drop 2. Requested by Andrew on 2026-11-18.
 
-**Blocked by:** the v1.0.0 release (M0 to M4 complete).
+**Blocked by:** nothing (M4 shipped as v0.5.0).
 
-**Status:** needs-triage
+**Status:** ready-for-agent
 
 ## Open questions
 
@@ -12,4 +12,9 @@
 - Is the list Highlighter-only (recommended: yes, the Pen and the shape tools keep theirs) or shared by every stroke tool?
 - A stored Highlighter stroke with another width keeps it and shows no preset as pressed (as with opacity); the custom number box stays if there is one.
 
-Planned for M5 (v1.1.0).
+Planned for M5 (v0.6.0).
+
+## Decisions (grilling, 2026-11-18)
+
+1. **Highlighter-only presets: 8, 12, 18, 24, 30.** The Pen and the shape tools keep the shared `THICKNESS_PRESETS = [2, 4, 8]` (`src/editor/style/groups.tsx`).
+2. A stored Highlighter stroke with another width keeps that width and shows no preset pressed.

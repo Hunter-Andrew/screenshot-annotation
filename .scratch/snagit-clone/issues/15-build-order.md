@@ -18,11 +18,11 @@ Decided with Andrew on 2026-11-14. Each milestone is a release Andrew installs o
 | **M1 · Capture → Copy** | v0.2.0 | See below. |
 | **M2 · Annotate** | v0.3.0 | See below. |
 | **M3 · Library** | v0.4.0 | See below. |
-| **M4 · Complete v1** | v1.0.0 | See below. |
+| **M4 · Complete** | v0.5.0 | See below. |
+| **M5 · Shortcuts, polish and facelift** | v0.6.0 | After M4. See below. |
+| **M6 · Desktop demo tools** | v1.0.0 | After M5; v1.0.0 ships only when M6 is done. See below. |
 | 
 - Canvas expansion, "crop in reverse": edits past the Capture's edge grow the canvas, the canvas can be dragged larger, with a per-image transparent / white / dark background (added 2026-11-15; ticket 37, designed together with Crop).
-
-**M5 · Shortcuts** | v1.1.0 | After the v1.0.0 release. See below. |
 
 **M0 · Skeleton (v0.1.0)**
 - Tauri 2 + React + TypeScript + Fabric.js scaffold.
@@ -55,7 +55,7 @@ Decided with Andrew on 2026-11-14. Each milestone is a release Andrew installs o
 - The folder is the source of truth.
 - The thumbnail cache.
 
-**M4 · Complete v1 (v1.0.0)**
+**M4 · Complete (v0.5.0; tagged v0.5.0 instead of v1.0.0, decided 2026-11-18)**
 - Callout, Highlighter, pixelate Blur and Crop.
 - Paste images into the canvas (ticket 38): Ctrl+V adds an image Annotation that can be moved, resized, given a border and opacity (added 2026-11-16).
 - The delay timer.
@@ -64,16 +64,22 @@ Decided with Andrew on 2026-11-14. Each milestone is a release Andrew installs o
 - Pre-warmed windows meeting the speed targets.
 - Done when the full checklist passes.
 
-**M5 · Shortcuts, demo tools and a UI facelift (v1.1.0), after the v1.0.0 release** (added 2026-11-15; demo tools added 2026-11-17)
+**M5 · Shortcuts, demo tools and a UI facelift (v0.6.0), after M4 (v0.5.0)** (versions renumbered 2026-11-18: v1.0.0 ships after M6) (added 2026-11-15; demo tools added 2026-11-17)
 - Settings lists every keyboard shortcut and lets each one be remapped (ticket 28): the capture-overlay keys (Space, M), the editor's tool and action keys, and Discard. Esc and the standard editing keys stay fixed and read-only.
 - Low-risk by design, like Snagit and Greenshot: in-app keys are handled inside the app's own windows; the only global registration is the capture hotkey, using the standard Windows method plus the passive Print Screen listener of ADR 0007. No hooks, no key blocking.
 - Demo tools, for presentations and screen shares (added 2026-11-17, Andrew; all `needs-triage`, to be grilled before building):
-  - Editor Pointer tool (ticket 39): a tool that turns the mouse into a coloured pointer over the canvas; the colour is a configurable style.
-  - Desktop pointer highlight (ticket 40): a pointer highlight over the whole desktop, run by the tray app and switched on and off by its own hotkey; the colour is set in Settings.
-  - Screen annotation (ticket 41): temporary rectangles and highlights drawn over the whole desktop, from a hotkey and/or a small pop-out toolbar that can be hidden and shown.
+  - Editor Pointer tool (ticket 39) — merged into ticket 40 and moved to M6 (2026-11-18): a tool that turns the mouse into a coloured pointer over the canvas; the colour is a configurable style.
+  - Desktop pointer highlight (ticket 40) — moved to M6 (2026-11-18): a pointer highlight over the whole desktop, run by the tray app and switched on and off by its own hotkey; the colour is set in Settings.
+  - Screen annotation (ticket 41) — moved to M6 (2026-11-18): temporary rectangles and highlights drawn over the whole desktop, from a hotkey and/or a small pop-out toolbar that can be hidden and shown.
   - UI facelift (ticket 42): more colour, especially bright green and purple (matching the new logo), so the app pops more.
   - Style panel polish (added 2026-11-18, Andrew): the Text and Callout vertical alignment buttons all on the second row, with the horizontal ones alone on the first (ticket 43); better Highlighter thickness presets, dropping 2 and adding 8, 12 and 18 (ticket 44, `needs-triage`).
   - These add global hotkeys beyond the capture hotkey, so ticket 28's "capture hotkey is the only global registration" rule is widened for them: the standard `RegisterHotKey` method only, still no low-level hooks and no key blocking.
+
+- **M5 build order (2026-11-18):** 43 → 44 → 28 (as 45 → 46 → 47 → 48) → 42 (facelift last).
+
+**M6 · Desktop demo tools (v1.0.0), after M5** (split from M5 on 2026-11-18, Andrew)
+- Desktop pointer highlight (ticket 40, absorbing ticket 39 as an editor button that toggles it) and screen annotation (ticket 41), designed together: click-through overlay windows plus their own `RegisterHotKey` global hotkeys.
+- v1.0.0 is released only when M6 is finished.
 
 **Planning approach**
 - Only M0 is broken into implementation tickets now (`.scratch/m0-skeleton/`). Later milestones are broken down when reached.
