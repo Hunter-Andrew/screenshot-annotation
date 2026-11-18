@@ -340,6 +340,48 @@ fn set_canvas_margin(app: AppHandle, state: tauri::State<'_, AppSettings>, pixel
     saved.or_else(|e| if e.kind() == std::io::ErrorKind::InvalidInput { Err(e.to_string()) } else { Ok(()) })
 }
 
+/// Stores the canvas margin used while cropping; same rules as `set_canvas_margin`.
+#[tauri::command]
+fn set_crop_margin(app: AppHandle, state: tauri::State<'_, AppSettings>, pixels: u32) -> Result<(), String> {
+    let mut data = state.data.lock().unwrap();
+    let saved = settings::set_crop_margin(&state.dir, &mut data, pixels);
+    if let Err(e) = &saved {
+        diag::log(&format!("the crop margin set to {pixels}; could not save settings.json (kept in memory): {e}"));
+    }
+    let now = data.image_settings();
+    drop(data);
+    let _ = app.emit(IMAGE_SETTINGS_EVENT, now);
+    saved.or_else(|e| if e.kind() == std::io::ErrorKind::InvalidInput { Err(e.to_string()) } else { Ok(()) })
+}
+
+/// Stores the Dark image background colour (`#RRGGBB`); same rules as `set_image_background`.
+#[tauri::command]
+fn set_dark_background(app: AppHandle, state: tauri::State<'_, AppSettings>, color: String) -> Result<(), String> {
+    let mut data = state.data.lock().unwrap();
+    let saved = settings::set_dark_background(&state.dir, &mut data, &color);
+    if let Err(e) = &saved {
+        diag::log(&format!("the dark background set to {color}; could not save settings.json (kept in memory): {e}"));
+    }
+    let now = data.image_settings();
+    drop(data);
+    let _ = app.emit(IMAGE_SETTINGS_EVENT, now);
+    saved.or_else(|e| if e.kind() == std::io::ErrorKind::InvalidInput { Err(e.to_string()) } else { Ok(()) })
+}
+
+/// Stores whether the Library Strip is collapsed; same rules as `set_show_outside_default`.
+#[tauri::command]
+fn set_library_strip_collapsed(app: AppHandle, state: tauri::State<'_, AppSettings>, collapsed: bool) -> Result<(), String> {
+    let mut data = state.data.lock().unwrap();
+    let saved = settings::set_library_strip_collapsed(&state.dir, &mut data, collapsed);
+    if let Err(e) = &saved {
+        diag::log(&format!("the Library Strip collapsed set to {collapsed}; could not save settings.json (kept in memory): {e}"));
+    }
+    let now = data.image_settings();
+    drop(data);
+    let _ = app.emit(IMAGE_SETTINGS_EVENT, now);
+    saved.or_else(|e| if e.kind() == std::io::ErrorKind::InvalidInput { Err(e.to_string()) } else { Ok(()) })
+}
+
 /// Stores the outside darkness; same rules as `set_image_background` (a value outside its range is refused).
 #[tauri::command]
 fn set_outside_darkness(app: AppHandle, state: tauri::State<'_, AppSettings>, percent: f64) -> Result<(), String> {
@@ -1105,6 +1147,9 @@ pub fn run() {
             set_checkerboard,
             set_callout_tail_percent,
             set_canvas_margin,
+            set_crop_margin,
+            set_library_strip_collapsed,
+            set_dark_background,
             set_outside_darkness,
             set_show_outside_default
         ])

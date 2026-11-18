@@ -55,7 +55,7 @@ export function createFabricCanvas(host: HTMLElement, { events, imageUrl, layout
     FabricImage.fromURL(imageUrl).then(
       (capture) => {
         if (disposed) return;
-        backdrop = new Backdrop(capture.getElement() as HTMLImageElement, layout.area, backgroundFill(layout.background));
+        backdrop = new Backdrop(capture.getElement() as HTMLImageElement, layout.area, backgroundFill(layout.background, layout.darkBackground));
         canvas.backgroundImage = backdrop;
         canvas.requestRenderAll();
       },
@@ -539,7 +539,7 @@ export function createFabricCanvas(host: HTMLElement, { events, imageUrl, layout
       layout = next;
       if (backdrop) {
         backdrop.area = next.area;
-        backdrop.fill = backgroundFill(next.background);
+        backdrop.fill = backgroundFill(next.background, next.darkBackground);
       }
       dim.area = next.area;
       dim.workspace = next.workspace;

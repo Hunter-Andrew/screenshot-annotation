@@ -1,4 +1,7 @@
 import { expect, type Page, test } from "@playwright/test";
+import { legacyMargins } from "./sameCropMargin";
+
+legacyMargins(test);
 import { decodePixels, hasChunk } from "../src/core/testing";
 
 // Crop on the real Fabric canvas with the fake platform bridge: drag a rectangle with C, see the rest

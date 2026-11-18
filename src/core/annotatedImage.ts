@@ -70,7 +70,13 @@ export function createFromCapture(capturePng: Uint8Array, options: { showOutside
  * Draws the finished image: the Capture with the Annotations burned in and the Crop applied, as a
  * PNG. Async because it needs a canvas.
  */
-export type FinishedRenderer = (image: AnnotatedImage) => Promise<Uint8Array>;
+export type FinishedRenderer = (image: AnnotatedImage, options?: RenderOptions) => Promise<Uint8Array>;
+
+/** What the renderer takes from the Settings at the moment it draws (never stored with the image). */
+export interface RenderOptions {
+  /** The colour of a Dark background, `#rrggbb`. */
+  darkBackground?: string;
+}
 
 /** The finished image as a plain PNG: Annotations rendered, Crop applied. */
 async function renderFinished(image: AnnotatedImage, render?: FinishedRenderer): Promise<Uint8Array> {

@@ -1,4 +1,7 @@
 import { expect, type Page, test } from "@playwright/test";
+import { legacyMargins } from "./sameCropMargin";
+
+legacyMargins(test);
 import { decodePixels, hasChunk } from "../src/core/testing";
 import { at, averageOf, nearly, pattern } from "./blurPattern";
 import { liveArea } from "./liveCanvas";
@@ -70,7 +73,7 @@ const setSetting = (page: Page, name: "setImageBackground" | "setCheckerboard", 
   page.evaluate(([n, v]) => (window as unknown as InPage).__fakeBridge[n as "setImageBackground"](v as string), [name, value] as const);
 
 const WHITE = [255, 255, 255, 255];
-const DARK = [0x1f, 0x29, 0x37, 255];
+const DARK = [0x19, 0x19, 0x19, 255]; // the Dark image background setting's default, #191919
 const zoomLevel = (page: Page) => page.getByLabel("Zoom level").textContent();
 
 // Big enough for a 300 x 200 Capture to be at 100% with its whole dark margin on screen.

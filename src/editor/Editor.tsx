@@ -3,6 +3,7 @@ import { fabricKit } from "../canvas/kit";
 import type { AnnotationCanvas, CanvasEvents, CanvasKit, TextSelection } from "../canvas/types";
 import {
   type AnnotatedImage,
+  type FinishedRenderer,
   createFromCapture,
   decodeLibraryPng,
   exportPng,
@@ -44,6 +45,7 @@ import { CROP_TOOL, SELECT_TOOL, TOOLS } from "./tools";
 import { returnsToSelect } from "./toolBehavior";
 import { ToolColumn } from "./ToolColumn";
 import { DelayCapture } from "./DelayCapture";
+import { useEasedNumber } from "./useEasedNumber";
 import { useStickyStyles } from "./stickyStyles";
 import { useWellView } from "./useWellView";
 import { visibleCaptureArea } from "./view";
@@ -100,6 +102,11 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
   const [imageSettings, setImageSettings] = useState<ImageSettings>(DEFAULT_IMAGE_SETTINGS);
   const imageSettingsRef = useRef(imageSettings);
   imageSettingsRef.current = imageSettings;
+  /** The Export renderer with the Dark background's colour from the Settings as of the moment it draws (never stored with the image). */
+  const renderForExport = useCallback<FinishedRenderer>(
+    (finished) => kit.render(finished, { darkBackground: imageSettingsRef.current.darkBackground }),
+    [kit],
+  );
   // The status line says the 8192 px limit stopped a growth until the next edit (a save would otherwise replace it).
   const limitNotice = useRef<string | null>(null);
 
@@ -160,7 +167,7 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
         bridge,
         session,
         capturedAt,
-        render: kit.render,
+        render: renderForExport,
         path: options.path,
         readOnly: options.readOnly,
         // The history is stored against the exact PNG just written, so a PNG changed elsewhere voids it.
@@ -180,7 +187,7 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
       session.subscribe(() => persister.markDirty());
       return { id, session, persister, capturedAt, readOnly: options.readOnly === true };
     },
-    [bridge, kit, historyStore, refreshLibrary],
+    [bridge, renderForExport, historyStore, refreshLibrary],
   );
 
   /**
@@ -300,7 +307,11 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
     () => (crop ? crop : size ? { x: 0, y: 0, ...size } : null),
     [crop?.x, crop?.y, crop?.width, crop?.height, size], // eslint-disable-line react-hooks/exhaustive-deps
   );
-  const view = useWellView(area, current?.id ?? null, area ?? undefined, imageSettings.canvasMargin);
+  // While the Crop tool is active the view keeps the Crop margin around the canvas (room to drag the handles out), and
+  // a view in Fit re-fits to it, gliding, when the tool is entered or left (a zoom the user chose stays as chosen).
+  const cropping = tool === CROP_TOOL.id;
+  const wellMargin = useEasedNumber(cropping ? imageSettings.cropMargin : imageSettings.canvasMargin, cropping);
+  const view = useWellView(area, current?.id ?? null, area ?? undefined, wellMargin);
   /** What fills the area outside the Capture: the image's own choice, else the Settings default. */
   const background: Background = image?.model.background ?? imageSettings.background;
   /** Whether the editor shows what lies outside the visible area: the image's own choice; a file without one shows it. */
@@ -463,7 +474,7 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
   const copy = async () => {
     if (!current) return;
     try {
-      await bridge.copyImage(await exportPng(current.session.image, kit.render));
+      await bridge.copyImage(await exportPng(current.session.image, renderForExport));
       setStatus("Copied");
     } catch (e) {
       setStatus(`Could not copy: ${String(e)}`);
@@ -474,7 +485,7 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
     if (!current) return;
     try {
       // A plain Export (ADR 0004): never the Library file, which carries the Capture.
-      const png = await exportPng(current.session.image, kit.render);
+      const png = await exportPng(current.session.image, renderForExport);
       const path = await bridge.savePngAs(png, `${formatStamp(current.capturedAt)}.png`);
       if (path !== null) setStatus(`Saved a copy to ${path}`);
     } catch (e) {
@@ -739,6 +750,7 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
               size={size}
               area={area}
               background={background}
+              darkBackground={imageSettings.darkBackground}
               darkness={imageSettings.outsideDarkness}
               showOutside={showOutside}
               margin={view.margin}
@@ -810,6 +822,12 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
           onCopy={(i) => void copyLibraryImage(i)}
           onDelete={(i) => void del.deletePaths([i.path])}
           onShowAll={() => setScreen("grid")}
+          collapsed={imageSettings.libraryStripCollapsed}
+          onToggleCollapsed={() => {
+            const collapsed = !imageSettings.libraryStripCollapsed;
+            setImageSettings((now) => ({ ...now, libraryStripCollapsed: collapsed }));
+            bridge.setLibraryStripCollapsed(collapsed).catch(() => {});
+          }}
         />
         <footer className="statusbar">
           <span role="status">{status}</span>

@@ -239,12 +239,18 @@ export interface PlatformBridge {
   setCheckerboard(theme: CheckerboardTheme): Promise<void>;
   /** Store the callout tail length (percent of the draw drag, 5 to 50). A value outside the range is refused. */
   setCalloutTailPercent(percent: number): Promise<void>;
-  /** Store the canvas margin in pixels (16 to 200). A value outside the range is refused. */
+  /** Store the canvas margin in pixels (0 to 200). A value outside the range is refused. */
   setCanvasMargin(pixels: number): Promise<void>;
+  /** Store the canvas margin used while the Crop tool is active, in pixels (0 to 400). A value outside the range is refused. */
+  setCropMargin(pixels: number): Promise<void>;
+  /** Store the colour of the Dark image background (`#rrggbb`). Anything else is refused. */
+  setDarkBackground(color: string): Promise<void>;
   /** Store how dark the outside of the canvas is shown, in percent (0 to 99.9, to a tenth). A value outside the range, or with more decimals, is refused. */
   setOutsideDarkness(percent: number): Promise<void>;
   /** Store whether a new image shows the area outside its canvas. */
   setShowOutsideDefault(show: boolean): Promise<void>;
+  /** Store whether the Library Strip is collapsed to a thin bar (kept between launches). */
+  setLibraryStripCollapsed(collapsed: boolean): Promise<void>;
   /** The image settings changed (from any window); delivers the new values. Returns an unsubscribe function. */
   onImageSettings(handler: (settings: ImageSettings) => void): Promise<() => void>;
 

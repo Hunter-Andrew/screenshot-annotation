@@ -55,7 +55,7 @@ describe("the other image settings", () => {
     expect(await bridge.getImageSettings()).toMatchObject({ canvasMargin: 100, outsideDarkness: 99.9, showOutsideDefault: false });
     expect(seen).toHaveLength(3);
 
-    await expect(bridge.setCanvasMargin(5)).rejects.toThrow();
+    await expect(bridge.setCanvasMargin(201)).rejects.toThrow();
     await expect(bridge.setOutsideDarkness(100)).rejects.toThrow();
     await expect(bridge.setOutsideDarkness(50.55)).rejects.toThrow();
     await expect(bridge.setCalloutTailPercent(4)).rejects.toThrow();

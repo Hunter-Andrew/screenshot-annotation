@@ -7,17 +7,28 @@ describe("sanitizeImageSettings", () => {
       background: "transparent",
       checkerboard: "light",
       calloutTailPercent: 20,
-      canvasMargin: 48,
+      canvasMargin: 16,
+      cropMargin: 150,
+      darkBackground: "#191919",
       outsideDarkness: 95,
       showOutsideDefault: true,
+      libraryStripCollapsed: false,
     });
     expect(sanitizeImageSettings({})).toEqual(DEFAULT_IMAGE_SETTINGS);
   });
 
   it("keeps valid values, clamps numbers into their range, and defaults anything that is not a whole number", () => {
     const value = sanitizeImageSettings({ background: "white", checkerboard: "dark", calloutTailPercent: 99, canvasMargin: 3, outsideDarkness: "x", showOutsideDefault: false });
-    expect(value).toEqual({ background: "white", checkerboard: "dark", calloutTailPercent: 50, canvasMargin: 16, outsideDarkness: 95, showOutsideDefault: false });
-    expect(sanitizeImageSettings({ canvasMargin: 1.5, outsideDarkness: 100 })).toMatchObject({ canvasMargin: 48, outsideDarkness: 99.9 });
+    expect(value).toEqual({ background: "white", checkerboard: "dark", calloutTailPercent: 50, canvasMargin: 3, cropMargin: 150, darkBackground: "#191919", outsideDarkness: 95, showOutsideDefault: false, libraryStripCollapsed: false });
+    expect(sanitizeImageSettings({ canvasMargin: 1.5, outsideDarkness: 100 })).toMatchObject({ canvasMargin: 16, outsideDarkness: 99.9 });
+  });
+
+  it("the margins reach 0, and the crop margin 400; the dark background must be #RRGGBB (lower-cased) or is the default", () => {
+    expect(sanitizeImageSettings({ canvasMargin: 0, cropMargin: 400 })).toMatchObject({ canvasMargin: 0, cropMargin: 400 });
+    expect(sanitizeImageSettings({ canvasMargin: -5, cropMargin: 999 })).toMatchObject({ canvasMargin: 0, cropMargin: 400 });
+    expect(sanitizeImageSettings({ canvasMargin: 48 }).canvasMargin).toBe(48); // a margin saved under the old default stays as saved
+    expect(sanitizeImageSettings({ darkBackground: "#ABCDEF" }).darkBackground).toBe("#abcdef");
+    for (const bad of ["abcdef", "#abc", "#abcdeg", 5, null]) expect(sanitizeImageSettings({ darkBackground: bad }).darkBackground).toBe("#191919");
   });
 
   it("the outside darkness takes one decimal place up to 99.9; a stored whole number such as 60 stays as stored", () => {

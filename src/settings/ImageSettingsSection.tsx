@@ -1,15 +1,18 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Background } from "../core/annotation";
 import { BACKGROUND_LABELS, BACKGROUNDS, isBackground } from "../core/area";
 import type { PlatformBridge } from "../platform/bridge";
 import {
   CALLOUT_TAIL_PERCENT,
   CANVAS_MARGIN,
+  DEFAULT_DARK_BACKGROUND,
   CHECKERBOARD_THEMES,
+  CROP_MARGIN,
   type CheckerboardTheme,
   type ImageSettings,
   inRange,
   isCheckerboard,
+  isDarkBackground,
   type NumberRange,
   OUTSIDE_DARKNESS,
 } from "../shared/imageSettings";
@@ -107,6 +110,18 @@ export function ImageSettingsSection({ bridge }: { bridge: PlatformBridge }) {
     };
   }, [bridge]);
 
+  // The colour picker fires on every move of the pointer in its palette: show each at once, store once it settles.
+  const darkTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  useEffect(() => () => clearTimeout(darkTimer.current), []);
+  const chooseDarkBackground = (color: string) => {
+    if (!isDarkBackground(color)) return;
+    setSettings((current) => (current ? { ...current, darkBackground: color } : current));
+    clearTimeout(darkTimer.current);
+    darkTimer.current = setTimeout(() => {
+      bridge.setDarkBackground(color).catch((e) => void bridge.logSettings(`setDarkBackground failed: ${e}`));
+    }, 250);
+  };
+
   const save = (change: Partial<ImageSettings>, store: () => Promise<void>, name: string) => {
     setSettings((current) => (current ? { ...current, ...change } : current));
     store().catch((e) => void bridge.logSettings(`${name} failed: ${e}`));
@@ -140,6 +155,20 @@ export function ImageSettingsSection({ bridge }: { bridge: PlatformBridge }) {
         </label>
         <br />
         <small>What fills the area outside the Capture when an image is made bigger. Each image keeps its own once it has one.</small>
+      </p>
+      <p>
+        <label>
+          Dark image background{" "}
+          <input
+            type="color"
+            aria-label="Dark image background"
+            value={settings?.darkBackground ?? DEFAULT_DARK_BACKGROUND}
+            disabled={settings === null}
+            onChange={(event) => chooseDarkBackground(event.target.value)}
+          />
+        </label>
+        <br />
+        <small>The colour of an image whose background is Dark, in the editor and in exports. Applied when drawn, so it also changes images you reopen.</small>
       </p>
       <p>
         <label>
@@ -178,6 +207,13 @@ export function ImageSettingsSection({ bridge }: { bridge: PlatformBridge }) {
         range={CANVAS_MARGIN}
         value={settings?.canvasMargin}
         onCommit={(value) => save({ canvasMargin: value }, () => bridge.setCanvasMargin(value), "setCanvasMargin")}
+      />
+      <NumberSetting
+        label="Canvas margin during crop (px)"
+        hint="Room kept around the canvas while the Crop tool is on, so the handles can be dragged outwards."
+        range={CROP_MARGIN}
+        value={settings?.cropMargin}
+        onCommit={(value) => save({ cropMargin: value }, () => bridge.setCropMargin(value), "setCropMargin")}
       />
       <NumberSetting
         label="Outside-canvas darkness (%)"

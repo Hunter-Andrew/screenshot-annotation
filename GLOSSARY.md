@@ -21,8 +21,8 @@ The visible area of an Annotated Image. It narrows what is shown and exported wi
 _Avoid_: Trim, cut, canvas size
 
 **Background**:
-What fills the part of an Annotated Image's visible area that lies outside the Capture: White, Dark (the fixed colour `#1f2937`) or Transparent. Chosen per image; a Setting gives the one new images start with. Never part of the Capture.
-_Avoid_: Canvas colour, fill, margin (the margin is the dark space the editor shows around the image, which is not exported)
+What fills the part of an Annotated Image's visible area that lies outside the Capture: White, Dark or Transparent. Dark is the colour of the "Dark image background" Setting (`#191919` until changed): it is applied whenever the image is drawn (editor, Export), so changing it also changes images already made, and it is never stored with an image. Chosen per image; a Setting gives the one new images start with. Never part of the Capture.
+_Avoid_: Canvas colour, fill, margin (the margin is the dark space the editor shows around the image, which is not exported; its size is the Canvas margin Setting, 16 px by default, 0 to 200, and the "Canvas margin during crop" Setting, 150 px by default, 0 to 400, while the Crop tool is on, when a view in Fit re-fits to it with a short glide)
 
 **Outside**:
 Everything the editor draws outside the visible area: the dark margin around it and any cropped-out part of the Capture with its Annotations. It is dimmed by the Outside-canvas darkness setting, or, when the image's "Show outside the canvas" is off, replaced by the dark fill alone. Editor only; never part of an Export.
@@ -53,7 +53,7 @@ The collection of every Annotated Image the user has made.
 _Avoid_: History, gallery
 
 **Library Strip**:
-The horizontal row of Annotated Image thumbnails along the bottom of the editor; one of two views of the Library (the other is the full grid).
+The horizontal row of Annotated Image thumbnails along the bottom of the editor; one of two views of the Library (the other is the full grid). A chevron on its top edge collapses it to a thin bar and expands it again; the choice is kept between launches.
 _Avoid_: Tray (means the Windows system tray), filmstrip, recent captures
 
 **Delay timer**:

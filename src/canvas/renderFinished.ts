@@ -10,7 +10,7 @@ import { encodeRgbaPngCompressed } from "../core/png";
 import { Backdrop } from "./backdrop";
 import { adapterFor, type ShapeAssets } from "./shapes";
 
-export const renderFinished: FinishedRenderer = async (image) => {
+export const renderFinished: FinishedRenderer = async (image, options) => {
   // No colour conversion, so pixels the Annotations do not touch come out exactly as captured.
   const bitmap = await createImageBitmap(new Blob([image.capture as BlobPart], { type: "image/png" }), {
     colorSpaceConversion: "none",
@@ -38,7 +38,7 @@ export const renderFinished: FinishedRenderer = async (image) => {
   // Scene coordinates are Capture pixels; the output starts at the area's corner.
   canvas.setViewportTransform([1, 0, 0, 1, -area.x, -area.y]);
   // A file with no background that somehow reaches past the Capture exports transparent, as it always did.
-  canvas.backgroundImage = new Backdrop(base, area, backgroundFill(image.model.background ?? "transparent"));
+  canvas.backgroundImage = new Backdrop(base, area, backgroundFill(image.model.background ?? "transparent", options?.darkBackground));
   // Pasted pictures are decoded first: the canvas renders once, synchronously, and an image that is not
   // decoded yet would draw nothing.
   const pictures = new Map<string, ImageBitmap>();

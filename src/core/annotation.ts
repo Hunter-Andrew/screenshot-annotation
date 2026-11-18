@@ -43,7 +43,7 @@ export type Annotation =
 
 export type AnnotationType = Annotation["type"];
 
-/** What fills the part of the visible area outside the Capture (ticket 37). Dark is the fixed colour `#1f2937`. */
+/** What fills the part of the visible area outside the Capture (ticket 37). Dark is the colour of the "Dark image background" setting, applied when drawing (never stored with the image). */
 export type Background = "white" | "dark" | "transparent";
 
 /**

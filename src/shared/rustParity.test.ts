@@ -7,7 +7,7 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { BACKGROUNDS } from "../core/area";
 import { CAPTURE_DELAYS } from "../platform/bridge";
-import { CALLOUT_TAIL_PERCENT, CANVAS_MARGIN, CHECKERBOARD_THEMES, DEFAULT_IMAGE_SETTINGS, OUTSIDE_DARKNESS } from "./imageSettings";
+import { CALLOUT_TAIL_PERCENT, CANVAS_MARGIN, CHECKERBOARD_THEMES, CROP_MARGIN, DEFAULT_DARK_BACKGROUND, DEFAULT_IMAGE_SETTINGS, OUTSIDE_DARKNESS } from "./imageSettings";
 import { COUNTDOWN_HASH, OVERLAY_HASH_PREFIX, RELEASES_URL, SETTINGS_HASH } from "./constants";
 
 const rust = (file: string) => readFileSync(resolve(__dirname, "../../src-tauri/src", file), "utf8");
@@ -48,6 +48,7 @@ describe("TS/Rust shared constants", () => {
   });
 
   it("settings.rs has the same ranges and defaults for the numeric and boolean image settings as the editor", () => {
+    const text = (name: string) => rust("settings.rs").match(new RegExp(`pub const ${name}: &str = "([^"]+)";`))?.[1];
     const range = (name: string) => {
       const m = rust("settings.rs").match(new RegExp(`pub const ${name}: Range = Range \\{ min: (\\d+), max: (\\d+), default: (\\d+) \\};`));
       return m && { min: Number(m[1]), max: Number(m[2]), default: Number(m[3]) };
@@ -59,6 +60,8 @@ describe("TS/Rust shared constants", () => {
     };
     expect(range("CALLOUT_TAIL_PERCENT")).toEqual(CALLOUT_TAIL_PERCENT);
     expect(range("CANVAS_MARGIN")).toEqual(CANVAS_MARGIN);
+    expect(range("CROP_MARGIN")).toEqual(CROP_MARGIN);
+    expect(text("DEFAULT_DARK_BACKGROUND")).toBe(DEFAULT_DARK_BACKGROUND);
     expect(decimalRange("OUTSIDE_DARKNESS")).toEqual(OUTSIDE_DARKNESS);
     expect(rust("settings.rs").match(/pub const DEFAULT_SHOW_OUTSIDE: bool = (\w+);/)?.[1]).toBe(String(DEFAULT_IMAGE_SETTINGS.showOutsideDefault));
   });
@@ -69,6 +72,9 @@ describe("TS/Rust shared constants", () => {
     const expected: Record<string, string> = {
       set_callout_tail_percent: "percent: u32",
       set_canvas_margin: "pixels: u32",
+      set_crop_margin: "pixels: u32",
+      set_library_strip_collapsed: "collapsed: bool",
+      set_dark_background: "color: String",
       set_outside_darkness: "percent: f64",
       set_show_outside_default: "show: bool",
     };

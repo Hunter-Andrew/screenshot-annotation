@@ -1,5 +1,5 @@
 import { encodeRgbaPng, readSize } from "../core/png";
-import { CALLOUT_TAIL_PERCENT, CANVAS_MARGIN, DEFAULT_IMAGE_SETTINGS, type ImageSettings, inRange, OUTSIDE_DARKNESS, sanitizeImageSettings } from "../shared/imageSettings";
+import { CALLOUT_TAIL_PERCENT, CANVAS_MARGIN, CROP_MARGIN, DEFAULT_IMAGE_SETTINGS, type ImageSettings, inRange, isDarkBackground, OUTSIDE_DARKNESS, sanitizeImageSettings } from "../shared/imageSettings";
 import { formatStamp } from "../shared/stamp";
 import type { CaptureResult, LibraryFile, LibraryItem, OverlayOutcome, OverlayRect, PlatformBridge } from "./bridge";
 
@@ -594,6 +594,17 @@ export function createFakeBridge(
     setCanvasMargin: async (pixels) => {
       if (!inRange(CANVAS_MARGIN, pixels)) throw new Error(`${pixels} is not a canvas margin`);
       writeImageSettings({ ...readImageSettings(), canvasMargin: pixels });
+    },
+    setLibraryStripCollapsed: async (collapsed) => {
+      writeImageSettings({ ...readImageSettings(), libraryStripCollapsed: collapsed });
+    },
+    setCropMargin: async (pixels) => {
+      if (!inRange(CROP_MARGIN, pixels)) throw new Error(`${pixels} is not a crop margin`);
+      writeImageSettings({ ...readImageSettings(), cropMargin: pixels });
+    },
+    setDarkBackground: async (color) => {
+      if (!isDarkBackground(color)) throw new Error(`${color} is not a dark background colour`);
+      writeImageSettings({ ...readImageSettings(), darkBackground: color.toLowerCase() });
     },
     setOutsideDarkness: async (percent) => {
       if (!inRange(OUTSIDE_DARKNESS, percent)) throw new Error(`${percent} is not an outside darkness`);

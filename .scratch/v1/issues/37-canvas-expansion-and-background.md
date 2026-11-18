@@ -76,3 +76,7 @@ Spec: `.scratch/snagit-clone/spec.md` (story 109).
   - **Handles on the visible area.** The Crop tool's frame was made at 0, 0 whenever the area did not start at the Capture's corner (a growth to the left or top, a crop that starts inside the Capture), so its handles sat in the wrong places until the next layout change. It is now placed by the area's own corner. A corner handle always resizes freely in both axes (Fabric's uniform scaling, and Shift, are bypassed for it); a pasted image's corners keep their rule.
   - **Outside-canvas darkness** defaults to 95 and goes from 0 to 99.9 in tenths (number box and slider in Settings, `f64` in `settings.rs`); a stored value, such as 60, stays as stored.
   - Done: unit (`src/core/area.test.ts`, `src/shared/imageSettings.test.ts`, `settings.rs`), component (`Settings.image.test.tsx`, `Editor.outside.test.tsx`), e2e with real Fabric (`e2e/reach.spec.ts`, `e2e/cropHandles.spec.ts`, `e2e/outside.spec.ts`); manual checklist items updated (M4).
+
+## Update (M4 settings, 2026-11-18)
+
+Dark is no longer the fixed `#1f2937`: it is the "Dark image background" setting (`#191919` by default), applied at render time and never stored in the file. See `.scratch/snagit-clone/issues/13-settings-screen.md`.

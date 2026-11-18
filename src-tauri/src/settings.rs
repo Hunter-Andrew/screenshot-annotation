@@ -23,12 +23,19 @@
 //! - `transparencyCheckerboard`: "light" (the default) or "dark": the checkerboard drawn behind transparent
 //!   pixels in the editor and the Library. It changes how transparency looks, never an exported picture.
 //! - `calloutTailPercent` (5 to 50, default 20): how much of a callout's draw drag its tail takes.
-//! - `canvasMargin` (16 to 200 pixels, default 48): the room kept around the canvas in the editor view.
+//! - `canvasMargin` (0 to 200 pixels, default 16): the room kept around the canvas in the editor view. (Before
+//!   v0.5 the range was 16 to 200 with default 48; a stored value, 48 included, stays as stored, and a
+//!   missing one is the new default.)
+//! - `cropMargin` (0 to 400 pixels, default 150): the same room while the Crop tool is active.
+//! - `darkBackground` (`#RRGGBB`, default `#191919`): the colour of a Dark image background, applied when the
+//!   image is drawn (never stored with an image). Anything that is not `#RRGGBB` is the default.
 //! - `outsideDarkness` (0 to 99.9 percent, to a tenth, default 95): how dark the area outside the canvas is shown.
 //!   A stored value such as 60 stays as stored; one with more decimals is rounded to a tenth.
 //! - `showOutsideDefault` (true by default): whether a new image shows the area outside its canvas.
 //!   A number outside its range is brought into the range; anything that is not a number is the default.
 //!   (A whole-number setting also takes a fraction as the default.)
+//! - `libraryStripCollapsed` (false by default): whether the Library Strip along the bottom of the editor is
+//!   collapsed to a thin bar. The chevron on the strip's edge changes it; it is kept between launches.
 //! - `trayNoticeShown`: true once the one-time "still running in the tray" message, shown the first time
 //!   the editor is closed, has been shown. Setting it back to false (with the app closed) shows it once more.
 
@@ -72,12 +79,21 @@ pub struct Settings {
     /// The room kept around the canvas in the editor view, in pixels (`CANVAS_MARGIN`).
     #[serde(deserialize_with = "canvas_margin_or_default")]
     pub canvas_margin: u32,
+    /// The room kept around the canvas while the Crop tool is active, in pixels (`CROP_MARGIN`).
+    #[serde(deserialize_with = "crop_margin_or_default")]
+    pub crop_margin: u32,
+    /// The colour of a Dark image background, `#rrggbb` (`DEFAULT_DARK_BACKGROUND`).
+    #[serde(deserialize_with = "dark_background_or_default")]
+    pub dark_background: String,
     /// How dark the area outside the canvas is shown, in percent to a tenth (`OUTSIDE_DARKNESS`).
     #[serde(deserialize_with = "outside_darkness_or_default")]
     pub outside_darkness: f64,
     /// Whether a new image shows the area outside its canvas.
     #[serde(deserialize_with = "bool_or_true")]
     pub show_outside_default: bool,
+    /// The Library Strip is collapsed to a thin bar (the chevron on its edge toggles it).
+    #[serde(deserialize_with = "bool_or_false")]
+    pub library_strip_collapsed: bool,
 }
 
 pub const BACKGROUNDS: [&str; 3] = ["white", "dark", "transparent"];
@@ -127,7 +143,14 @@ impl DecimalRange {
 }
 
 pub const CALLOUT_TAIL_PERCENT: Range = Range { min: 5, max: 50, default: 20 };
-pub const CANVAS_MARGIN: Range = Range { min: 16, max: 200, default: 48 };
+pub const CANVAS_MARGIN: Range = Range { min: 0, max: 200, default: 16 };
+pub const CROP_MARGIN: Range = Range { min: 0, max: 400, default: 150 };
+pub const DEFAULT_DARK_BACKGROUND: &str = "#191919";
+
+/// True for `#` followed by exactly six hex digits (either case).
+pub fn is_hex_color(value: &str) -> bool {
+    value.len() == 7 && value.starts_with('#') && value[1..].chars().all(|c| c.is_ascii_hexdigit())
+}
 pub const OUTSIDE_DARKNESS: DecimalRange = DecimalRange { min: 0.0, max: 99.9, default: 95.0 };
 pub const DEFAULT_SHOW_OUTSIDE: bool = true;
 
@@ -139,8 +162,11 @@ pub struct ImageSettings {
     pub checkerboard: String,
     pub callout_tail_percent: u32,
     pub canvas_margin: u32,
+    pub crop_margin: u32,
+    pub dark_background: String,
     pub outside_darkness: f64,
     pub show_outside_default: bool,
+    pub library_strip_collapsed: bool,
 }
 
 /// A stored choice that is not one of `allowed` (a hand edit, a newer version) is the default, not an error.
@@ -190,6 +216,18 @@ fn canvas_margin_or_default<'de, D: serde::Deserializer<'de>>(d: D) -> Result<u3
     number_in(d, CANVAS_MARGIN)
 }
 
+fn crop_margin_or_default<'de, D: serde::Deserializer<'de>>(d: D) -> Result<u32, D::Error> {
+    number_in(d, CROP_MARGIN)
+}
+
+/// A stored `#RRGGBB` is kept (lower-cased); anything else is the default.
+fn dark_background_or_default<'de, D: serde::Deserializer<'de>>(d: D) -> Result<String, D::Error> {
+    Ok(match serde_json::Value::deserialize(d)? {
+        serde_json::Value::String(s) if is_hex_color(&s) => s.to_ascii_lowercase(),
+        _ => DEFAULT_DARK_BACKGROUND.to_string(),
+    })
+}
+
 fn outside_darkness_or_default<'de, D: serde::Deserializer<'de>>(d: D) -> Result<f64, D::Error> {
     tenths_in(d, OUTSIDE_DARKNESS)
 }
@@ -201,6 +239,10 @@ fn bool_or_true<'de, D: serde::Deserializer<'de>>(d: D) -> Result<bool, D::Error
     })
 }
 
+fn bool_or_false<'de, D: serde::Deserializer<'de>>(d: D) -> Result<bool, D::Error> {
+    Ok(matches!(serde_json::Value::deserialize(d)?, serde_json::Value::Bool(true)))
+}
+
 impl Settings {
     pub fn image_settings(&self) -> ImageSettings {
         ImageSettings {
@@ -208,8 +250,11 @@ impl Settings {
             checkerboard: self.transparency_checkerboard.clone(),
             callout_tail_percent: self.callout_tail_percent,
             canvas_margin: self.canvas_margin,
+            crop_margin: self.crop_margin,
+            dark_background: self.dark_background.clone(),
             outside_darkness: self.outside_darkness,
             show_outside_default: self.show_outside_default,
+            library_strip_collapsed: self.library_strip_collapsed,
         }
     }
 }
@@ -227,8 +272,11 @@ impl Default for Settings {
             transparency_checkerboard: DEFAULT_CHECKERBOARD.into(),
             callout_tail_percent: CALLOUT_TAIL_PERCENT.default,
             canvas_margin: CANVAS_MARGIN.default,
+            crop_margin: CROP_MARGIN.default,
+            dark_background: DEFAULT_DARK_BACKGROUND.into(),
             outside_darkness: OUTSIDE_DARKNESS.default,
             show_outside_default: DEFAULT_SHOW_OUTSIDE,
+            library_strip_collapsed: false,
         }
     }
 }
@@ -349,6 +397,24 @@ pub fn set_canvas_margin(dir: &Path, settings: &mut Settings, value: u32) -> io:
     save(dir, settings)
 }
 
+/// Sets the canvas margin used while the Crop tool is active; a value outside `CROP_MARGIN` changes nothing.
+pub fn set_crop_margin(dir: &Path, settings: &mut Settings, value: u32) -> io::Result<()> {
+    if !CROP_MARGIN.contains(value) {
+        return Err(out_of_range("crop margin", value, CROP_MARGIN));
+    }
+    settings.crop_margin = value;
+    save(dir, settings)
+}
+
+/// Sets the colour of the Dark image background; anything but `#RRGGBB` changes nothing. Stored lower-case.
+pub fn set_dark_background(dir: &Path, settings: &mut Settings, color: &str) -> io::Result<()> {
+    if !is_hex_color(color) {
+        return Err(invalid_choice("colour (#RRGGBB)", color));
+    }
+    settings.dark_background = color.to_ascii_lowercase();
+    save(dir, settings)
+}
+
 /// Sets the outside-canvas darkness in percent; a value outside `OUTSIDE_DARKNESS`, or with more than one decimal, changes nothing.
 pub fn set_outside_darkness(dir: &Path, settings: &mut Settings, value: f64) -> io::Result<()> {
     if !OUTSIDE_DARKNESS.contains(value) {
@@ -364,6 +430,12 @@ pub fn set_outside_darkness(dir: &Path, settings: &mut Settings, value: f64) -> 
 /// Sets whether new images show the area outside the canvas.
 pub fn set_show_outside_default(dir: &Path, settings: &mut Settings, show: bool) -> io::Result<()> {
     settings.show_outside_default = show;
+    save(dir, settings)
+}
+
+/// Sets whether the Library Strip is collapsed to a thin bar.
+pub fn set_library_strip_collapsed(dir: &Path, settings: &mut Settings, collapsed: bool) -> io::Result<()> {
+    settings.library_strip_collapsed = collapsed;
     save(dir, settings)
 }
 
@@ -658,9 +730,12 @@ mod tests {
                 background: "transparent".into(),
                 checkerboard: "light".into(),
                 callout_tail_percent: 20,
-                canvas_margin: 48,
+                canvas_margin: 16,
+                crop_margin: 150,
+                dark_background: "#191919".into(),
                 outside_darkness: 95.0,
                 show_outside_default: true,
+                library_strip_collapsed: false,
             }
         );
     }
@@ -669,9 +744,12 @@ mod tests {
     fn the_image_settings_reach_the_page_in_camel_case() {
         let json = serde_json::to_value(Settings::default().image_settings()).unwrap();
         assert_eq!(json["calloutTailPercent"], 20);
-        assert_eq!(json["canvasMargin"], 48);
+        assert_eq!(json["canvasMargin"], 16);
+        assert_eq!(json["cropMargin"], 150);
+        assert_eq!(json["darkBackground"], "#191919");
         assert_eq!(json["outsideDarkness"], 95.0);
         assert_eq!(json["showOutsideDefault"], true);
+        assert_eq!(json["libraryStripCollapsed"], false);
     }
 
     #[test]
@@ -695,9 +773,13 @@ mod tests {
             set_callout_tail_percent(&dir, &mut s, ok).unwrap();
             assert_eq!(s.callout_tail_percent, ok);
         }
-        assert!(set_canvas_margin(&dir, &mut s, 15).is_err());
         assert!(set_canvas_margin(&dir, &mut s, 201).is_err());
+        set_canvas_margin(&dir, &mut s, 0).unwrap();
         set_canvas_margin(&dir, &mut s, 200).unwrap();
+        assert!(set_crop_margin(&dir, &mut s, 401).is_err());
+        assert_eq!(s.crop_margin, 150);
+        set_crop_margin(&dir, &mut s, 0).unwrap();
+        set_crop_margin(&dir, &mut s, 400).unwrap();
         assert!(set_outside_darkness(&dir, &mut s, 100.0).is_err());
         assert!(set_outside_darkness(&dir, &mut s, 50.55).is_err());
         assert!(set_outside_darkness(&dir, &mut s, f64::NAN).is_err());
@@ -709,6 +791,7 @@ mod tests {
         set_show_outside_default(&dir, &mut s, false).unwrap();
         let back = load(&dir);
         assert_eq!((back.canvas_margin, back.outside_darkness, back.show_outside_default), (200, 0.0, false));
+        assert_eq!(back.crop_margin, 400);
         let text = fs::read_to_string(dir.join(FILE_NAME)).unwrap();
         assert!(text.contains("\"calloutTailPercent\": 50") && text.contains("\"showOutsideDefault\": false"), "{text}");
 
@@ -718,16 +801,55 @@ mod tests {
         )
         .unwrap();
         let back = load(&dir);
-        assert_eq!((back.callout_tail_percent, back.canvas_margin, back.outside_darkness, back.show_outside_default), (50, 16, 95.0, true));
+        assert_eq!((back.callout_tail_percent, back.canvas_margin, back.outside_darkness, back.show_outside_default), (50, 3, 95.0, true));
         fs::write(dir.join(FILE_NAME), br#"{"calloutTailPercent":-3,"canvasMargin":1.5,"outsideDarkness":null}"#).unwrap();
         let back = load(&dir);
-        assert_eq!((back.callout_tail_percent, back.canvas_margin, back.outside_darkness), (5, 48, 95.0));
+        assert_eq!((back.callout_tail_percent, back.canvas_margin, back.outside_darkness), (5, 16, 95.0));
+        // A margin saved before the new default (48) stays as stored.
+        fs::write(dir.join(FILE_NAME), br#"{"canvasMargin":48,"cropMargin":999}"#).unwrap();
+        let back = load(&dir);
+        assert_eq!((back.canvas_margin, back.crop_margin), (48, 400));
+        fs::write(dir.join(FILE_NAME), br#"{"cropMargin":"x"}"#).unwrap();
+        assert_eq!(load(&dir).crop_margin, 150);
         // A stored whole number stays as stored; a fraction is kept to a tenth; a value past the range is brought into it.
         for (stored, expected) in [("60", 60.0), ("72.5", 72.5), ("72.54", 72.5), ("99.9", 99.9), ("100", 99.9), ("-4", 0.0), ("0", 0.0)] {
             fs::write(dir.join(FILE_NAME), format!(r#"{{"outsideDarkness":{stored}}}"#)).unwrap();
             assert_eq!(load(&dir).outside_darkness, expected, "stored {stored}");
         }
         assert!(!dir.join(CORRUPT_FILE_NAME).exists());
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn the_dark_background_must_be_a_hex_colour_and_is_stored_lower_case() {
+        let dir = temp_dir("dark-background");
+        let mut s = Settings::default();
+        for bad in ["", "191919", "#19191", "#1919199", "#gggggg", "red", "#12345é"] {
+            assert!(set_dark_background(&dir, &mut s, bad).is_err(), "{bad}");
+        }
+        assert_eq!(s.dark_background, "#191919");
+        set_dark_background(&dir, &mut s, "#AbCdEf").unwrap();
+        assert_eq!(load(&dir).dark_background, "#abcdef");
+        fs::write(dir.join(FILE_NAME), br##"{"darkBackground":"#102030"}"##).unwrap();
+        assert_eq!(load(&dir).dark_background, "#102030");
+        for (stored, expected) in [(r##""pink""##, "#191919"), ("5", "#191919"), ("null", "#191919"), (r##""#12345""##, "#191919"), (r##""#FFFFFF""##, "#ffffff")] {
+            fs::write(dir.join(FILE_NAME), format!(r#"{{"darkBackground":{stored}}}"#)).unwrap();
+            assert_eq!(load(&dir).dark_background, expected, "stored {stored}");
+        }
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn the_library_strip_collapse_is_kept_between_launches_and_anything_but_true_is_expanded() {
+        let dir = temp_dir("strip-collapsed");
+        let mut s = Settings::default();
+        assert!(!s.library_strip_collapsed);
+        set_library_strip_collapsed(&dir, &mut s, true).unwrap();
+        assert!(load(&dir).library_strip_collapsed);
+        for (stored, expected) in [("true", true), ("false", false), ("1", false), (r#""yes""#, false), ("null", false)] {
+            fs::write(dir.join(FILE_NAME), format!(r#"{{"libraryStripCollapsed":{stored}}}"#)).unwrap();
+            assert_eq!(load(&dir).library_strip_collapsed, expected, "stored {stored}");
+        }
         fs::remove_dir_all(&dir).unwrap();
     }
 

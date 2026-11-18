@@ -1,6 +1,6 @@
 // The image Settings (ticket 37, plus the callout tail and the canvas view), as the editor and Library read them. TS is the single source of truth for
 // the values; `src-tauri/src/settings.rs` must spell the same defaults and choices (see rustParity.test.ts).
-import { isBackground } from "../core/area";
+import { DEFAULT_DARK_BACKGROUND, isBackground } from "../core/area";
 import type { Background } from "../core/annotation";
 
 /** How transparency looks in the editor and the Library (never in an Export). */
@@ -16,10 +16,16 @@ export interface ImageSettings {
   calloutTailPercent: number;
   /** The room kept around the canvas in the editor view, in pixels. */
   canvasMargin: number;
+  /** The room kept around the canvas while the Crop tool is active, in pixels. */
+  cropMargin: number;
+  /** The colour a Dark background is drawn in, `#rrggbb` (applied when drawing, never stored with an image). */
+  darkBackground: string;
   /** How dark the area outside the canvas is shown, in percent (0 to 99.9, to a tenth). */
   outsideDarkness: number;
   /** Whether a new image shows the area outside its canvas. */
   showOutsideDefault: boolean;
+  /** The Library Strip is collapsed to a thin bar (a view preference of the editor, kept between launches). */
+  libraryStripCollapsed: boolean;
 }
 
 /**
@@ -34,7 +40,13 @@ export interface NumberRange {
 }
 
 export const CALLOUT_TAIL_PERCENT: NumberRange = { min: 5, max: 50, default: 20 };
-export const CANVAS_MARGIN: NumberRange = { min: 16, max: 200, default: 48 };
+export const CANVAS_MARGIN: NumberRange = { min: 0, max: 200, default: 16 };
+/** The Canvas margin while the Crop tool is active (room to drag the handles outwards). */
+export const CROP_MARGIN: NumberRange = { min: 0, max: 400, default: 150 };
+export { DEFAULT_DARK_BACKGROUND };
+const HEX_COLOR = /^#[0-9a-f]{6}$/i;
+/** True for a `#RRGGBB` string (either case). */
+export const isDarkBackground = (value: unknown): value is string => typeof value === "string" && HEX_COLOR.test(value);
 /** How dark the outside of the canvas is shown, in percent, to a tenth: 0 to 99.9 (100 would hide it altogether). */
 export const OUTSIDE_DARKNESS: NumberRange = { min: 0, max: 99.9, default: 95, decimals: 1 };
 
@@ -43,8 +55,11 @@ export const DEFAULT_IMAGE_SETTINGS: ImageSettings = {
   checkerboard: "light",
   calloutTailPercent: CALLOUT_TAIL_PERCENT.default,
   canvasMargin: CANVAS_MARGIN.default,
+  cropMargin: CROP_MARGIN.default,
+  darkBackground: DEFAULT_DARK_BACKGROUND,
   outsideDarkness: OUTSIDE_DARKNESS.default,
   showOutsideDefault: true,
+  libraryStripCollapsed: false,
 };
 
 /** `value` rounded to the decimal places the range keeps (whole numbers when it says none). */
@@ -77,7 +92,10 @@ export function sanitizeImageSettings(raw: unknown): ImageSettings {
     checkerboard: isCheckerboard(value.checkerboard) ? value.checkerboard : DEFAULT_IMAGE_SETTINGS.checkerboard,
     calloutTailPercent: clampToRange(CALLOUT_TAIL_PERCENT, value.calloutTailPercent),
     canvasMargin: clampToRange(CANVAS_MARGIN, value.canvasMargin),
+    cropMargin: clampToRange(CROP_MARGIN, value.cropMargin),
+    darkBackground: isDarkBackground(value.darkBackground) ? value.darkBackground.toLowerCase() : DEFAULT_DARK_BACKGROUND,
     outsideDarkness: clampToRange(OUTSIDE_DARKNESS, value.outsideDarkness),
     showOutsideDefault: typeof value.showOutsideDefault === "boolean" ? value.showOutsideDefault : DEFAULT_IMAGE_SETTINGS.showOutsideDefault,
+    libraryStripCollapsed: value.libraryStripCollapsed === true,
   };
 }

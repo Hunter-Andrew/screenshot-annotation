@@ -1,4 +1,7 @@
 import { expect, type Page, test } from "@playwright/test";
+import { legacyMargins } from "./sameCropMargin";
+
+legacyMargins(test);
 import { decodePixels } from "../src/core/testing";
 import { pattern } from "./blurPattern";
 import { liveArea } from "./liveCanvas";
@@ -11,6 +14,7 @@ import { liveArea } from "./liveCanvas";
 interface Bridge {
   simulateCapture(shot: { width: number; height: number; rgba: Uint8Array; capturedAt?: Date }): void;
   setCanvasMargin(value: number): Promise<void>;
+  setCropMargin(value: number): Promise<void>;
   setOutsideDarkness(value: number): Promise<void>;
   setShowOutsideDefault(value: boolean): Promise<void>;
   copiedImages: Uint8Array[];
@@ -126,6 +130,9 @@ test.describe("the margin around the visible area in Fit", () => {
         await page.setViewportSize(size);
         await page.goto("/");
         await capture(page, shot.width, shot.height);
+        // 48 px is a chosen margin here (the default is 16, and 150 while the Crop tool is on).
+        await bridge(page, "setCanvasMargin", 48);
+        await bridge(page, "setCropMargin", 48);
         const check = async () => {
           // Fit settles after the view is measured.
           await expect

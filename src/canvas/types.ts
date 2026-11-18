@@ -21,6 +21,8 @@ export interface CanvasLayout {
   workspace: Crop;
   /** What fills the area outside the Capture. */
   background: Background;
+  /** The colour a Dark background is drawn in (`#rrggbb`; the "Dark image background" setting). */
+  darkBackground: string;
   /** How dark everything outside the visible area is drawn, 0 to 99.9 percent (Settings). */
   darkness: number;
   /** False: nothing of the cropped-out Capture or of Annotations outside the area is drawn (the outside is only the dark fill). */

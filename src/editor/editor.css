@@ -211,6 +211,7 @@
   padding: 12px;
   border-left: 1px solid var(--line);
   overflow-y: auto;
+  overflow-x: hidden;
 }
 .style-panel h2 {
   margin: 0 0 8px;
@@ -286,6 +287,7 @@
 }
 .style-panel .row {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 6px;
   margin-bottom: 6px;
@@ -296,6 +298,8 @@
 }
 .presets {
   display: flex;
+  /* Wraps onto a second row when the panel is too narrow: the style controls never need a horizontal scroll. */
+  flex-wrap: wrap;
   gap: 6px;
 }
 
@@ -339,6 +343,34 @@
   padding: 8px 16px;
   border-top: 1px solid var(--line);
   background: var(--bg);
+}
+.library-strip {
+  position: relative;
+}
+.library-strip.collapsed {
+  padding-top: 0;
+  padding-bottom: 0;
+  min-height: 14px;
+}
+/* The chevron sits on the strip's top edge, centred; the collapsed strip is just a thin bar holding it. */
+.editor .strip-chevron {
+  position: absolute;
+  top: -10px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2;
+  width: 36px;
+  height: 18px;
+  padding: 0;
+  line-height: 1;
+  font-size: 11px;
+  border-radius: 9px;
+}
+.library-strip.collapsed .strip-chevron {
+  top: -2px;
+}
+.library-strip [hidden] {
+  display: none;
 }
 .strip-scroll {
   flex: 1;

@@ -12,8 +12,9 @@ interface Props {
   size: Size;
   /** The visible area in Capture pixels: smaller than the Capture (a Crop) or reaching past it (expansion). */
   area: Crop;
-  /** What fills the area outside the Capture. */
+  /** What fills the area outside the Capture, and the colour of a Dark one. */
   background: Background;
+  darkBackground: string;
   /** How dark the outside of the area is drawn (percent), and whether the outside shows the Capture and Annotations at all. */
   darkness: number;
   showOutside: boolean;
@@ -32,7 +33,7 @@ interface Props {
  * dark margin, and the annotation canvas laid over all of it. Mount one per image (`key` it by the image):
  * the canvas is created for that Capture and disposed with it.
  */
-export function Stage({ kit, imageUrl, size, area, background, darkness, showOutside, margin, scale, interactive, events, onCanvas }: Props) {
+export function Stage({ kit, imageUrl, size, area, background, darkBackground, darkness, showOutside, margin, scale, interactive, events, onCanvas }: Props) {
   const host = useRef<HTMLDivElement>(null);
   const canvas = useRef<AnnotationCanvas | null>(null);
   // The canvas covers the area and its margin, as Capture pixels (the margin is whole screen pixels).
@@ -42,12 +43,13 @@ export function Stage({ kit, imageUrl, size, area, background, darkness, showOut
     return {
       area,
       background,
+      darkBackground,
       darkness,
       showOutside,
       workspace: { x: area.x - mx, y: area.y - my, width: area.width + 2 * mx, height: area.height + 2 * my },
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [area.x, area.y, area.width, area.height, background, darkness, showOutside, margin.x, margin.y, scale]);
+  }, [area.x, area.y, area.width, area.height, background, darkBackground, darkness, showOutside, margin.x, margin.y, scale]);
   const latest = useRef({ events, onCanvas, scale, interactive, imageUrl, layout });
   latest.current = { events, onCanvas, scale, interactive, imageUrl, layout };
 
@@ -94,7 +96,7 @@ export function Stage({ kit, imageUrl, size, area, background, darkness, showOut
   // The picture under the canvas stands in until the canvas has loaded the Capture, and only the visible area of it
   // ever shows (the box below clips it): the outside is the canvas's (dimmed, or gone), never an undimmed Capture,
   // and a big Capture cropped small does not make the well scroll.
-  const fill = backgroundFill(background);
+  const fill = backgroundFill(background, darkBackground);
   return (
     <div className="stage-pad" style={{ padding: `${margin.y}px ${margin.x}px` }}>
       <div className="area" style={{ width: px(area.width), height: px(area.height), background: fill ?? undefined }}>

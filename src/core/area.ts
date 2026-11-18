@@ -22,14 +22,14 @@ export const AREA_LIMIT_MESSAGE = `The image can be at most ${MAX_AREA_SIDE} pix
 
 export const BACKGROUNDS: readonly Background[] = ["white", "dark", "transparent"];
 export const BACKGROUND_LABELS: Record<Background, string> = { white: "White", dark: "Dark", transparent: "Transparent" };
-/** The fixed fill of the Dark background (not tied to the system theme). */
-export const DARK_BACKGROUND = "#1f2937";
+/** The Dark background's colour until the user picks another (the "Dark image background" setting; never stored with an image). */
+export const DEFAULT_DARK_BACKGROUND = "#191919";
 
 export const isBackground = (value: unknown): value is Background => BACKGROUNDS.includes(value as Background);
 
-/** The CSS colour that fills the area outside the Capture, or null for Transparent (alpha 0). */
-export function backgroundFill(background: Background): string | null {
-  return background === "white" ? "#ffffff" : background === "dark" ? DARK_BACKGROUND : null;
+/** The CSS colour that fills the area outside the Capture, or null for Transparent (alpha 0). `dark` is the setting's colour. */
+export function backgroundFill(background: Background, dark: string = DEFAULT_DARK_BACKGROUND): string | null {
+  return background === "white" ? "#ffffff" : background === "dark" ? dark : null;
 }
 
 /** The area shown and exported: the crop, or the whole Capture. */

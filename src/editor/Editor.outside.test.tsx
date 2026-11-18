@@ -58,13 +58,13 @@ describe("no border at rest", () => {
 });
 
 describe("the canvas margin and the outside darkness settings", () => {
-  it("the margin around the area is the setting (48 px by default) on all four sides, and follows a change", async () => {
+  it("the margin around the area is the setting (16 px by default) on all four sides, and follows a change", async () => {
     const bridge = createFakeBridge();
     const { kit } = await openWithCapture(bridge);
     const pad = () => document.querySelector<HTMLElement>(".stage-pad")!;
     // The jsdom well has no size, so the area is shown at 100% with just its margin.
-    expect(pad().style.padding).toBe("48px");
-    expect(kit.latest.layout.workspace).toEqual({ x: -48, y: -48, width: 136, height: 126 });
+    expect(pad().style.padding).toBe("16px");
+    expect(kit.latest.layout.workspace).toEqual({ x: -16, y: -16, width: 72, height: 62 });
 
     await act(async () => bridge.setCanvasMargin(100));
     expect(pad().style.padding).toBe("100px");

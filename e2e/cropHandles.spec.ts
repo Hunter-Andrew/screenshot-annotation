@@ -1,4 +1,7 @@
 import { expect, type Page, test } from "@playwright/test";
+import { legacyMargins } from "./sameCropMargin";
+
+legacyMargins(test);
 import { cropHandles, expectedCropHandles, sameSpots } from "./liveCanvas";
 
 // The Crop tool's eight handles must always sit on the corners and edge middles of the visible area (M4 fixes C):

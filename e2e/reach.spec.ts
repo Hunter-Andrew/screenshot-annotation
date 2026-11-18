@@ -1,4 +1,7 @@
 import { expect, type Page, test } from "@playwright/test";
+import { legacyMargins } from "./sameCropMargin";
+
+legacyMargins(test);
 import { decodePixels } from "../src/core/testing";
 
 // How far a drag reaches (M4 fixes C): a press that starts on the canvas (its margin included) keeps following the

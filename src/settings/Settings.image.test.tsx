@@ -56,10 +56,33 @@ describe("Settings > Image", () => {
   it("shows the view and callout defaults with their labels", async () => {
     render(<Settings bridge={createFakeBridge()} />);
     await waitFor(() => expect(screen.getByLabelText("Callout tail length (% of drag)")).toHaveValue(20));
-    expect(screen.getByLabelText("Canvas margin (px)")).toHaveValue(48);
+    expect(screen.getByLabelText("Canvas margin (px)")).toHaveValue(16);
     expect(screen.getByLabelText("Outside-canvas darkness (%)")).toHaveValue(95);
     expect(screen.getByLabelText("Outside-canvas darkness slider")).toHaveValue("95");
     expect(screen.getByLabelText("Show outside the canvas on new images")).toBeChecked();
+  });
+
+  it("has the crop margin (default 150, 0 to 400) and the dark background colour (default #191919), which is stored", async () => {
+    const bridge = createFakeBridge();
+    render(<Settings bridge={bridge} />);
+    const crop = await screen.findByLabelText("Canvas margin during crop (px)");
+    await waitFor(() => expect(crop).toBeEnabled());
+    expect(crop).toHaveValue(150);
+    expect(screen.getByText(/0 to 400/)).toBeVisible();
+    await userEvent.clear(crop);
+    await userEvent.type(crop, "401");
+    await userEvent.tab();
+    expect(bridge.imageSettings.cropMargin).toBe(150);
+    await userEvent.clear(crop);
+    await userEvent.type(crop, "0");
+    await userEvent.tab();
+    expect(bridge.imageSettings.cropMargin).toBe(0);
+
+    const dark = screen.getByLabelText("Dark image background");
+    expect(dark).toHaveValue("#191919");
+    fireEvent.change(dark, { target: { value: "#336699" } });
+    await waitFor(() => expect(bridge.imageSettings.darkBackground).toBe("#336699"));
+    expect(dark).toHaveValue("#336699");
   });
 
   it("stores a number inside its range, and ignores one outside it", async () => {
