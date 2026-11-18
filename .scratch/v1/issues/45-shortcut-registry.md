@@ -4,7 +4,7 @@
 
 **Parent:** ticket 28 (decisions there apply). **Blocked by:** nothing.
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 ## Acceptance criteria
 
@@ -15,3 +15,7 @@
 - [ ] All existing unit and e2e tests pass unchanged
 
 Planned for M5 (v0.6.0).
+
+## Answer
+
+Implemented in M5 (v0.6.0) on integration branch `claude/pensive-davinci-z10bb6`; reviewed with `code-review` and fixes applied. Awaiting the Windows manual checklist (`docs/release-checklist.md`) before any release tag.

@@ -4,7 +4,7 @@
 
 **Blocked by:** nothing (M4 shipped as v0.5.0).
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 ## Notes
 
@@ -12,3 +12,7 @@
 - Purely layout: no behaviour change; the existing locators (button names) must keep working, and the no-horizontal-scroll e2e (`e2e/m4settings.spec.ts`) must still pass for a Text and a Callout.
 
 Planned for M5 (v0.6.0).
+
+## Answer
+
+Implemented in M5 (v0.6.0) on integration branch `claude/pensive-davinci-z10bb6`; reviewed with `code-review` and fixes applied. Awaiting the Windows manual checklist (`docs/release-checklist.md`) before any release tag.

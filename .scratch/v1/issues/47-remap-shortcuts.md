@@ -4,7 +4,7 @@
 
 **Parent:** ticket 28. **Blocked by:** 46.
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 ## Acceptance criteria
 
@@ -17,3 +17,7 @@
 - [ ] Release checklist (M5): remap M and Space, capture, and the new keys work; restart and they persist
 
 Planned for M5 (v0.6.0).
+
+## Answer
+
+Implemented in M5 (v0.6.0) on integration branch `claude/pensive-davinci-z10bb6`; reviewed with `code-review` and fixes applied. Awaiting the Windows manual checklist (`docs/release-checklist.md`) before any release tag.
