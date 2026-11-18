@@ -20,6 +20,7 @@ export const highlightKind: AnnotationKind<HighlightAnnotation> = {
   label: "Highlighter",
   shortcutAction: "tool.highlight",
   groups: ["stroke", "opacity"],
+  thicknessPresets: [8, 12, 18, 24, 30],
   defaultStyle: { stroke: { color: "#ffff00", width: 20 }, opacity: { value: 0.8 } },
   horizontalWithShift: true,
   fromPath(id, points, style: Style) {
