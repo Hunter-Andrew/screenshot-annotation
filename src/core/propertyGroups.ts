@@ -73,6 +73,9 @@ export interface Fill {
 export const MIN_OPACITY = 0.1;
 export const MAX_OPACITY = 1;
 
+/** The opacities the Style panel offers (25, 40, 60, 80%); a stored value between MIN_OPACITY and MAX_OPACITY that is none of them is kept as stored. */
+export const OPACITY_PRESETS: readonly number[] = [0.25, 0.4, 0.6, 0.8];
+
 export interface Opacity {
   /** MIN_OPACITY-1; 1 is fully opaque. */
   value: number;

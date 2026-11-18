@@ -353,7 +353,7 @@ describe("an image is a normal Annotation", () => {
     expect(images(kit)[0]).toMatchObject({ x: 6, y: 3 });
   });
 
-  it("restyles through the Style panel: border on with a width and color, opacity 10-100", async () => {
+  it("restyles through the Style panel: border on with a width and color, an opacity preset", async () => {
     const { kit } = await pasted();
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
     const border = screen.getByRole("region", { name: "Border" });
@@ -372,10 +372,10 @@ describe("an image is a normal Annotation", () => {
     expect(images(kit)[0]!.border.color).toBe("#2563eb");
 
     const opacity = screen.getByRole("region", { name: "Opacity" });
-    fireEvent.change(within(opacity).getByLabelText("Opacity percent"), { target: { value: "50" } });
-    expect(images(kit)[0]!.opacity.value).toBe(0.5);
-    fireEvent.change(within(opacity).getByLabelText("Opacity percent"), { target: { value: "5" } });
-    expect(images(kit)[0]!.opacity.value).toBe(0.5); // below 10%: not applied
+    expect(within(opacity).queryAllByRole("button", { pressed: true })).toHaveLength(0); // 100% is not a preset
+    await user.click(within(opacity).getByRole("button", { name: "60%" }));
+    expect(images(kit)[0]!.opacity.value).toBe(0.6);
+    expect(within(opacity).getByRole("button", { name: "60%" })).toHaveAttribute("aria-pressed", "true");
   });
 
   it("brings forward, sends back and deletes like any Annotation", async () => {

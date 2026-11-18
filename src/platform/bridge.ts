@@ -229,7 +229,7 @@ export interface PlatformBridge {
   /**
    * The two image settings (ticket 37): the background a new image starts with, and how transparency
    * looks (the checkerboard). Defaults on a fresh install or an older settings file: Transparent, Light.
-   * The same event and getter carry the callout tail length, the canvas margin, the outside-canvas darkness and
+   * The same event and getter carry the canvas margin, the outside-canvas darkness and
    * whether a new image shows the outside (all validated against their ranges in `shared/imageSettings.ts`).
    */
   getImageSettings(): Promise<ImageSettings>;

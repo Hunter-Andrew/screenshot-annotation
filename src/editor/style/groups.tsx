@@ -5,10 +5,9 @@ import { type ComponentType, useEffect, useState } from "react";
 import {
   MAX_ERASER_SIZE,
   MIN_ERASER_SIZE,
-  MAX_OPACITY,
+  OPACITY_PRESETS,
   MAX_STRENGTH,
   MAX_STROKE_WIDTH,
-  MIN_OPACITY,
   MIN_STRENGTH,
   MIN_STROKE_WIDTH, type GroupId, type PropertyGroups } from "../../core/propertyGroups";
 import type { RunFont, SelectionFont } from "../../core/annotations/runs";
@@ -195,37 +194,15 @@ function TailEditor({ value, onChange }: GroupEditorProps<"tail">) {
 }
 
 function OpacityEditor({ value, onChange }: GroupEditorProps<"opacity">) {
-  const percent = Math.round(value.value * 100);
-  const [text, setText] = useState(String(percent));
-  useEffect(() => setText(String(percent)), [percent]);
-  const lo = Math.round(MIN_OPACITY * 100);
-  const hi = Math.round(MAX_OPACITY * 100);
+  // A stored value that is not a preset (an older stroke) leaves every button un-pressed; it is kept until one is picked.
   return (
-    <label className="row">
-      Opacity
-      <input
-        type="range"
-        min={lo}
-        max={hi}
-        aria-label="Opacity"
-        value={percent}
-        onChange={(e) => onChange({ value: Number(e.target.value) / 100 })}
-      />
-      <input
-        type="number"
-        min={lo}
-        max={hi}
-        aria-label="Opacity percent"
-        value={text}
-        onChange={(e) => {
-          setText(e.target.value);
-          const n = Math.round(Number(e.target.value));
-          if (e.target.value !== "" && n >= lo && n <= hi) onChange({ value: n / 100 });
-        }}
-        onBlur={() => setText(String(percent))}
-      />
-      %
-    </label>
+    <div className="presets" role="group" aria-label="Opacity">
+      {OPACITY_PRESETS.map((preset) => (
+        <button key={preset} type="button" aria-pressed={Math.abs(value.value - preset) < 1e-9} onClick={() => onChange({ value: preset })}>
+          {Math.round(preset * 100)}%
+        </button>
+      ))}
+    </div>
   );
 }
 

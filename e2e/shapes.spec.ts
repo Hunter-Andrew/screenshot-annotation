@@ -283,7 +283,7 @@ test.describe("Rectangle, Ellipse and Line", () => {
     await drag(page, view.at(100, 60), view.at(300, 200));
     await expectSaved(page, ([e]) => !!e, "drawn");
     await page.getByRole("button", { name: "Solid" }).click();
-    await page.getByRole("button", { name: "Fill color #facc15" }).click();
+    await page.getByRole("button", { name: "Fill color #ffff00" }).click();
     await expectSaved(page, ([e]) => e?.fill?.mode === "solid", "styled");
     const [e] = await savedShapes(page);
     const [x, y, w, h] = [Math.round(e!.x!), Math.round(e!.y!), Math.round(e!.width!), Math.round(e!.height!)];

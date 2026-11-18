@@ -46,7 +46,7 @@ describe.each([
       width: 100,
       height: 60,
       stroke: { color: "#e02424", width: 4 },
-      fill: { mode: "none", color: "#facc15", opacity: 0.4 },
+      fill: { mode: "none", color: "#ffff00", opacity: 0.4 },
     });
   });
 
