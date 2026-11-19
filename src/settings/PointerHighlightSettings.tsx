@@ -6,7 +6,7 @@ const SIZE_LABELS: Record<PointerSize, string> = { small: "Small", medium: "Medi
 
 /**
  * Settings > Demo tools > the pointer highlight's look (ticket 50): colour (the editor's palette, picker and hex
- * field), size and the click ripple, each stored at once and shown on a visible dot at once. Also a switch that
+ * field), size and the click ripple, each stored at once and shown on a visible Laser pointer at once. Also a switch that
  * shows whether the highlight is on (the hotkey and the tray item change it too) so the look can be tried here.
  */
 export function PointerHighlightSettings({ bridge }: { bridge: PlatformBridge }) {
@@ -69,7 +69,7 @@ export function PointerHighlightSettings({ bridge }: { bridge: PlatformBridge })
         />{" "}
         Pointer highlight is on
       </label>
-      <p className="muted">Off at every start. Switch it on here, from the tray menu or with its hotkey to see changes on the dot.</p>
+      <p className="muted">Off at every start. Switch it on here, from the tray menu or with its hotkey to see changes on the Laser pointer.</p>
       <ColorField label="Pointer color" color={look?.color ?? "#e02424"} onPick={(color) => change({ color })} />
       <fieldset disabled={look === null} style={{ border: 0, padding: 0, margin: "8px 0" }}>
         <legend>Size</legend>

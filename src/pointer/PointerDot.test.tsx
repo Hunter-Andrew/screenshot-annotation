@@ -8,11 +8,18 @@ afterEach(() => vi.useRealTimers());
 const rings = () => document.querySelectorAll("[data-ripple]");
 
 describe("Pointer highlight dot window", () => {
-  it("draws the red Medium dot in the middle of its window on a fresh install", async () => {
+  const layer = (dot: HTMLElement, name: string) => dot.querySelector(`[data-layer="${name}"]`) as HTMLElement;
+
+  it("draws the red Medium Laser pointer (haze, ring, hot core) in the middle of its window on a fresh install", async () => {
     render(<PointerDot bridge={createFakeBridge()} />);
     const dot = await screen.findByRole("img", { name: "Pointer highlight" });
-    expect(dot).toHaveStyle({ width: "14px", height: "14px", background: "#e02424", left: "48px", top: "48px" });
-    expect(dot.style.boxShadow).toContain("rgba(224, 36, 36, 0.7)");
+    expect(dot).toHaveStyle({ left: "48px", top: "48px" });
+    expect(layer(dot, "haze")).toHaveStyle({ width: "70px", height: "70px" });
+    expect(layer(dot, "haze").style.background).toContain("rgba(224, 36, 36, 0.5)");
+    expect(layer(dot, "ring")).toHaveStyle({ width: "36px", height: "36px" });
+    expect(layer(dot, "ring").style.border).toBe("1.5px solid rgba(224, 36, 36, 0.55)");
+    expect(layer(dot, "hot")).toHaveStyle({ width: "8px", height: "8px" });
+    expect(layer(dot, "hot").style.boxShadow).toContain("rgba(224, 36, 36, 0.8)");
   });
 
   it("follows a change of colour and size at once", async () => {
@@ -20,7 +27,8 @@ describe("Pointer highlight dot window", () => {
     render(<PointerDot bridge={bridge} />);
     const dot = await screen.findByRole("img", { name: "Pointer highlight" });
     await act(() => bridge.setPointerSettings({ color: "#2563eb", size: "large", ripple: true }));
-    expect(dot).toHaveStyle({ width: "20px", height: "20px", background: "#2563eb" });
+    expect(layer(dot, "haze")).toHaveStyle({ width: "90px", height: "90px" });
+    expect(layer(dot, "hot").style.boxShadow).toContain("rgba(37, 99, 235, 0.8)");
   });
 
   it("moves the dot when the window is held back at a monitor's edge", async () => {

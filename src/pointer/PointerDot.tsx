@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import "./pointer.css";
 import { DEFAULT_POINTER_SETTINGS, type PlatformBridge, type PointerView } from "../platform/bridge";
-import { dotStyle, POINTER_WINDOW_SIZE, RIPPLE, rippleStyle } from "./pointerStyle";
+import { laserStyles, POINTER_WINDOW_SIZE, RIPPLE, rippleStyle } from "./pointerStyle";
 
 const FRESH: PointerView = { ...DEFAULT_POINTER_SETTINGS, dotX: POINTER_WINDOW_SIZE / 2, dotY: POINTER_WINDOW_SIZE / 2 };
 
 /**
- * The pointer highlight: the red dot in its own transparent, click-through window that the platform moves with
+ * The pointer highlight: the Laser pointer (a hot core, a wide haze and a thin ring, ticket 40 decision 14) in its own transparent, click-through window that the platform moves with
  * the mouse pointer (ticket 50). The platform also says where in the window the dot's centre is (the window is held
  * back at a monitor's edge), when the look changes, and when a left click begins (a ripple ring grows from the dot).
  */
@@ -66,9 +66,14 @@ export function PointerDot({ bridge }: { bridge: PlatformBridge }) {
   }, []);
 
   const at = { left: view.dotX, top: view.dotY };
+  const layers = laserStyles(view);
   return (
     <>
-      <div role="img" aria-label="Pointer highlight" className="pointer-dot" style={{ ...at, ...dotStyle(view) }} />
+      <div role="img" aria-label="Pointer highlight" className="pointer-dot" style={at}>
+        <div className="pointer-layer" data-layer="haze" style={layers.haze} />
+        <div className="pointer-layer" data-layer="ring" style={layers.ring} />
+        <div className="pointer-layer" data-layer="hot" style={layers.hot} />
+      </div>
       {ripples.map((id) => (
         <div key={id} data-ripple className="pointer-ripple" style={{ ...at, ...rippleStyle(view) }} />
       ))}
