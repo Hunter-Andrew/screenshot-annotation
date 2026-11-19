@@ -2,7 +2,18 @@ import { encodeRgbaPng, readSize } from "../core/png";
 import { CANVAS_MARGIN, CROP_MARGIN, DEFAULT_IMAGE_SETTINGS, type ImageSettings, inRange, isDarkBackground, OUTSIDE_DARKNESS, sanitizeImageSettings } from "../shared/imageSettings";
 import { formatStamp } from "../shared/stamp";
 import { demoHotkeyRefusal } from "../settings/hotkey";
-import type { CaptureResult, LibraryFile, LibraryItem, OverlayOutcome, OverlayRect, PlatformBridge } from "./bridge";
+import {
+  DEFAULT_POINTER_SETTINGS,
+  POINTER_SIZES,
+  type CaptureResult,
+  type LibraryFile,
+  type LibraryItem,
+  type OverlayOutcome,
+  type OverlayRect,
+  type PlatformBridge,
+  type PointerSettings,
+  type PointerView,
+} from "./bridge";
 
 export interface SimulatedShot {
   width: number;
@@ -84,6 +95,16 @@ export interface FakeBridge extends PlatformBridge {
   failNextOverlayFrame(message: string): void;
   /** The registered capture hotkey (accelerator). */
   readonly hotkey: string;
+  /** The stored pointer highlight look (`fake.pointerSettings` in the fake storage; red, Medium, ripple on for a fresh fake). */
+  readonly pointerSettings: PointerSettings;
+  /** Whether the pointer highlight is on. Not stored: a fresh fake (a reload) has it off, like the real app at start. */
+  readonly pointerHighlightOn: boolean;
+  /** Mimic the pointer highlight hotkey or the tray item: flip the highlight and tell the listeners. */
+  pressPointerHotkey(): void;
+  /** Mimic a left click while the highlight is on: the dot window shows its ripple. */
+  clickPointer(): void;
+  /** Move the dot inside its window (the platform does this when the window is held back at a monitor's edge). */
+  setPointerDot(x: number, y: number): void;
   /** The registered demo-tool hotkeys. */
   readonly pointerHighlightHotkey: string;
   readonly drawingModeHotkey: string;
@@ -172,6 +193,28 @@ export function createFakeBridge(
   let overlayAttempt: number | null = options.overlayAttempt === undefined ? 1 : options.overlayAttempt;
   const overlayAttemptHandlers = new Set<(attempt: number | null) => void>();
   const delayedCaptures: number[] = [];
+  let pointerOn = false;
+  const pointerStateHandlers = new Set<(on: boolean) => void>();
+  const pointerViewHandlers = new Set<(view: PointerView) => void>();
+  const pointerRippleHandlers = new Set<() => void>();
+  let pointerDot = { dotX: 48, dotY: 48 };
+  const readPointerSettings = (): PointerSettings => {
+    try {
+      const stored = JSON.parse(store.getItem("fake.pointerSettings") ?? "null") as Partial<PointerSettings> | null;
+      return {
+        color: typeof stored?.color === "string" && /^#[0-9a-f]{6}$/i.test(stored.color) ? stored.color.toLowerCase() : DEFAULT_POINTER_SETTINGS.color,
+        size: POINTER_SIZES.find((s) => s === stored?.size) ?? DEFAULT_POINTER_SETTINGS.size,
+        ripple: typeof stored?.ripple === "boolean" ? stored.ripple : DEFAULT_POINTER_SETTINGS.ripple,
+      };
+    } catch {
+      return DEFAULT_POINTER_SETTINGS;
+    }
+  };
+  const pointerView = (): PointerView => ({ ...readPointerSettings(), ...pointerDot });
+  const publishPointerOn = (on: boolean) => {
+    pointerOn = on;
+    pointerStateHandlers.forEach((handler) => handler(on));
+  };
   let countdown: number | null = null;
   const countdownHandlers = new Set<(remaining: number | null) => void>();
   let launchFailure: string | null = null;
@@ -361,6 +404,50 @@ export function createFakeBridge(
       else drawingModeHotkey = accelerator;
       store.setItem(action === "pointerHighlight" ? "fake.pointerHighlightHotkey" : "fake.drawingModeHotkey", accelerator);
       return { ok: true };
+    },
+    get pointerSettings() {
+      return readPointerSettings();
+    },
+    get pointerHighlightOn() {
+      return pointerOn;
+    },
+    pressPointerHotkey: () => publishPointerOn(!pointerOn),
+    clickPointer: () => {
+      if (pointerOn && readPointerSettings().ripple) pointerRippleHandlers.forEach((handler) => handler());
+    },
+    setPointerDot: (x, y) => {
+      pointerDot = { dotX: x, dotY: y };
+      const view = pointerView();
+      pointerViewHandlers.forEach((handler) => handler(view));
+    },
+    getPointerSettings: async () => readPointerSettings(),
+    setPointerSettings: async (settings) => {
+      store.setItem("fake.pointerSettings", JSON.stringify(settings));
+      const view = pointerView();
+      pointerViewHandlers.forEach((handler) => handler(view));
+    },
+    getPointerHighlight: async () => pointerOn,
+    setPointerHighlight: async (on) => {
+      if (on !== pointerOn) publishPointerOn(on);
+    },
+    onPointerHighlight: async (handler) => {
+      pointerStateHandlers.add(handler);
+      return () => {
+        pointerStateHandlers.delete(handler);
+      };
+    },
+    getPointerView: async () => pointerView(),
+    onPointerView: async (handler) => {
+      pointerViewHandlers.add(handler);
+      return () => {
+        pointerViewHandlers.delete(handler);
+      };
+    },
+    onPointerRipple: async (handler) => {
+      pointerRippleHandlers.add(handler);
+      return () => {
+        pointerRippleHandlers.delete(handler);
+      };
     },
     getPrintScreenNotice: async () => ({
       snippingEnabled,

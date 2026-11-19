@@ -95,6 +95,28 @@ export type SetDemoHotkeyResult =
   | { ok: true }
   | { ok: false; reason: "conflict" | "invalid" | "failed" | "print-screen" | "capture-hotkey" | "other-demo" };
 
+/** The pointer highlight's sizes (ticket 50); `src-tauri/src/settings.rs` `POINTER_SIZES` must match (see rustParity.test.ts). */
+export const POINTER_SIZES = ["small", "medium", "large"] as const;
+export type PointerSize = (typeof POINTER_SIZES)[number];
+
+/** How the pointer highlight looks; stored in settings.json. The on/off state is never stored. */
+export interface PointerSettings {
+  /** `#rrggbb`. */
+  color: string;
+  size: PointerSize;
+  /** A left click shows a ripple. */
+  ripple: boolean;
+}
+
+/** Red, Medium, ripple on; `src-tauri/src/settings.rs` has the same defaults (see rustParity.test.ts). */
+export const DEFAULT_POINTER_SETTINGS: PointerSettings = { color: "#e02424", size: "medium", ripple: true };
+
+/** What the dot window draws: the settings, and where in the window the dot's centre is (CSS pixels). */
+export interface PointerView extends PointerSettings {
+  dotX: number;
+  dotY: number;
+}
+
 /** The delays the delay timer offers, in seconds (the tray menu lists the same; `src-tauri/src/delay.rs` must match, see rustParity.test.ts). */
 export const CAPTURE_DELAYS = [3, 5, 10] as const;
 
@@ -303,6 +325,23 @@ export interface PlatformBridge {
    * Screen, the capture hotkey and the other demo hotkey, or when another app owns the combination.
    */
   setDemoHotkey(action: DemoAction, accelerator: string): Promise<SetDemoHotkeyResult>;
+
+  /** How the pointer highlight looks (colour, size, ripple), as stored. */
+  getPointerSettings(): Promise<PointerSettings>;
+  /** Store a new look and show it at once on a visible dot. A failed write is logged and kept in memory for this run. */
+  setPointerSettings(settings: PointerSettings): Promise<void>;
+  /** Whether the pointer highlight is on now. Never stored: it is off at every start. */
+  getPointerHighlight(): Promise<boolean>;
+  /** Switch the pointer highlight on or off (the editor's button, ticket 51). The hotkey and the tray item do the same. */
+  setPointerHighlight(on: boolean): Promise<void>;
+  /** The pointer highlight was switched on or off, by the hotkey, the tray item or a button; delivers the new state. */
+  onPointerHighlight(handler: (on: boolean) => void): Promise<() => void>;
+  /** The dot window's drawing instructions now (for a window that loads late). */
+  getPointerView(): Promise<PointerView>;
+  /** The look or the dot's place in its window changed. */
+  onPointerView(handler: (view: PointerView) => void): Promise<() => void>;
+  /** A left click began: the dot window shows its ripple. */
+  onPointerRipple(handler: () => void): Promise<() => void>;
 
   /**
    * Whether the Windows setting PrintScreenKeyForSnippingEnabled leaves Print Screen with Snipping

@@ -1,0 +1,27 @@
+/* The pointer highlight window (ticket 50): a laser dot and its click ripple on a transparent page. */
+.pointer-dot,
+.pointer-ripple {
+  position: fixed;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+}
+.pointer-ripple {
+  box-sizing: border-box;
+  border: 3px solid;
+  border-radius: 50%;
+  animation-name: pointer-ripple;
+  animation-timing-function: ease-out;
+  animation-fill-mode: forwards;
+}
+@keyframes pointer-ripple {
+  from {
+    width: var(--ripple-from);
+    height: var(--ripple-from);
+    opacity: 0.9;
+  }
+  to {
+    width: var(--ripple-to);
+    height: var(--ripple-to);
+    opacity: 0;
+  }
+}

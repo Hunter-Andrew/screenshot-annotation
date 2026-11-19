@@ -12,7 +12,7 @@ function group(name: string) {
 describe("Settings > Shortcuts", () => {
   it("groups shortcuts Capture / Capture overlay / Editor in that order", () => {
     render(<Settings bridge={createFakeBridge()} />);
-    const names = screen.getAllByRole("group").map((g) => g.getAttribute("aria-label"));
+    const names = within(screen.getByRole("region", { name: "Shortcuts" })).getAllByRole("group").map((g) => g.getAttribute("aria-label"));
     expect(names).toEqual(["Capture", "Capture overlay", "Editor"]);
   });
 

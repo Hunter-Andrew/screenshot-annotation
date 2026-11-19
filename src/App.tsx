@@ -3,7 +3,8 @@ import { Editor } from "./editor/Editor";
 import type { PlatformBridge } from "./platform/bridge";
 import { Settings } from "./settings/Settings";
 import { Overlay } from "./overlay/Overlay";
-import { COUNTDOWN_HASH, OVERLAY_HASH_PREFIX, SETTINGS_HASH } from "./shared/constants";
+import { PointerDot } from "./pointer/PointerDot";
+import { COUNTDOWN_HASH, OVERLAY_HASH_PREFIX, POINTER_HIGHLIGHT_HASH, SETTINGS_HASH } from "./shared/constants";
 
 /** The Settings window loads this same page at `SETTINGS_HASH`; every other URL is the editor. */
 export function App({ bridge }: { bridge: PlatformBridge }) {
@@ -16,6 +17,9 @@ export function App({ bridge }: { bridge: PlatformBridge }) {
   }
   if (hash === COUNTDOWN_HASH) {
     return <Countdown bridge={bridge} />;
+  }
+  if (hash === POINTER_HIGHLIGHT_HASH) {
+    return <PointerDot bridge={bridge} />;
   }
   return <Editor bridge={bridge} />;
 }

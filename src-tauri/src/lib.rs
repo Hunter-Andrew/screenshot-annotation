@@ -12,6 +12,8 @@ mod hotkey;
 mod library;
 mod library_index;
 mod overlay;
+mod pointer;
+mod pointer_highlight;
 mod png_guard;
 mod print_screen;
 mod print_screen_key;
@@ -30,7 +32,7 @@ use std::time::Duration;
 
 use tauri::{
     ipc::{InvokeBody, Request, Response},
-    menu::MenuBuilder,
+    menu::{CheckMenuItemBuilder, MenuBuilder},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
     AppHandle, Emitter, Manager, RunEvent, WebviewUrl, WebviewWindowBuilder,
 };
@@ -94,9 +96,6 @@ impl hotkey::ShortcutRegistry for PluginRegistry<'_> {
     }
 }
 
-/// Event the single hotkey handler emits when the pointer-highlight hotkey is pressed (ticket 49; the
-/// pointer highlight itself, ticket 50, listens for it).
-const POINTER_HIGHLIGHT_HOTKEY_EVENT: &str = "pointer-highlight-hotkey";
 /// Same for the drawing-mode hotkey (ticket 52 listens).
 const DRAWING_MODE_HOTKEY_EVENT: &str = "drawing-mode-hotkey";
 
@@ -326,6 +325,9 @@ fn set_demo_hotkey(
                 data.drawing_mode_hotkey = accelerator.clone();
             }
             demo.set(if pointer { 0 } else { 1 }, &accelerator);
+            if pointer {
+                pointer_highlight::refresh_tray_label(&app, &accelerator);
+            }
             Ok(())
         }
         Err(code) => {
@@ -333,6 +335,37 @@ fn set_demo_hotkey(
             Err(code.to_string())
         }
     }
+}
+
+/// How the pointer highlight looks (colour, size, ripple), stored in settings.json (ticket 50).
+#[tauri::command]
+fn get_pointer_settings(state: tauri::State<'_, AppSettings>) -> settings::PointerSettings {
+    state.data.lock().unwrap().pointer_settings()
+}
+
+/// Stores how the pointer highlight looks and shows it at once on a visible dot. A failed write is logged and the
+/// value stays in memory for this run; a colour that is not #RRGGBB or an unknown size is refused.
+#[tauri::command]
+fn set_pointer_settings(
+    app: AppHandle,
+    state: tauri::State<'_, AppSettings>,
+    pointer: settings::PointerSettings,
+) -> Result<(), String> {
+    let mut data = state.data.lock().unwrap();
+    let saved = settings::set_pointer(&state.dir, &mut data, &pointer);
+    if let Err(e) = &saved {
+        diag::log(&format!("pointer highlight settings {pointer:?}; could not save settings.json (kept in memory): {e}"));
+    }
+    let now = data.pointer_settings();
+    drop(data);
+    pointer_highlight::apply_settings(&app, &now);
+    saved.or_else(|e| if e.kind() == std::io::ErrorKind::InvalidInput { Err(e.to_string()) } else { Ok(()) })
+}
+
+/// Switch the pointer highlight on or off (the editor's button, ticket 51). Returns at once.
+#[tauri::command]
+fn set_pointer_highlight(app: AppHandle, on: bool) {
+    pointer_highlight::request(&app, Some(on));
 }
 
 /// Whether Windows still gives Print Screen to Snipping Tool (read-only registry check), and
@@ -1253,6 +1286,11 @@ pub fn run() {
             set_hotkey,
             get_demo_hotkeys,
             set_demo_hotkey,
+            get_pointer_settings,
+            set_pointer_settings,
+            set_pointer_highlight,
+            pointer_highlight::get_pointer_highlight,
+            pointer_highlight::pointer_highlight_view,
             get_print_screen_notice,
             settings_log,
             dismiss_print_screen_notice,
@@ -1293,15 +1331,15 @@ pub fn run() {
                         if *shortcut == countdown::escape_shortcut() {
                             countdown::cancel(app);
                         } else if let Some(which) = app.try_state::<DemoShortcuts>().and_then(|d| d.which(shortcut)) {
-                            // The demo-tool hotkeys (ticket 49): for now only log and tell the windows; the
-                            // pointer highlight (50) and drawing mode (52) act on the event.
-                            let (name, event) = if which == 0 {
-                                ("pointer highlight", POINTER_HIGHLIGHT_HOTKEY_EVENT)
+                            // The demo-tool hotkeys (ticket 49). The pointer highlight (ticket 50) flips on a worker
+                            // thread; drawing mode (ticket 52) acts on the event.
+                            if which == 0 {
+                                diag::log("hotkey event: pointer highlight hotkey pressed");
+                                pointer_highlight::request(app, None);
                             } else {
-                                ("drawing mode", DRAWING_MODE_HOTKEY_EVENT)
-                            };
-                            diag::log(&format!("hotkey event: {name} hotkey pressed"));
-                            let _ = app.emit(event, ());
+                                diag::log("hotkey event: drawing mode hotkey pressed");
+                                let _ = app.emit(DRAWING_MODE_HOTKEY_EVENT, ());
+                            }
                         } else {
                             capture_async(app.clone(), "hotkey");
                         }
@@ -1319,6 +1357,7 @@ pub fn run() {
             demo_shortcuts.set(0, &loaded.pointer_highlight_hotkey);
             demo_shortcuts.set(1, &loaded.drawing_mode_hotkey);
             app.manage(demo_shortcuts);
+            app.manage(pointer_highlight::PointerHighlightState::new(&loaded.pointer_settings()));
             let _ = hotkey::ShortcutRegistry::register(&registry(app.handle()), &loaded.pointer_highlight_hotkey);
             let _ = hotkey::ShortcutRegistry::register(&registry(app.handle()), &loaded.drawing_mode_hotkey);
             let reading = print_screen::read();
@@ -1330,6 +1369,7 @@ pub fn run() {
             ));
             let notice_pending = !loaded.print_screen_notice_dismissed && reading.enabled();
             let launch_at_sign_in = loaded.launch_at_sign_in;
+            let pointer_hotkey = loaded.pointer_highlight_hotkey.clone();
             app.manage(AppSettings { dir, data: Mutex::new(loaded) });
             if notice_pending {
                 // First run: open Settings, where the one-time Print Screen notice lives.
@@ -1339,9 +1379,16 @@ pub fn run() {
             sync_launch_at_sign_in(launch_at_sign_in);
 
             let mut menu = MenuBuilder::new(app);
-            for entry in tray_menu::entries(&delay::CHOICES) {
+            // The pointer highlight is off at every start (its state is not saved), so its item starts unchecked.
+            for entry in tray_menu::entries(&delay::CHOICES, &pointer_hotkey, false) {
                 menu = match entry {
                     tray_menu::Entry::Item { id, label } => menu.text(id, label),
+                    tray_menu::Entry::Check { id, label, checked } => {
+                        let item = CheckMenuItemBuilder::with_id(id, label).checked(checked).build(app.handle())?;
+                        let menu = menu.item(&item);
+                        app.state::<pointer_highlight::PointerHighlightState>().set_tray_item(item);
+                        menu
+                    }
                     tray_menu::Entry::Separator => menu.separator(),
                 };
             }
@@ -1366,6 +1413,7 @@ pub fn run() {
                     Some(tray_menu::Action::Capture) => capture_async(app.clone(), "tray"),
                     Some(tray_menu::Action::CaptureIn(seconds)) => overlay::begin_delayed(app.clone(), seconds),
                     Some(tray_menu::Action::OpenLogFolder) => open_log_folder(),
+                    Some(tray_menu::Action::TogglePointerHighlight) => pointer_highlight::request(app, None),
                     Some(tray_menu::Action::OpenEditor) => request_editor(app, "tray menu"),
                     Some(tray_menu::Action::Settings) => request_settings(app, "tray menu"),
                     Some(tray_menu::Action::Exit) => app.exit(0),

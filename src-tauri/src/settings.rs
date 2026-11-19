@@ -7,6 +7,10 @@
 //! - `pointerHighlightHotkey` / `drawingModeHotkey`: the global hotkeys of the two demo tools, e.g.
 //!   "ctrl+shift+l" and "ctrl+shift+d" (the defaults). Change them in Settings > Demo tools. Never Print
 //!   Screen, the capture hotkey or each other; a value that breaks that, or is not text, becomes the default.
+//! - `pointerColor` (`#RRGGBB`, default `#e02424`, red), `pointerSize` ("small", "medium" or "large"; default
+//!   "medium") and `pointerRipple` (true by default): how the pointer highlight looks (ticket 50). Change them in
+//!   Settings > Demo tools. Anything else is read as the default. Whether the highlight is on is never stored:
+//!   it is off at every start.
 //! - `printScreenNoticeDismissed`: true means "you answered the one-time Print Screen notice" (clicked
 //!   either of its two buttons). It only stops that notice from showing again. It does NOT mean Print
 //!   Screen works or that the Windows setting is off; the warning under the hotkey field reads that live
@@ -69,6 +73,15 @@ pub struct Settings {
     /// Global hotkey that starts and ends drawing mode (ticket 49); same rules.
     #[serde(deserialize_with = "drawing_mode_hotkey_or_default")]
     pub drawing_mode_hotkey: String,
+    /// The pointer highlight's colour, `#rrggbb` (`DEFAULT_POINTER_COLOR`).
+    #[serde(deserialize_with = "pointer_color_or_default")]
+    pub pointer_color: String,
+    /// The pointer highlight's size: one of `POINTER_SIZES`.
+    #[serde(deserialize_with = "pointer_size_or_default")]
+    pub pointer_size: String,
+    /// Whether a left click shows the ripple (default true).
+    #[serde(deserialize_with = "bool_or_true")]
+    pub pointer_ripple: bool,
     /// The one-time Print Screen / Snipping Tool notice was answered.
     pub print_screen_notice_dismissed: bool,
     /// Show the magnifier in the capture overlay (default true).
@@ -115,6 +128,9 @@ pub const BACKGROUNDS: [&str; 3] = ["white", "dark", "transparent"];
 pub const CHECKERBOARDS: [&str; 2] = ["dark", "light"];
 pub const DEFAULT_IMAGE_BACKGROUND: &str = "transparent";
 pub const DEFAULT_CHECKERBOARD: &str = "light";
+pub const POINTER_SIZES: [&str; 3] = ["small", "medium", "large"];
+pub const DEFAULT_POINTER_SIZE: &str = "medium";
+pub const DEFAULT_POINTER_COLOR: &str = "#e02424";
 
 /// An inclusive range of whole numbers a numeric setting may take.
 #[derive(Debug, Clone, Copy)]
@@ -241,6 +257,18 @@ fn outside_darkness_or_default<'de, D: serde::Deserializer<'de>>(d: D) -> Result
     tenths_in(d, OUTSIDE_DARKNESS)
 }
 
+/// A stored `#RRGGBB` pointer colour is kept (lower-cased); anything else is red.
+fn pointer_color_or_default<'de, D: serde::Deserializer<'de>>(d: D) -> Result<String, D::Error> {
+    Ok(match serde_json::Value::deserialize(d)? {
+        serde_json::Value::String(s) if is_hex_color(&s) => s.to_ascii_lowercase(),
+        _ => DEFAULT_POINTER_COLOR.to_string(),
+    })
+}
+
+fn pointer_size_or_default<'de, D: serde::Deserializer<'de>>(d: D) -> Result<String, D::Error> {
+    choice_or(d, &POINTER_SIZES, DEFAULT_POINTER_SIZE)
+}
+
 fn bool_or_true<'de, D: serde::Deserializer<'de>>(d: D) -> Result<bool, D::Error> {
     Ok(match serde_json::Value::deserialize(d)? {
         serde_json::Value::Bool(b) => b,
@@ -279,7 +307,20 @@ fn bool_or_false<'de, D: serde::Deserializer<'de>>(d: D) -> Result<bool, D::Erro
     Ok(matches!(serde_json::Value::deserialize(d)?, serde_json::Value::Bool(true)))
 }
 
+/// How the pointer highlight looks, as the frontend spells it (Settings > Demo tools, the dot window).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PointerSettings {
+    pub color: String,
+    pub size: String,
+    pub ripple: bool,
+}
+
 impl Settings {
+    pub fn pointer_settings(&self) -> PointerSettings {
+        PointerSettings { color: self.pointer_color.clone(), size: self.pointer_size.clone(), ripple: self.pointer_ripple }
+    }
+
     pub fn image_settings(&self) -> ImageSettings {
         ImageSettings {
             background: self.image_background.clone(),
@@ -300,6 +341,9 @@ impl Default for Settings {
             hotkey: DEFAULT_HOTKEY.into(),
             pointer_highlight_hotkey: DEFAULT_POINTER_HIGHLIGHT_HOTKEY.into(),
             drawing_mode_hotkey: DEFAULT_DRAWING_MODE_HOTKEY.into(),
+            pointer_color: DEFAULT_POINTER_COLOR.into(),
+            pointer_size: DEFAULT_POINTER_SIZE.into(),
+            pointer_ripple: true,
             print_screen_notice_dismissed: false,
             magnifier: true,
             tool_styles: serde_json::Map::new(),
@@ -466,6 +510,22 @@ pub fn set_outside_darkness(dir: &Path, settings: &mut Settings, value: f64) -> 
         ));
     }
     settings.outside_darkness = value;
+    save(dir, settings)
+}
+
+/// Sets how the pointer highlight looks and then tries to save; like `set_magnifier`, the in-memory value
+/// changes even when the write fails. A colour that is not `#RRGGBB` or a size that is not one of
+/// `POINTER_SIZES` changes nothing.
+pub fn set_pointer(dir: &Path, settings: &mut Settings, new: &PointerSettings) -> io::Result<()> {
+    if !is_hex_color(&new.color) {
+        return Err(invalid_choice("colour (#RRGGBB)", &new.color));
+    }
+    if !POINTER_SIZES.contains(&new.size.as_str()) {
+        return Err(invalid_choice("pointer size", &new.size));
+    }
+    settings.pointer_color = new.color.to_ascii_lowercase();
+    settings.pointer_size = new.size.clone();
+    settings.pointer_ripple = new.ripple;
     save(dir, settings)
 }
 
@@ -1013,5 +1073,65 @@ mod tests {
         assert!(set_transparency_checkerboard(&blocker, &mut s, "light").is_err());
         assert_eq!(s.transparency_checkerboard, "light");
         fs::remove_file(&blocker).unwrap();
+    }
+
+    #[test]
+    fn the_pointer_highlight_defaults_to_a_red_medium_dot_with_the_ripple_on() {
+        let s = load(&temp_dir("pointer-fresh"));
+        assert_eq!(s.pointer_settings(), PointerSettings { color: "#e02424".into(), size: "medium".into(), ripple: true });
+        // A file from before the pointer highlight existed.
+        let dir = temp_dir("pointer-old-file");
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(dir.join(FILE_NAME), br#"{"hotkey":"alt+x"}"#).unwrap();
+        assert_eq!(load(&dir).pointer_settings(), Settings::default().pointer_settings());
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn the_pointer_highlight_settings_round_trip_through_the_file() {
+        let dir = temp_dir("pointer-round-trip");
+        let mut s = Settings::default();
+        let chosen = PointerSettings { color: "#2563EB".into(), size: "large".into(), ripple: false };
+        set_pointer(&dir, &mut s, &chosen).unwrap();
+        let back = load(&dir);
+        assert_eq!(back.pointer_settings(), PointerSettings { color: "#2563eb".into(), size: "large".into(), ripple: false });
+        let json = fs::read_to_string(dir.join(FILE_NAME)).unwrap();
+        assert!(json.contains("\"pointerColor\"") && json.contains("\"pointerSize\"") && json.contains("\"pointerRipple\""), "{json}");
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn a_pointer_colour_or_size_that_is_not_allowed_changes_nothing() {
+        let dir = temp_dir("pointer-refused");
+        let mut s = Settings::default();
+        let ok = Settings::default().pointer_settings();
+        for color in ["", "e02424", "#e0242", "#gggggg", "red"] {
+            let bad = PointerSettings { color: color.into(), ..ok.clone() };
+            assert!(set_pointer(&dir, &mut s, &bad).is_err(), "{color}");
+        }
+        assert!(set_pointer(&dir, &mut s, &PointerSettings { size: "huge".into(), ..ok.clone() }).is_err());
+        assert_eq!(s.pointer_settings(), ok);
+    }
+
+    #[test]
+    fn unusable_stored_pointer_values_are_the_defaults() {
+        let dir = temp_dir("pointer-hand-edited");
+        fs::create_dir_all(&dir).unwrap();
+        for (stored, color, size, ripple) in [
+            (r##"{"pointerColor":"#ABCDEF","pointerSize":"small","pointerRipple":false}"##, "#abcdef", "small", false),
+            (r##"{"pointerColor":"pink","pointerSize":"Huge","pointerRipple":"no"}"##, "#e02424", "medium", true),
+            (r#"{"pointerColor":5,"pointerSize":null,"pointerRipple":null}"#, "#e02424", "medium", true),
+        ] {
+            fs::write(dir.join(FILE_NAME), stored).unwrap();
+            let s = load(&dir);
+            assert_eq!((s.pointer_color.as_str(), s.pointer_size.as_str(), s.pointer_ripple), (color, size, ripple), "{stored}");
+        }
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn the_pointer_settings_reach_the_page_in_camel_case() {
+        let json = serde_json::to_value(Settings::default().pointer_settings()).unwrap();
+        assert_eq!(json, serde_json::json!({ "color": "#e02424", "size": "medium", "ripple": true }));
     }
 }

@@ -14,3 +14,6 @@ export const MAIN_STYLE: CSSProperties = { fontFamily: "system-ui, sans-serif", 
 
 /** Route of the delay timer's countdown badge window; `src-tauri/src/countdown.rs` must open the same hash (see rustParity.test.ts). */
 export const COUNTDOWN_HASH = "#countdown";
+
+/** Route of the pointer highlight window; `src-tauri/src/pointer_highlight.rs` must open the same hash (see rustParity.test.ts). */
+export const POINTER_HIGHLIGHT_HASH = "#pointer-highlight";

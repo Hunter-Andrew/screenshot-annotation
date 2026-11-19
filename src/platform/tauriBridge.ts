@@ -6,6 +6,8 @@ import { watchLibrary } from "./libraryWatch";
 import type {
   CaptureResult,
   DemoHotkeys,
+  PointerSettings,
+  PointerView,
   HotkeyState,
   LibraryFile,
   LibraryItem,
@@ -109,6 +111,14 @@ export function createTauriBridge(): PlatformBridge {
         };
       }
     },
+    getPointerSettings: () => invoke<PointerSettings>("get_pointer_settings"),
+    setPointerSettings: (settings) => invoke<void>("set_pointer_settings", { pointer: settings }),
+    getPointerHighlight: () => invoke<boolean>("get_pointer_highlight"),
+    setPointerHighlight: (on) => invoke<void>("set_pointer_highlight", { on }),
+    onPointerHighlight: (handler) => listen<boolean>("pointer-highlight-state", (event) => handler(event.payload === true)),
+    getPointerView: () => invoke<PointerView>("pointer_highlight_view"),
+    onPointerView: (handler) => listen<PointerView>("pointer-highlight-view", (event) => handler(event.payload)),
+    onPointerRipple: (handler) => listen("pointer-highlight-ripple", () => handler()),
     getPrintScreenNotice: () =>
       invoke<{ snippingEnabled: boolean; dismissed: boolean }>("get_print_screen_notice"),
     dismissPrintScreenNotice: () => invoke<void>("dismiss_print_screen_notice"),
