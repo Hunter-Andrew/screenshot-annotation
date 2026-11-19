@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { hexToRgba, hotTint, laserFor, laserStyles, layerExtents, POINTER_WINDOW_SIZE, RIPPLE, rippleStyle } from "./pointerStyle";
+import { hexToRgba, hotTint, laserFor, laserStyles, layerExtents, LASER_POINTER_WINDOW_SIZE, RIPPLE, rippleStyle } from "./laserPointerStyle";
 
 describe("Laser pointer size table (ticket 40 decisions 5 and 14, look C)", () => {
   it("keeps the core diameter at 10, 14 and 20 px for Small, Medium and Large", () => {
@@ -36,12 +36,12 @@ describe("Laser pointer size table (ticket 40 decisions 5 and 14, look C)", () =
   it("fits every layer, the glow around the hot core and the ripple inside the 96 px window at every size", () => {
     for (const size of ["small", "medium", "large"] as const) {
       const l = laserFor(size);
-      expect(l.haze).toBeLessThanOrEqual(POINTER_WINDOW_SIZE);
-      expect(l.ring.diameter).toBeLessThanOrEqual(POINTER_WINDOW_SIZE);
-      expect(l.hot.diameter + 2 * (l.hot.blur + l.hot.spread)).toBeLessThanOrEqual(POINTER_WINDOW_SIZE);
-      expect(layerExtents(size)).toBeLessThanOrEqual(POINTER_WINDOW_SIZE);
+      expect(l.haze).toBeLessThanOrEqual(LASER_POINTER_WINDOW_SIZE);
+      expect(l.ring.diameter).toBeLessThanOrEqual(LASER_POINTER_WINDOW_SIZE);
+      expect(l.hot.diameter + 2 * (l.hot.blur + l.hot.spread)).toBeLessThanOrEqual(LASER_POINTER_WINDOW_SIZE);
+      expect(layerExtents(size)).toBeLessThanOrEqual(LASER_POINTER_WINDOW_SIZE);
     }
-    expect(RIPPLE.maxDiameter).toBeLessThanOrEqual(POINTER_WINDOW_SIZE);
+    expect(RIPPLE.maxDiameter).toBeLessThanOrEqual(LASER_POINTER_WINDOW_SIZE);
   });
 
   it("grows from Small to Large", () => {

@@ -44,7 +44,7 @@ import { allowedWhileTyping, isTypingTarget } from "./shortcuts";
 import { Stage } from "./Stage";
 import { StylePanel } from "./StylePanel";
 import { CROP_TOOL, SELECT_TOOL, TOOLS } from "./tools";
-import { activeTool, INITIAL_MODE, pickTool, pointerChanged, returnToSelect } from "./pointerMode";
+import { activeTool, INITIAL_MODE, pickTool, laserPointerChanged, returnToSelect } from "./laserPointerMode";
 import { returnsToSelect } from "./toolBehavior";
 import { ToolColumn } from "./ToolColumn";
 import { DelayCapture } from "./DelayCapture";
@@ -112,10 +112,10 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
   // The status line says the 8192 px limit stopped a growth until the next edit (a save would otherwise replace it).
   const limitNotice = useRef<string | null>(null);
 
-  // The tool, together with the global pointer highlight: while the pointer is on no tool is active (pointerMode.ts).
+  // The tool, together with the global laser pointer: while the pointer is on no tool is active (laserPointerMode.ts).
   const [mode, setMode] = useState(INITIAL_MODE);
   const tool = activeTool(mode);
-  const [pointerHotkey, setPointerHotkey] = useState<string | null>(null);
+  const [laserPointerHotkey, setLaserPointerHotkey] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   // Last-used style per tool: loaded from the settings at start, stored again (after a short pause) when changed.
   const [toolStyles, setToolStyles] = useState<Record<string, Style>>({});
@@ -288,22 +288,22 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
     };
   }, []);
 
-  // The pointer highlight's state, whoever changes it (this button, the hotkey, the tray), and the hotkey for the tooltip.
+  // The laser pointer's state, whoever changes it (this button, the hotkey, the tray), and the hotkey for the tooltip.
   useEffect(() => {
     let cancelled = false;
     let off: (() => void) | undefined;
     const follow = (on: boolean) => {
-      setMode((now) => pointerChanged(now, on));
+      setMode((now) => laserPointerChanged(now, on));
       if (on) setSelectedId(null);
     };
-    bridge.getPointerHighlight().then((on) => !cancelled && follow(on), () => {});
-    void bridge.onPointerHighlight((on) => !cancelled && follow(on)).then((unsubscribe) => {
+    bridge.getLaserPointer().then((on) => !cancelled && follow(on), () => {});
+    void bridge.onLaserPointer((on) => !cancelled && follow(on)).then((unsubscribe) => {
       if (cancelled) unsubscribe();
       else off = unsubscribe;
     });
     const readHotkey = () =>
       bridge.getDemoHotkeys().then(
-        (keys) => !cancelled && setPointerHotkey(keys.pointerHighlight),
+        (keys) => !cancelled && setLaserPointerHotkey(keys.laserPointer),
         () => {},
       );
     void readHotkey();
@@ -461,17 +461,17 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
   const chooseTool = (next: string) => {
     if (readOnly) return;
     // A tool chosen while the global pointer is on switches it off (the state event that follows changes nothing).
-    if (mode.pointerOn) void bridge.setPointerHighlight(false).catch(() => {});
+    if (mode.laserPointerOn) void bridge.setLaserPointer(false).catch(() => {});
     setMode((now) => pickTool(now, next));
     setSelectedId(null);
   };
 
-  /** The tool column's pointer button: switch the global pointer highlight; the editor follows its state event. */
-  const togglePointer = () => {
-    const next = !mode.pointerOn;
-    setMode((now) => pointerChanged(now, next));
+  /** The tool column's pointer button: switch the global laser pointer; the editor follows its state event. */
+  const toggleLaserPointer = () => {
+    const next = !mode.laserPointerOn;
+    setMode((now) => laserPointerChanged(now, next));
     if (next) setSelectedId(null);
-    void bridge.setPointerHighlight(next).catch(() => {});
+    void bridge.setLaserPointer(next).catch(() => {});
   };
 
   // --- actions ----------------------------------------------------------------------------------
@@ -668,7 +668,7 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
   // --- keyboard: every key goes through the one shortcut table ------------------------------------
 
   const selectionSize = selection.selected.size;
-  const keys = { pointerOn: mode.pointerOn, chooseTool, copy, discard, view, selectedId, hasImage: image !== null, undo, redo, deleteSelected, moveSelected, selectionSize, deleteSelection, clearSelection };
+  const keys = { laserPointerOn: mode.laserPointerOn, chooseTool, copy, discard, view, selectedId, hasImage: image !== null, undo, redo, deleteSelected, moveSelected, selectionSize, deleteSelection, clearSelection };
   const latest = useRef(keys);
   latest.current = keys;
   useEffect(() => {
@@ -694,7 +694,7 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
       }
       switch (action) {
         case "editor.deselect":
-          if (now.pointerOn) return; // the pointer is on: Escape does not pick a tool, which would switch it off
+          if (now.laserPointerOn) return; // the pointer is on: Escape does not pick a tool, which would switch it off
           now.clearSelection();
           now.chooseTool(SELECT_TOOL.id);
           break;
@@ -782,7 +782,7 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
             ⚙
           </button>
         </header>
-        <ToolColumn tools={TOOLS} active={tool} disabled={!image || readOnly} bindings={bindings} onPick={chooseTool} pointer={{ on: mode.pointerOn, hotkey: pointerHotkey, onToggle: togglePointer }} />
+        <ToolColumn tools={TOOLS} active={tool} disabled={!image || readOnly} bindings={bindings} onPick={chooseTool} laserPointer={{ on: mode.laserPointerOn, hotkey: laserPointerHotkey, onToggle: toggleLaserPointer }} />
         <main className="well" ref={view.wellRef} style={{ "--outside-darkness": Number((imageSettings.outsideDarkness / 100).toFixed(4)) } as CSSProperties}>
           {image && imageUrl && size && area ? (
             <Stage
@@ -797,7 +797,7 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
               showOutside={showOutside}
               margin={view.margin}
               scale={view.scale}
-              interactive={!readOnly && !mode.pointerOn}
+              interactive={!readOnly && !mode.laserPointerOn}
               events={events}
               onCanvas={setCanvas}
             />

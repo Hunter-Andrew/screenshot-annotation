@@ -1,16 +1,16 @@
 import { useEffect, useState } from "react";
-import { POINTER_SIZES, type PlatformBridge, type PointerSettings, type PointerSize } from "../platform/bridge";
+import { LASER_POINTER_SIZES, type PlatformBridge, type LaserPointerSettings, type LaserPointerSize } from "../platform/bridge";
 import { ColorField } from "../editor/style/ColorField";
 
-const SIZE_LABELS: Record<PointerSize, string> = { small: "Small", medium: "Medium", large: "Large" };
+const SIZE_LABELS: Record<LaserPointerSize, string> = { small: "Small", medium: "Medium", large: "Large" };
 
 /**
- * Settings > Demo tools > the pointer highlight's look (ticket 50): colour (the editor's palette, picker and hex
+ * Settings > Demo tools > the laser pointer's look (ticket 50): colour (the editor's palette, picker and hex
  * field), size and the click ripple, each stored at once and shown on a visible Laser pointer at once. Also a switch that
  * shows whether the highlight is on (the hotkey and the tray item change it too) so the look can be tried here.
  */
-export function PointerHighlightSettings({ bridge }: { bridge: PlatformBridge }) {
-  const [look, setLook] = useState<PointerSettings | null>(null);
+export function LaserPointerSettings({ bridge }: { bridge: PlatformBridge }) {
+  const [look, setLook] = useState<LaserPointerSettings | null>(null);
   const [on, setOn] = useState(false);
   const [hideCursor, setHideCursor] = useState<boolean | null>(null);
 
@@ -19,7 +19,7 @@ export function PointerHighlightSettings({ bridge }: { bridge: PlatformBridge })
     let off: (() => void) | undefined;
     let heardEvent = false;
     void bridge
-      .onPointerHighlight((value) => {
+      .onLaserPointer((value) => {
         heardEvent = true;
         if (alive) setOn(value);
       })
@@ -27,17 +27,17 @@ export function PointerHighlightSettings({ bridge }: { bridge: PlatformBridge })
         if (alive) off = unsubscribe;
         else unsubscribe();
       });
-    bridge.getPointerHighlight().then(
+    bridge.getLaserPointer().then(
       (value) => alive && !heardEvent && setOn(value),
-      (e) => void bridge.logSettings(`getPointerHighlight failed: ${e}`),
+      (e) => void bridge.logSettings(`getLaserPointer failed: ${e}`),
     );
-    bridge.getPointerHideCursor().then(
+    bridge.getLaserPointerHideCursor().then(
       (value) => alive && setHideCursor(value),
-      (e) => void bridge.logSettings(`getPointerHideCursor failed: ${e}`),
+      (e) => void bridge.logSettings(`getLaserPointerHideCursor failed: ${e}`),
     );
-    bridge.getPointerSettings().then(
+    bridge.getLaserPointerSettings().then(
       (value) => alive && setLook((now) => now ?? value),
-      (e) => void bridge.logSettings(`getPointerSettings failed: ${e}`),
+      (e) => void bridge.logSettings(`getLaserPointerSettings failed: ${e}`),
     );
     return () => {
       alive = false;
@@ -45,17 +45,17 @@ export function PointerHighlightSettings({ bridge }: { bridge: PlatformBridge })
     };
   }, [bridge]);
 
-  const change = (patch: Partial<PointerSettings>) => {
+  const change = (patch: Partial<LaserPointerSettings>) => {
     if (look === null) return;
     const next = { ...look, ...patch };
     setLook(next);
-    bridge.setPointerSettings(next).catch((e) => void bridge.logSettings(`setPointerSettings failed: ${e}`));
+    bridge.setLaserPointerSettings(next).catch((e) => void bridge.logSettings(`setLaserPointerSettings failed: ${e}`));
   };
 
   return (
     <div>
-      <h3 id="pointer-look-heading" style={{ fontSize: 13 }}>
-        Pointer highlight look
+      <h3 id="laser-pointer-look-heading" style={{ fontSize: 13 }}>
+        Laser pointer look
       </h3>
       <label>
         <input
@@ -64,18 +64,18 @@ export function PointerHighlightSettings({ bridge }: { bridge: PlatformBridge })
           onChange={(event) => {
             const next = event.target.checked;
             setOn(next);
-            bridge.setPointerHighlight(next).catch((e) => void bridge.logSettings(`setPointerHighlight failed: ${e}`));
+            bridge.setLaserPointer(next).catch((e) => void bridge.logSettings(`setLaserPointer failed: ${e}`));
           }}
         />{" "}
-        Pointer highlight is on
+        Laser pointer is on
       </label>
       <p className="muted">Off at every start. Switch it on here, from the tray menu or with its hotkey to see changes on the Laser pointer.</p>
       <ColorField label="Pointer color" color={look?.color ?? "#e02424"} onPick={(color) => change({ color })} />
       <fieldset disabled={look === null} style={{ border: 0, padding: 0, margin: "8px 0" }}>
         <legend>Size</legend>
-        {POINTER_SIZES.map((size) => (
+        {LASER_POINTER_SIZES.map((size) => (
           <label key={size} style={{ marginRight: 12 }}>
-            <input type="radio" name="pointer-size" checked={look?.size === size} onChange={() => change({ size })} />{" "}
+            <input type="radio" name="laser-pointer-size" checked={look?.size === size} onChange={() => change({ size })} />{" "}
             {SIZE_LABELS[size]}
           </label>
         ))}
@@ -98,7 +98,7 @@ export function PointerHighlightSettings({ bridge }: { bridge: PlatformBridge })
           onChange={(event) => {
             const hide = event.target.checked;
             setHideCursor(hide);
-            bridge.setPointerHideCursor(hide).catch((e) => void bridge.logSettings(`setPointerHideCursor failed: ${e}`));
+            bridge.setLaserPointerHideCursor(hide).catch((e) => void bridge.logSettings(`setLaserPointerHideCursor failed: ${e}`));
           }}
         />{" "}
         Hide the Windows mouse arrow while the dot is on

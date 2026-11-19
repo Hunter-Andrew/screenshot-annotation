@@ -8,10 +8,10 @@ import { describe, expect, it } from "vitest";
 import { BACKGROUNDS } from "../core/area";
 import { CAPTURE_DELAYS } from "../platform/bridge";
 import { CANVAS_MARGIN, CHECKERBOARD_THEMES, CROP_MARGIN, DEFAULT_DARK_BACKGROUND, DEFAULT_IMAGE_SETTINGS, OUTSIDE_DARKNESS } from "./imageSettings";
-import { COUNTDOWN_HASH, DRAWING_HASH_PREFIX, DRAWING_TOOLBAR_HASH, DRAWING_TOOLBAR_SIZE, OVERLAY_HASH_PREFIX, POINTER_HIGHLIGHT_HASH, RELEASES_URL, SETTINGS_HASH } from "./constants";
-import { DEFAULT_POINTER_SETTINGS, POINTER_SIZES } from "../platform/bridge";
+import { COUNTDOWN_HASH, DRAWING_HASH_PREFIX, DRAWING_TOOLBAR_HASH, DRAWING_TOOLBAR_SIZE, OVERLAY_HASH_PREFIX, LASER_POINTER_HASH, RELEASES_URL, SETTINGS_HASH } from "./constants";
+import { DEFAULT_LASER_POINTER_SETTINGS, LASER_POINTER_SIZES } from "../platform/bridge";
 import { DRAWING_HIGHLIGHTER_OPACITY } from "../drawing/drawingStyles";
-import { POINTER_WINDOW_SIZE } from "../pointer/pointerStyle";
+import { LASER_POINTER_WINDOW_SIZE } from "../laserPointer/laserPointerStyle";
 import { DRAWING_TOOLS } from "../drawing/drawingState";
 
 const rust = (file: string) => readFileSync(resolve(__dirname, "../../src-tauri/src", file), "utf8");
@@ -185,40 +185,40 @@ describe("TS/Rust shared constants", () => {
     expect(lib).toMatch(/fn set_tool_styles\([^)]*\bstyles: /);
   });
 
-  it("pointer_highlight.rs opens the dot window at the hash App.tsx routes on, and the capability covers its label", () => {
-    const match = rust("pointer_highlight.rs").match(/WebviewUrl::App\("index\.html([^"]*)"/);
-    expect(match?.[1]).toBe(POINTER_HIGHLIGHT_HASH);
-    const label = rust("pointer_highlight.rs").match(/pub const LABEL: &str = "([^"]+)";/)?.[1];
+  it("laser_pointer.rs opens the dot window at the hash App.tsx routes on, and the capability covers its label", () => {
+    const match = rust("laser_pointer.rs").match(/WebviewUrl::App\("index\.html([^"]*)"/);
+    expect(match?.[1]).toBe(LASER_POINTER_HASH);
+    const label = rust("laser_pointer.rs").match(/pub const LABEL: &str = "([^"]+)";/)?.[1];
     const capability = readFileSync(resolve(__dirname, "../../src-tauri/capabilities/default.json"), "utf8");
     expect(JSON.parse(capability).windows).toContain(label);
   });
 
-  it("pointer.rs sizes the dot window like the page lays it out", () => {
-    expect(Number(rust("pointer.rs").match(/pub const WINDOW_SIZE: u32 = (\d+);/)?.[1])).toBe(POINTER_WINDOW_SIZE);
+  it("laser_pointer_math.rs sizes the dot window like the page lays it out", () => {
+    expect(Number(rust("laser_pointer_math.rs").match(/pub const WINDOW_SIZE: u32 = (\d+);/)?.[1])).toBe(LASER_POINTER_WINDOW_SIZE);
   });
 
-  it("settings.rs offers the same pointer sizes, colour and defaults as Settings > Demo tools", () => {
-    const sizes = rust("settings.rs").match(/pub const POINTER_SIZES: \[&str; \d+\] = \[([^\]]*)\];/)?.[1].split(",").map((v) => v.trim().replace(/"/g, ""));
-    expect(sizes).toEqual([...POINTER_SIZES]);
+  it("settings.rs offers the same laser pointer sizes, colour and defaults as Settings > Demo tools", () => {
+    const sizes = rust("settings.rs").match(/pub const LASER_POINTER_SIZES: \[&str; \d+\] = \[([^\]]*)\];/)?.[1].split(",").map((v) => v.trim().replace(/"/g, ""));
+    expect(sizes).toEqual([...LASER_POINTER_SIZES]);
     const text = (name: string) => rust("settings.rs").match(new RegExp(`pub const ${name}: &str = "([^"]+)";`))?.[1];
-    expect(text("DEFAULT_POINTER_SIZE")).toBe(DEFAULT_POINTER_SETTINGS.size);
-    expect(text("DEFAULT_POINTER_COLOR")).toBe(DEFAULT_POINTER_SETTINGS.color);
-    expect(rust("settings.rs")).toMatch(/pointer_ripple: true,/);
-    expect(DEFAULT_POINTER_SETTINGS.ripple).toBe(true);
+    expect(text("DEFAULT_LASER_POINTER_SIZE")).toBe(DEFAULT_LASER_POINTER_SETTINGS.size);
+    expect(text("DEFAULT_LASER_POINTER_COLOR")).toBe(DEFAULT_LASER_POINTER_SETTINGS.color);
+    expect(rust("settings.rs")).toMatch(/laser_pointer_ripple: true,/);
+    expect(DEFAULT_LASER_POINTER_SETTINGS.ripple).toBe(true);
   });
 
   it("settings.rs has the same Drawing mode Highlighter opacity range as Settings > Demo tools, and hides the arrow by default", () => {
     const range = rust("settings.rs").match(/pub const DRAWING_HIGHLIGHTER_OPACITY: Range = Range \{ min: (\d+), max: (\d+), default: (\d+) \};/);
     expect(range?.slice(1).map(Number)).toEqual([DRAWING_HIGHLIGHTER_OPACITY.min, DRAWING_HIGHLIGHTER_OPACITY.max, DRAWING_HIGHLIGHTER_OPACITY.default]);
-    expect(rust("settings.rs")).toMatch(/pointer_hide_cursor: true,/);
+    expect(rust("settings.rs")).toMatch(/laser_pointer_hide_cursor: true,/);
   });
 
   it("the hide-cursor and Highlighter-opacity commands exist on both sides with matching argument names", () => {
     const tauriBridge = readFileSync(resolve(__dirname, "../platform/tauriBridge.ts"), "utf8");
     const lib = rust("lib.rs");
     for (const [command, call, signature] of [
-      ["get_pointer_hide_cursor", 'invoke<boolean>("get_pointer_hide_cursor")', /fn get_pointer_hide_cursor\(/],
-      ["set_pointer_hide_cursor", 'invoke<void>("set_pointer_hide_cursor", { hide })', /fn set_pointer_hide_cursor\([^)]*\bhide: bool/],
+      ["get_laser_pointer_hide_cursor", 'invoke<boolean>("get_laser_pointer_hide_cursor")', /fn get_laser_pointer_hide_cursor\(/],
+      ["set_laser_pointer_hide_cursor", 'invoke<void>("set_laser_pointer_hide_cursor", { hide })', /fn set_laser_pointer_hide_cursor\([^)]*\bhide: bool/],
       ["get_drawing_highlighter_opacity", 'invoke<number>("get_drawing_highlighter_opacity")', /fn get_drawing_highlighter_opacity\(/],
       ["set_drawing_highlighter_opacity", 'invoke<void>("set_drawing_highlighter_opacity", { percent })', /fn set_drawing_highlighter_opacity\([^)]*\bpercent: u32/],
     ] as const) {
@@ -228,22 +228,22 @@ describe("TS/Rust shared constants", () => {
     }
   });
 
-  it("the pointer highlight events Rust emits are the ones the Tauri bridge listens for", () => {
+  it("the laser pointer events Rust emits are the ones the Tauri bridge listens for", () => {
     const tauriBridge = readFileSync(resolve(__dirname, "../platform/tauriBridge.ts"), "utf8");
     for (const constant of ["STATE_EVENT", "VIEW_EVENT", "RIPPLE_EVENT"]) {
-      const name = rust("pointer_highlight.rs").match(new RegExp(`pub const ${constant}: &str = "([^"]+)"`))?.[1];
+      const name = rust("laser_pointer.rs").match(new RegExp(`pub const ${constant}: &str = "([^"]+)"`))?.[1];
       expect(name).toBeTruthy();
       expect(tauriBridge).toMatch(new RegExp(`listen(<[^>]*>)?\\("${name}"`));
     }
   });
 
-  it("the pointer highlight commands the bridge invokes use the argument names Rust expects", () => {
+  it("the laser pointer commands the bridge invokes use the argument names Rust expects", () => {
     const tauriBridge = readFileSync(resolve(__dirname, "../platform/tauriBridge.ts"), "utf8");
     const lib = rust("lib.rs");
-    expect(tauriBridge).toContain('invoke<void>("set_pointer_settings", { pointer: settings })');
-    expect(lib).toMatch(/fn set_pointer_settings\([^)]*\bpointer: settings::PointerSettings/);
-    expect(tauriBridge).toContain('invoke<void>("set_pointer_highlight", { on })');
-    expect(lib).toMatch(/fn set_pointer_highlight\(app: AppHandle, on: bool\)/);
+    expect(tauriBridge).toContain('invoke<void>("set_laser_pointer_settings", { laserPointer: settings })');
+    expect(lib).toMatch(/fn set_laser_pointer_settings\([^)]*\blaser_pointer: settings::LaserPointerSettings/);
+    expect(tauriBridge).toContain('invoke<void>("set_laser_pointer", { on })');
+    expect(lib).toMatch(/fn set_laser_pointer\(app: AppHandle, on: bool\)/);
   });
 
   it("drawing.rs opens the Drawing mode toolbar at the hash App.tsx routes on, and the capability glob covers its label", () => {

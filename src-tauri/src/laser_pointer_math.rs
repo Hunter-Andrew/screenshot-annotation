@@ -1,8 +1,8 @@
-//! The pointer highlight's maths (ticket 50): how big the dot's window is on a monitor, where it sits
+//! The laser pointer's maths (ticket 50): how big the dot's window is on a monitor, where it sits
 //! while the pointer moves, in which order a monitor change is applied, and when a left click shows the
-//! ripple. Pure, so it is tested on any OS (`rustc --test src/pointer.rs`, or `cargo test`). The window
-//! and the polling thread are in `pointer_highlight.rs`; what the dot looks like is in
-//! `src/pointer/pointerStyle.ts`.
+//! ripple. Pure, so it is tested on any OS (`rustc --test src/laser_pointer_math.rs`, or `cargo test`). The window
+//! and the polling thread are in `laser_pointer.rs`; what the dot looks like is in
+//! `src/laserPointer/laserPointerStyle.ts`.
 
 /// A monitor's rectangle on the virtual screen, physical pixels: x, y, width, height.
 pub type Rect = (i32, i32, u32, u32);

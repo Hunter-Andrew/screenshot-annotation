@@ -2,22 +2,22 @@ import { useEffect, useState } from "react";
 import type { DemoAction, PlatformBridge, SetDemoHotkeyResult } from "../platform/bridge";
 import { comboFromKeyEvent, formatCombo } from "./hotkey";
 import { DrawingHighlighterSetting } from "./DrawingHighlighterSetting";
-import { PointerHighlightSettings } from "./PointerHighlightSettings";
+import { LaserPointerSettings } from "./LaserPointerSettings";
 
 const ROWS: { action: DemoAction; label: string; other: string }[] = [
-  { action: "pointerHighlight", label: "Pointer highlight", other: "Drawing mode" },
-  { action: "drawingMode", label: "Drawing mode", other: "Pointer highlight" },
+  { action: "laserPointer", label: "Laser pointer", other: "Drawing mode" },
+  { action: "drawingMode", label: "Drawing mode", other: "Laser pointer" },
 ];
 
 type Problem =
   | { kind: "refused"; reason: Extract<SetDemoHotkeyResult, { ok: false }>["reason"]; accelerator: string }
   | { kind: "key"; reason: "needs-modifier" | "unsupported-key" };
 
-/** Settings > Demo tools: one hotkey recorder each for the pointer highlight and drawing mode (ticket 49). */
+/** Settings > Demo tools: one hotkey recorder each for the laser pointer and drawing mode (ticket 49). */
 export function DemoToolsSection({ bridge }: { bridge: PlatformBridge }) {
   const [hotkeys, setHotkeys] = useState<Record<DemoAction, string> | null>(null);
   const [unregistered, setUnregistered] = useState<Record<DemoAction, boolean>>({
-    pointerHighlight: false,
+    laserPointer: false,
     drawingMode: false,
   });
   const [recording, setRecording] = useState<DemoAction | null>(null);
@@ -25,9 +25,9 @@ export function DemoToolsSection({ bridge }: { bridge: PlatformBridge }) {
 
   useEffect(() => {
     void bridge.getDemoHotkeys().then((state) => {
-      setHotkeys({ pointerHighlight: state.pointerHighlight, drawingMode: state.drawingMode });
+      setHotkeys({ laserPointer: state.laserPointer, drawingMode: state.drawingMode });
       setUnregistered({
-        pointerHighlight: !state.pointerHighlightRegistered,
+        laserPointer: !state.laserPointerRegistered,
         drawingMode: !state.drawingModeRegistered,
       });
     });
@@ -105,7 +105,7 @@ export function DemoToolsSection({ bridge }: { bridge: PlatformBridge }) {
           </div>
         );
       })}
-      <PointerHighlightSettings bridge={bridge} />
+      <LaserPointerSettings bridge={bridge} />
       <DrawingHighlighterSetting bridge={bridge} />
     </section>
   );

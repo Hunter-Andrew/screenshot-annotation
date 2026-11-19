@@ -113,7 +113,7 @@ mod tests {
         assert!(!is_label(TOOLBAR_LABEL));
         assert!(is_window(TOOLBAR_LABEL));
         assert!(is_window("drawing-2"));
-        for name in ["overlay-0", "editor", "settings", "countdown", "pointer-highlight", "drawing-toolbar2", ""] {
+        for name in ["overlay-0", "editor", "settings", "countdown", "laser-pointer", "drawing-toolbar2", ""] {
             assert!(!is_window(name), "{name:?}");
         }
         assert!(TOOLBAR_LABEL.starts_with(LABEL_PREFIX), "capabilities/default.json lists drawing-*");

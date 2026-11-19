@@ -1,8 +1,8 @@
 import type { CSSProperties } from "react";
-import type { PointerSize } from "../platform/bridge";
+import type { LaserPointerSize } from "../platform/bridge";
 
-/** The dot window's edge at 100% scale, in CSS pixels; `src-tauri/src/pointer.rs` `WINDOW_SIZE` must match (see rustParity.test.ts). */
-export const POINTER_WINDOW_SIZE = 96;
+/** The dot window's edge at 100% scale, in CSS pixels; `src-tauri/src/laser_pointer_math.rs` `WINDOW_SIZE` must match (see rustParity.test.ts). */
+export const LASER_POINTER_WINDOW_SIZE = 96;
 
 /** The click ripple: a ring of the pointer colour that grows from the core to `maxDiameter` and fades (ticket 40 decision 7). */
 export const RIPPLE = { durationMs: 400, maxDiameter: 70, borderWidth: 3 } as const;
@@ -36,14 +36,14 @@ function laser(core: number): Laser {
   return { core, haze, ring: { diameter: ring, border: 1.5 * k }, hot: { diameter: 8 * k, blur: 6 * k, spread: 2 * k } };
 }
 
-const LASERS: Record<PointerSize, Laser> = { small: laser(10), medium: laser(14), large: laser(20) };
+const LASERS: Record<LaserPointerSize, Laser> = { small: laser(10), medium: laser(14), large: laser(20) };
 
-export function laserFor(size: PointerSize): Laser {
+export function laserFor(size: LaserPointerSize): Laser {
   return LASERS[size] ?? LASERS.medium;
 }
 
 /** The width of the widest thing drawn for a size (haze, ring, or the hot core with its glow), centred on the dot. */
-export function layerExtents(size: PointerSize): number {
+export function layerExtents(size: LaserPointerSize): number {
   const { haze, ring, hot } = laserFor(size);
   return Math.max(haze, ring.diameter, hot.diameter + 2 * (hot.blur + hot.spread));
 }
@@ -63,7 +63,7 @@ export function hexToRgba(hex: string, opacity: number): string {
 
 interface Look {
   color: string;
-  size: PointerSize;
+  size: LaserPointerSize;
 }
 
 /** The pale tint of the colour (82% of the way to white) for the hot centre. */
@@ -74,7 +74,7 @@ export function hotTint(hex: string): string {
 
 const round = (n: number) => Math.round(n * 100) / 100;
 
-/** The three layers of the Laser pointer, each a round box to be centred on the hotspot (PointerDot centres them). */
+/** The three layers of the Laser pointer, each a round box to be centred on the hotspot (LaserPointerDot centres them). */
 export function laserStyles({ color, size }: Look): { haze: CSSProperties; ring: CSSProperties; hot: CSSProperties } {
   const { haze, ring, hot } = laserFor(size);
   const round50 = "50%";
@@ -102,7 +102,7 @@ export function laserStyles({ color, size }: Look): { haze: CSSProperties; ring:
   };
 }
 
-/** The ripple ring: starts at the core's size, ends at `RIPPLE.maxDiameter` (the keyframes are in PointerDot). */
+/** The ripple ring: starts at the core's size, ends at `RIPPLE.maxDiameter` (the keyframes are in LaserPointerDot). */
 export function rippleStyle({ color, size }: Look): CSSProperties & Record<`--${string}`, string> {
   return {
     borderColor: color,

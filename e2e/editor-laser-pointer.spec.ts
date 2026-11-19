@@ -5,8 +5,8 @@ import { expect, type Page, test } from "@playwright/test";
 type InPage = {
   __fakeBridge: {
     simulateCapture(shot: { width: number; height: number; rgba: Uint8Array; capturedAt?: Date }): void;
-    pressPointerHotkey(): void;
-    pointerHighlightOn: boolean;
+    pressLaserPointerHotkey(): void;
+    laserPointerOn: boolean;
   };
 };
 
@@ -22,17 +22,17 @@ async function capture(page: Page) {
   await expect(page.locator(".canvas-container")).toHaveCount(1);
 }
 
-const hotkey = (page: Page) => page.evaluate(() => (window as unknown as InPage).__fakeBridge.pressPointerHotkey());
-const isOn = (page: Page) => page.evaluate(() => (window as unknown as InPage).__fakeBridge.pointerHighlightOn);
+const hotkey = (page: Page) => page.evaluate(() => (window as unknown as InPage).__fakeBridge.pressLaserPointerHotkey());
+const isOn = (page: Page) => page.evaluate(() => (window as unknown as InPage).__fakeBridge.laserPointerOn);
 const nav = (page: Page) => page.getByRole("navigation", { name: "Tools" });
-const toggle = (page: Page) => nav(page).getByRole("button", { name: "Pointer highlight" });
+const toggle = (page: Page) => nav(page).getByRole("button", { name: "Laser pointer" });
 const selectedTools = (page: Page) => nav(page).locator('.tool[aria-pressed="true"]');
 
 test("the button toggles the pointer, leaves no tool selected and ignores the canvas", async ({ page }) => {
   await page.goto("/");
   await capture(page);
   await expect(toggle(page)).toHaveAttribute("aria-pressed", "false");
-  await expect(toggle(page)).toHaveAttribute("title", "Pointer highlight (Ctrl+Shift+L)");
+  await expect(toggle(page)).toHaveAttribute("title", "Laser pointer (Ctrl+Shift+L)");
 
   await nav(page).getByRole("button", { name: "Rectangle (R)" }).click();
   await toggle(page).click();

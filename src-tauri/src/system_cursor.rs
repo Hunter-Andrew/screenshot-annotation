@@ -1,11 +1,11 @@
-//! Hiding the Windows mouse arrow while the pointer highlight is on (ticket 40 decision 13), so only the laser dot
+//! Hiding the Windows mouse arrow while the laser pointer is on (ticket 40 decision 13), so only the laser dot
 //! shows. Two parts, kept apart on purpose:
 //!
 //! - The decisions (which system cursors, when to hide, when to restore, "restore only if we hid it", restore at
 //!   startup and at exit) are plain functions and a small state machine with no Windows calls and no other crate
 //!   modules, so they are unit-tested on any machine (`rustc --test src/system_cursor.rs` runs them).
 //! - The Windows calls are in `platform`, with an empty stand-in on other systems (as `exclude_from_capture` in
-//!   `pointer_highlight.rs` has). They cannot be run on the Linux dev box: docs/release-checklist.md has the
+//!   `laser_pointer.rs` has). They cannot be run on the Linux dev box: docs/release-checklist.md has the
 //!   steps to check them by hand.
 //!
 //! How it works: `SetSystemCursor` swaps each standard system cursor for a fully transparent one in this Windows
@@ -50,7 +50,7 @@ pub fn on_startup() -> Action {
     Action::Restore
 }
 
-/// Whether the arrow should be hidden: only while the pointer highlight is on and the setting allows it.
+/// Whether the arrow should be hidden: only while the laser pointer is on and the setting allows it.
 pub fn wanted_hidden(highlight_on: bool, hide_setting: bool) -> bool {
     highlight_on && hide_setting
 }

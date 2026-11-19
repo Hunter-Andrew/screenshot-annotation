@@ -177,13 +177,13 @@ fn fail(app: &AppHandle, message: &str) {
 }
 
 /// Native handles of the app's own click-through windows (capture overlays, Drawing mode's overlays and toolbar,
-/// the pointer highlight's dot), so window enumeration can never offer them as targets.
+/// the laser pointer's dot), so window enumeration can never offer them as targets.
 #[cfg(windows)]
 fn overlay_handles(app: &AppHandle) -> Vec<isize> {
     app.webview_windows()
         .into_iter()
         .filter(|(name, _)| {
-            name.starts_with(LABEL_PREFIX) || crate::drawing_plan::is_window(name) || name == crate::pointer_highlight::LABEL
+            name.starts_with(LABEL_PREFIX) || crate::drawing_plan::is_window(name) || name == crate::laser_pointer::LABEL
         })
         .filter_map(|(_, window)| window.hwnd().ok().map(|h| h.0 as isize))
         .collect()

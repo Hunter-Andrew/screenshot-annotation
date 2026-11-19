@@ -9,8 +9,8 @@ interface Props {
   disabled: boolean;
   bindings: Bindings;
   onPick(tool: string): void;
-  /** The global pointer highlight's toggle at the bottom (not a tool): pressed while on; the tooltip names its hotkey. */
-  pointer?: { on: boolean; hotkey: string | null; onToggle(): void };
+  /** The global laser pointer's toggle at the bottom (not a tool): pressed while on; the tooltip names its hotkey. */
+  laserPointer?: { on: boolean; hotkey: string | null; onToggle(): void };
 }
 
 /** The tool column (left): each tool's icon, name and shortcut key. */
@@ -20,7 +20,7 @@ export function ToolColumn({
   disabled,
   bindings,
   onPick,
-  pointer,
+  laserPointer,
 }: Props) {
   return (
     <nav className="tools" aria-label="Tools">
@@ -43,24 +43,24 @@ export function ToolColumn({
           </button>
         );
       })}
-      {pointer ? (
+      {laserPointer ? (
         <button
           type="button"
-          className="pointer-toggle"
-          aria-pressed={pointer.on}
-          aria-label="Pointer highlight"
+          className="laser-pointer-toggle"
+          aria-pressed={laserPointer.on}
+          aria-label="Laser pointer"
           title={
-            pointer.hotkey
-              ? `Pointer highlight (${formatCombo(pointer.hotkey)})`
-              : "Pointer highlight"
+            laserPointer.hotkey
+              ? `Laser pointer (${formatCombo(laserPointer.hotkey)})`
+              : "Laser pointer"
           }
-          onClick={pointer.onToggle}
+          onClick={laserPointer.onToggle}
         >
           <span className="tool-icon" aria-hidden="true">
             ●
           </span>
-          <span className="tool-label">Pointer</span>
-          {pointer.hotkey ? <kbd>{formatCombo(pointer.hotkey)}</kbd> : null}
+          <span className="tool-label">Laser pointer</span>
+          {laserPointer.hotkey ? <kbd>{formatCombo(laserPointer.hotkey)}</kbd> : null}
         </button>
       ) : null}
     </nav>

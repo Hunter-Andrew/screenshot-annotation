@@ -1,5 +1,5 @@
 // The editor's pointer toggle (ticket 51): the button, and how it and the tools exclude each other. The state
-// rules themselves are in pointerMode.test.ts; stub canvas, the real-Fabric run is e2e/editor-pointer.spec.ts.
+// rules themselves are in laserPointerMode.test.ts; stub canvas, the real-Fabric run is e2e/editor-pointer.spec.ts.
 import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeAll, describe, expect, it } from "vitest";
@@ -23,7 +23,7 @@ async function openWithCapture(bridge: FakeBridge, kit: StubKit = createStubKit(
   return kit;
 }
 
-const pointerButton = () => screen.getByRole("button", { name: "Pointer highlight" });
+const pointerButton = () => screen.getByRole("button", { name: "Laser pointer" });
 const tool = (name: RegExp) => screen.getByRole("button", { name });
 const pressed = () => screen.getByRole("navigation", { name: "Tools" }).querySelectorAll('.tool[aria-pressed="true"]').length;
 
@@ -33,7 +33,7 @@ describe("the pointer toggle in the tool column", () => {
     const buttons = screen.getByRole("navigation", { name: "Tools" }).querySelectorAll("button");
     expect(buttons[buttons.length - 1]).toBe(pointerButton());
     expect(pointerButton()).toHaveAttribute("aria-pressed", "false");
-    await waitFor(() => expect(pointerButton()).toHaveAttribute("title", "Pointer highlight (Ctrl+Shift+L)"));
+    await waitFor(() => expect(pointerButton()).toHaveAttribute("title", "Laser pointer (Ctrl+Shift+L)"));
     expect(tool(/^Select/)).toHaveAttribute("aria-pressed", "true");
   });
 
@@ -44,7 +44,7 @@ describe("the pointer toggle in the tool column", () => {
 
     await userEvent.click(pointerButton());
 
-    expect(bridge.pointerHighlightOn).toBe(true);
+    expect(bridge.laserPointerOn).toBe(true);
     expect(pointerButton()).toHaveAttribute("aria-pressed", "true");
     expect(pressed()).toBe(0);
     expect(kit.latest.interactive).toBe(false);
@@ -58,7 +58,7 @@ describe("the pointer toggle in the tool column", () => {
 
     await userEvent.click(pointerButton());
 
-    expect(bridge.pointerHighlightOn).toBe(false);
+    expect(bridge.laserPointerOn).toBe(false);
     expect(pointerButton()).toHaveAttribute("aria-pressed", "false");
     expect(tool(/^Select/)).toHaveAttribute("aria-pressed", "true");
     expect(pressed()).toBe(1);
@@ -71,11 +71,11 @@ describe("the pointer toggle in the tool column", () => {
     await openWithCapture(bridge);
     await userEvent.keyboard("p");
 
-    act(() => bridge.pressPointerHotkey());
+    act(() => bridge.pressLaserPointerHotkey());
     expect(pointerButton()).toHaveAttribute("aria-pressed", "true");
     expect(pressed()).toBe(0);
 
-    act(() => bridge.pressPointerHotkey());
+    act(() => bridge.pressLaserPointerHotkey());
     expect(pointerButton()).toHaveAttribute("aria-pressed", "false");
     expect(tool(/^Select/)).toHaveAttribute("aria-pressed", "true");
   });
@@ -87,7 +87,7 @@ describe("the pointer toggle in the tool column", () => {
 
     await userEvent.click(tool(/^Pen \(P\)/));
 
-    expect(bridge.pointerHighlightOn).toBe(false);
+    expect(bridge.laserPointerOn).toBe(false);
     expect(pointerButton()).toHaveAttribute("aria-pressed", "false");
     expect(tool(/^Pen \(P\)/)).toHaveAttribute("aria-pressed", "true");
     expect(kit.latest.tool).toBe("pen");
@@ -99,18 +99,18 @@ describe("the pointer toggle in the tool column", () => {
     await openWithCapture(bridge);
     await userEvent.click(pointerButton());
     await userEvent.keyboard("r");
-    expect(bridge.pointerHighlightOn).toBe(false);
+    expect(bridge.laserPointerOn).toBe(false);
     expect(tool(/^Rectangle/)).toHaveAttribute("aria-pressed", "true");
 
     await userEvent.click(pointerButton());
     await userEvent.keyboard("v");
-    expect(bridge.pointerHighlightOn).toBe(false);
+    expect(bridge.laserPointerOn).toBe(false);
     expect(tool(/^Select/)).toHaveAttribute("aria-pressed", "true");
   });
 
   it("is already on when the editor opens with the pointer on", async () => {
     const bridge = createFakeBridge();
-    await bridge.setPointerHighlight(true);
+    await bridge.setLaserPointer(true);
     await openWithCapture(bridge);
     expect(pointerButton()).toHaveAttribute("aria-pressed", "true");
     expect(pressed()).toBe(0);

@@ -1,11 +1,11 @@
-//! The pointer highlight (ticket 50, decisions in ticket 40): a red dot that follows the mouse
+//! The laser pointer (ticket 50, decisions in ticket 40): a red dot that follows the mouse
 //! pointer across the whole desktop, switched on and off by its hotkey and by the checked tray item. It is
 //! one small transparent, click-through, non-focusable, always-on-top window (built like the delay timer's
 //! badge in `countdown.rs`) that a polling thread moves every ~16 ms. No hooks (ADR 0009): the pointer comes
 //! from `capture::cursor_position()` and the left button from `GetAsyncKeyState`.
 //!
-//! What the maths decide (window size, position, order of changes, when a click ripples) is in `pointer.rs`
-//! (pure, tested); what the dot looks like is `src/pointer/PointerDot.tsx`. This file is the window, the
+//! What the maths decide (window size, position, order of changes, when a click ripples) is in `laser_pointer_math.rs`
+//! (pure, tested); what the dot looks like is `src/laserPointer/LaserPointerDot.tsx`. This file is the window, the
 //! thread and the Windows calls. It cannot be run on the Linux dev box, so docs/release-checklist.md has the
 //! steps to check it by hand. The on/off state is never saved: the highlight is off at every start.
 
@@ -19,18 +19,18 @@ use tauri::menu::CheckMenuItem;
 use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, PhysicalSize, WebviewUrl, Wry};
 
 use crate::geometry::{self, MonitorBounds};
-use crate::pointer::{self, Apply, Sample, Tracker};
-use crate::settings::PointerSettings;
+use crate::laser_pointer_math::{self, Apply, Sample, Tracker};
+use crate::settings::LaserPointerSettings;
 use crate::system_cursor::{self, Action as CursorAction, Hider};
 use crate::{capture, diag, tray_menu};
 
-pub const LABEL: &str = "pointer-highlight";
+pub const LABEL: &str = "laser-pointer";
 /// Event carrying whether the highlight is on (a bool) after every change, whoever asked for it.
-pub const STATE_EVENT: &str = "pointer-highlight-state";
-/// Event carrying the dot window's `PointerView` whenever the settings or the dot's place in the window change.
-pub const VIEW_EVENT: &str = "pointer-highlight-view";
+pub const STATE_EVENT: &str = "laser-pointer-state";
+/// Event carrying the dot window's `LaserPointerView` whenever the settings or the dot's place in the window change.
+pub const VIEW_EVENT: &str = "laser-pointer-view";
 /// Event (no payload) for a left click: the dot window shows the ripple.
-pub const RIPPLE_EVENT: &str = "pointer-highlight-ripple";
+pub const RIPPLE_EVENT: &str = "laser-pointer-ripple";
 /// How often the dot is moved to the pointer.
 const POLL_EVERY: Duration = Duration::from_millis(16);
 /// How often the list of monitors is read again (a monitor can be plugged in while the dot is on).
@@ -40,7 +40,7 @@ const MONITORS_EVERY: Duration = Duration::from_millis(500);
 /// unless the window is held back at a monitor's edge).
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct PointerView {
+pub struct LaserPointerView {
     pub color: String,
     pub size: String,
     pub ripple: bool,
@@ -48,10 +48,10 @@ pub struct PointerView {
     pub dot_y: f64,
 }
 
-impl PointerView {
-    fn new(settings: &PointerSettings) -> Self {
-        let middle = pointer::WINDOW_SIZE as f64 / 2.0;
-        PointerView {
+impl LaserPointerView {
+    fn new(settings: &LaserPointerSettings) -> Self {
+        let middle = laser_pointer_math::WINDOW_SIZE as f64 / 2.0;
+        LaserPointerView {
             color: settings.color.clone(),
             size: settings.size.clone(),
             ripple: settings.ripple,
@@ -67,12 +67,12 @@ struct Running {
     thread: JoinHandle<()>,
 }
 
-pub struct PointerHighlightState {
+pub struct LaserPointerState {
     /// Some while the highlight is on.
     running: Mutex<Option<Running>>,
     /// One switch-on or switch-off at a time (creating the window takes a moment).
     transition: Mutex<()>,
-    view: Mutex<PointerView>,
+    view: Mutex<LaserPointerView>,
     /// Whether the click ripple is on, read on every tick by the follower thread (a copy of `view.ripple`, so a
     /// tick does not lock and clone the whole view).
     ripple: AtomicBool,
@@ -83,12 +83,12 @@ pub struct PointerHighlightState {
     cursor: Mutex<Hider>,
 }
 
-impl PointerHighlightState {
-    pub fn new(settings: &PointerSettings) -> Self {
-        PointerHighlightState {
+impl LaserPointerState {
+    pub fn new(settings: &LaserPointerSettings) -> Self {
+        LaserPointerState {
             running: Mutex::new(None),
             transition: Mutex::new(()),
-            view: Mutex::new(PointerView::new(settings)),
+            view: Mutex::new(LaserPointerView::new(settings)),
             ripple: AtomicBool::new(settings.ripple),
             tray_item: Mutex::new(None),
             cursor: Mutex::new(Hider::default()),
@@ -109,19 +109,19 @@ impl PointerHighlightState {
         self.tray_item.lock().unwrap_or_else(|p| p.into_inner()).clone()
     }
 
-    fn view(&self) -> PointerView {
+    fn view(&self) -> LaserPointerView {
         self.view.lock().unwrap_or_else(|p| p.into_inner()).clone()
     }
 }
 
 #[tauri::command]
-pub fn get_pointer_highlight(state: tauri::State<'_, PointerHighlightState>) -> bool {
+pub fn get_laser_pointer(state: tauri::State<'_, LaserPointerState>) -> bool {
     state.is_on()
 }
 
 /// What the dot window draws now, for a window that loads after the first change.
 #[tauri::command]
-pub fn pointer_highlight_view(state: tauri::State<'_, PointerHighlightState>) -> PointerView {
+pub fn laser_pointer_view(state: tauri::State<'_, LaserPointerState>) -> LaserPointerView {
     state.view()
 }
 
@@ -134,8 +134,8 @@ pub fn request(app: &AppHandle, want: Option<bool>) {
 }
 
 /// The new look: kept for the next time the window opens, and sent to the open one.
-pub fn apply_settings(app: &AppHandle, settings: &PointerSettings) {
-    let state = app.state::<PointerHighlightState>();
+pub fn apply_settings(app: &AppHandle, settings: &LaserPointerSettings) {
+    let state = app.state::<LaserPointerState>();
     let view = {
         let mut view = state.view.lock().unwrap_or_else(|p| p.into_inner());
         view.color = settings.color.clone();
@@ -149,11 +149,11 @@ pub fn apply_settings(app: &AppHandle, settings: &PointerSettings) {
 
 /// The hotkey changed in Settings: the tray item shows the new one.
 pub fn refresh_tray_label(app: &AppHandle, accelerator: &str) {
-    let state = app.state::<PointerHighlightState>();
+    let state = app.state::<LaserPointerState>();
     // The lock is not held across the menu call: it dispatches to the main thread and waits.
     if let Some(item) = state.tray_item() {
-        if let Err(e) = item.set_text(tray_menu::pointer_highlight_label(accelerator)) {
-            diag::log(&format!("pointer highlight: could not update the tray label: {e}"));
+        if let Err(e) = item.set_text(tray_menu::laser_pointer_label(accelerator)) {
+            diag::log(&format!("laser pointer: could not update the tray label: {e}"));
         }
     }
 }
@@ -166,28 +166,28 @@ fn run_cursor_action(action: CursorAction) {
         CursorAction::Nothing => return,
     };
     match result {
-        Ok(()) => diag::log(&format!("pointer highlight: system cursor {action:?}")),
-        Err(e) => diag::log(&format!("pointer highlight: system cursor {action:?} failed: {e}")),
+        Ok(()) => diag::log(&format!("laser pointer: system cursor {action:?}")),
+        Err(e) => diag::log(&format!("laser pointer: system cursor {action:?} failed: {e}")),
     }
 }
 
-/// Hide or restore the system mouse arrow so it matches whether the highlight is `on` and the `pointerHideCursor`
+/// Hide or restore the system mouse arrow so it matches whether the highlight is `on` and the `laserPointerHideCursor`
 /// setting. Called with the new state by `switch`, and by `refresh_cursor` when the setting changes.
 fn sync_cursor(app: &AppHandle, on: bool) {
     let app_settings = app.state::<crate::AppSettings>();
-    let hide_setting = app_settings.data.lock().unwrap_or_else(|p| p.into_inner()).pointer_hide_cursor;
-    let state = app.state::<PointerHighlightState>();
+    let hide_setting = app_settings.data.lock().unwrap_or_else(|p| p.into_inner()).laser_pointer_hide_cursor;
+    let state = app.state::<LaserPointerState>();
     let mut hider = state.cursor.lock().unwrap_or_else(|p| p.into_inner());
     let action = hider.sync(on, hide_setting);
     run_cursor_action(action);
 }
 
-/// The `pointerHideCursor` setting changed: hide or restore the arrow at once. Returns at once; the work is on a
+/// The `laserPointerHideCursor` setting changed: hide or restore the arrow at once. Returns at once; the work is on a
 /// thread that takes `transition` like a switch, so it cannot cross a switch-off and hide the arrow after it.
 pub fn refresh_cursor(app: &AppHandle) {
     let app = app.clone();
     std::thread::spawn(move || {
-        let state = app.state::<PointerHighlightState>();
+        let state = app.state::<LaserPointerState>();
         let _one_at_a_time = state.transition.lock().unwrap_or_else(|p| p.into_inner());
         let on = state.is_on();
         sync_cursor(&app, on);
@@ -202,7 +202,7 @@ pub fn restore_cursor_on_startup() {
 
 /// The app is exiting (the tray's Exit): bring the arrow back if this app hid it.
 pub fn restore_cursor_on_exit(app: &AppHandle) {
-    let Some(state) = app.try_state::<PointerHighlightState>() else {
+    let Some(state) = app.try_state::<LaserPointerState>() else {
         return;
     };
     let mut hider = state.cursor.lock().unwrap_or_else(|p| p.into_inner());
@@ -212,12 +212,12 @@ pub fn restore_cursor_on_exit(app: &AppHandle) {
 
 /// Tell the tray and every window what the state is now.
 fn publish(app: &AppHandle, on: bool) {
-    let state = app.state::<PointerHighlightState>();
+    let state = app.state::<LaserPointerState>();
     // The lock is not held across the menu call: it dispatches to the main thread and waits, and
     // `set_demo_hotkey` (a sync command, so on the main thread) takes the same lock.
     if let Some(item) = state.tray_item() {
         if let Err(e) = item.set_checked(on) {
-            diag::log(&format!("pointer highlight: could not set the tray check mark: {e}"));
+            diag::log(&format!("laser pointer: could not set the tray check mark: {e}"));
         }
     }
     let _ = app.emit(STATE_EVENT, on);
@@ -226,7 +226,7 @@ fn publish(app: &AppHandle, on: bool) {
 /// Runs on a worker thread. Does nothing when the highlight is already in the wanted state (the tray's check
 /// mark is still put right: a click flips it natively before this runs).
 fn switch(app: &AppHandle, want: Option<bool>) {
-    let state = app.state::<PointerHighlightState>();
+    let state = app.state::<LaserPointerState>();
     // `transition` is held across `thread.join()` below. That cannot deadlock: only worker threads (`request`)
     // take it, never the main thread, and the follower thread never takes it, `running` or `tray_item`; it only
     // asks the main thread to move or destroy the dot window, which the main thread can always answer.
@@ -241,12 +241,12 @@ fn switch(app: &AppHandle, want: Option<bool>) {
         match start(app) {
             Ok(running) => {
                 *state.running.lock().unwrap_or_else(|p| p.into_inner()) = Some(running);
-                diag::log("pointer highlight: on");
+                diag::log("laser pointer: on");
                 sync_cursor(app, true);
                 publish(app, true);
             }
             Err(e) => {
-                diag::log(&format!("pointer highlight: could not start ({e})"));
+                diag::log(&format!("laser pointer: could not start ({e})"));
                 publish(app, false);
             }
         }
@@ -257,7 +257,7 @@ fn switch(app: &AppHandle, want: Option<bool>) {
             // The thread closes the window as it ends; wait so a quick on again finds the label free.
             let _ = running.thread.join();
         }
-        diag::log("pointer highlight: off");
+        diag::log("laser pointer: off");
         sync_cursor(app, false);
         publish(app, false);
     }
@@ -265,8 +265,8 @@ fn switch(app: &AppHandle, want: Option<bool>) {
 
 /// The dot window, created hidden and click-through, never taking focus from the app being shown.
 fn open_window(app: &AppHandle) -> tauri::Result<tauri::WebviewWindow> {
-    let window = crate::new_window(app, LABEL, WebviewUrl::App("index.html#pointer-highlight".into()))
-        .title("Pointer highlight")
+    let window = crate::new_window(app, LABEL, WebviewUrl::App("index.html#laser-pointer".into()))
+        .title("Laser pointer")
         .decorations(false)
         .resizable(false)
         .shadow(false)
@@ -278,13 +278,13 @@ fn open_window(app: &AppHandle) -> tauri::Result<tauri::WebviewWindow> {
         .visible(false)
         .build()?;
     window.set_ignore_cursor_events(true)?;
-    window.set_size(PhysicalSize::new(pointer::WINDOW_SIZE, pointer::WINDOW_SIZE))?;
+    window.set_size(PhysicalSize::new(laser_pointer_math::WINDOW_SIZE, laser_pointer_math::WINDOW_SIZE))?;
     Ok(window)
 }
 
 fn start(app: &AppHandle) -> Result<Running, String> {
     let window = open_window(app).map_err(|e| e.to_string())?;
-    exclude_from_capture(&window, "pointer highlight");
+    exclude_from_capture(&window, "laser pointer");
     let stop = Arc::new(AtomicBool::new(false));
     let thread = {
         let app = app.clone();
@@ -356,7 +356,7 @@ fn read_sample(monitors: &[(MonitorBounds, f64)]) -> Option<Sample> {
 
 /// The polling thread: until `stop`, move the dot to the pointer; then close the window.
 fn follow(app: &AppHandle, window: tauri::WebviewWindow, stop: &AtomicBool) {
-    let state = app.state::<PointerHighlightState>();
+    let state = app.state::<LaserPointerState>();
     let mut tracker = Tracker::new();
     let mut monitors = read_monitors(app);
     let mut monitors_read = Instant::now();

@@ -13,8 +13,8 @@ pub enum Action {
     OpenEditor,
     Settings,
     OpenLogFolder,
-    /// Switch the pointer highlight on or off (ticket 50).
-    TogglePointerHighlight,
+    /// Switch the laser pointer on or off (ticket 50).
+    ToggleLaserPointer,
     Exit,
 }
 
@@ -22,7 +22,7 @@ pub enum Action {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Entry {
     Item { id: String, label: String },
-    /// An item with a check mark (the pointer highlight, ticket 50).
+    /// An item with a check mark (the laser pointer, ticket 50).
     Check { id: String, label: String, checked: bool },
     Separator,
 }
@@ -31,8 +31,8 @@ fn item(id: &str, label: &str) -> Entry {
     Entry::Item { id: id.into(), label: label.into() }
 }
 
-/// Id of the checked "Pointer highlight" item.
-pub const POINTER_HIGHLIGHT_ID: &str = "pointer-highlight";
+/// Id of the checked "Laser pointer" item.
+pub const LASER_POINTER_ID: &str = "laser-pointer";
 
 /// A hotkey the way Settings shows it, e.g. "Ctrl+Shift+L" (mirrors `formatCombo` in `src/settings/hotkey.ts`).
 /// `accelerator` is the stored form ("ctrl+shift+l"). Modifier names are matched without regard to case and
@@ -55,9 +55,9 @@ pub fn format_accelerator(accelerator: &str) -> String {
     shown.join("+")
 }
 
-/// The label of the pointer highlight item: its name and its hotkey, e.g. "Pointer highlight (Ctrl+Shift+L)".
-pub fn pointer_highlight_label(accelerator: &str) -> String {
-    format!("Pointer highlight ({})", format_accelerator(accelerator))
+/// The label of the laser pointer item: its name and its hotkey, e.g. "Laser pointer (Ctrl+Shift+L)".
+pub fn laser_pointer_label(accelerator: &str) -> String {
+    format!("Laser pointer ({})", format_accelerator(accelerator))
 }
 
 /// The id of the "Draw on screen" item (`lib.rs` keeps a handle to it to refresh its label).
@@ -68,17 +68,17 @@ pub fn draw_label(accelerator: &str) -> String {
     format!("Draw on screen ({})", format_accelerator(accelerator))
 }
 
-/// The menu, top to bottom. `delays` are the seconds offered by the delay timer; `pointer_hotkey` is the
-/// pointer highlight's hotkey (shown in its label), `pointer_on` whether it is on now (the check mark), and
+/// The menu, top to bottom. `delays` are the seconds offered by the delay timer; `laser_pointer_hotkey` is the
+/// laser pointer's hotkey (shown in its label), `laser_pointer_on` whether it is on now (the check mark), and
 /// `drawing_hotkey` the Drawing mode hotkey the "Draw on screen" item shows.
-pub fn entries(delays: &[u32], pointer_hotkey: &str, pointer_on: bool, drawing_hotkey: &str) -> Vec<Entry> {
+pub fn entries(delays: &[u32], laser_pointer_hotkey: &str, laser_pointer_on: bool, drawing_hotkey: &str) -> Vec<Entry> {
     let mut menu = vec![item("capture", "Capture")];
     menu.extend(delays.iter().map(|s| item(&format!("capture-{s}"), &format!("Capture in {s}s"))));
     menu.push(Entry::Separator);
     menu.push(Entry::Check {
-        id: POINTER_HIGHLIGHT_ID.into(),
-        label: pointer_highlight_label(pointer_hotkey),
-        checked: pointer_on,
+        id: LASER_POINTER_ID.into(),
+        label: laser_pointer_label(laser_pointer_hotkey),
+        checked: laser_pointer_on,
     });
     menu.push(item(DRAW_ID, &draw_label(drawing_hotkey)));
     menu.push(Entry::Separator);
@@ -98,7 +98,7 @@ pub fn action_for(id: &str) -> Option<Action> {
         "editor" => Some(Action::OpenEditor),
         "settings" => Some(Action::Settings),
         "log" => Some(Action::OpenLogFolder),
-        POINTER_HIGHLIGHT_ID => Some(Action::TogglePointerHighlight),
+        LASER_POINTER_ID => Some(Action::ToggleLaserPointer),
         "exit" => Some(Action::Exit),
         _ => {
             let seconds = id.strip_prefix("capture-")?;
@@ -134,7 +134,7 @@ mod tests {
                 "Capture in 5s",
                 "Capture in 10s",
                 "-",
-                "Pointer highlight (Ctrl+Shift+L)",
+                "Laser pointer (Ctrl+Shift+L)",
                 "Draw on screen (Ctrl+Shift+D)",
                 "-",
                 "Open editor",
@@ -161,7 +161,7 @@ mod tests {
                 Action::CaptureIn(3),
                 Action::CaptureIn(5),
                 Action::CaptureIn(10),
-                Action::TogglePointerHighlight,
+                Action::ToggleLaserPointer,
                 Action::DrawOnScreen,
                 Action::OpenEditor,
                 Action::Settings,
@@ -206,12 +206,12 @@ mod tests {
     }
 
     #[test]
-    fn the_pointer_highlight_item_is_checked_only_while_the_highlight_is_on() {
+    fn the_laser_pointer_item_is_checked_only_while_the_highlight_is_on() {
         let checked = |on: bool| {
             entries(&[3], "ctrl+shift+l", on, "ctrl+shift+d")
                 .into_iter()
                 .find_map(|e| match e {
-                    Entry::Check { id, checked, .. } if id == POINTER_HIGHLIGHT_ID => Some(checked),
+                    Entry::Check { id, checked, .. } if id == LASER_POINTER_ID => Some(checked),
                     _ => None,
                 })
         };
@@ -223,7 +223,7 @@ mod tests {
     fn both_labels_show_a_hotkey_the_same_way_whatever_its_case_or_alias() {
         for accelerator in ["CTRL+Shift+l", "control+SHIFT+L", "CommandOrControl+shift+l", "ctrl+shift+l"] {
             assert_eq!(format_accelerator(accelerator), "Ctrl+Shift+L", "{accelerator}");
-            assert_eq!(pointer_highlight_label(accelerator), "Pointer highlight (Ctrl+Shift+L)");
+            assert_eq!(laser_pointer_label(accelerator), "Laser pointer (Ctrl+Shift+L)");
             assert_eq!(draw_label(accelerator), "Draw on screen (Ctrl+Shift+L)");
         }
         assert_eq!(format_accelerator("Alt+super+arrowup"), "Alt+Win+up");
@@ -233,9 +233,9 @@ mod tests {
 
     #[test]
     fn the_label_shows_the_hotkey_the_way_settings_does() {
-        assert_eq!(pointer_highlight_label("ctrl+shift+l"), "Pointer highlight (Ctrl+Shift+L)");
-        assert_eq!(pointer_highlight_label("ctrl+alt+F9"), "Pointer highlight (Ctrl+Alt+F9)");
-        assert_eq!(pointer_highlight_label("super+ArrowUp"), "Pointer highlight (Win+Up)");
-        assert_eq!(pointer_highlight_label("ctrl+Space"), "Pointer highlight (Ctrl+Space)");
+        assert_eq!(laser_pointer_label("ctrl+shift+l"), "Laser pointer (Ctrl+Shift+L)");
+        assert_eq!(laser_pointer_label("ctrl+alt+F9"), "Laser pointer (Ctrl+Alt+F9)");
+        assert_eq!(laser_pointer_label("super+ArrowUp"), "Laser pointer (Win+Up)");
+        assert_eq!(laser_pointer_label("ctrl+Space"), "Laser pointer (Ctrl+Space)");
     }
 }

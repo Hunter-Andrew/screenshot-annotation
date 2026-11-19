@@ -2,7 +2,7 @@
 
 A Windows desktop app for capturing and annotating screenshots, in the style of Snagit (images only, no video). It installs per-user, with no admin rights needed.
 
-> **Status:** Milestones M0 to M5 are released (the latest is v0.6.0). M6 (Desktop demo tools: the pointer highlight, drawing mode over the screen and the fixed editor tool keys) is built; v1.0.0 (the version bump included) is not released until the [release checklist](docs/release-checklist.md) has passed on the Windows test PC. Exclusive full-screen games are not supported by the demo tools ([ADR 0009](docs/adr/0009-demo-tool-hotkeys-and-click-through-windows.md)). Decisions are recorded in [.scratch/snagit-clone/map.md](.scratch/snagit-clone/map.md) and [docs/adr/](docs/adr/); terms are in [GLOSSARY.md](GLOSSARY.md).
+> **Status:** Milestones M0 to M5 are released (the latest is v0.6.0). M6 (Desktop demo tools: the laser pointer, drawing mode over the screen and the fixed editor tool keys) is built; v1.0.0 (the version bump included) is not released until the [release checklist](docs/release-checklist.md) has passed on the Windows test PC. Exclusive full-screen games are not supported by the demo tools ([ADR 0009](docs/adr/0009-demo-tool-hotkeys-and-click-through-windows.md)). Decisions are recorded in [.scratch/snagit-clone/map.md](.scratch/snagit-clone/map.md) and [docs/adr/](docs/adr/); terms are in [GLOSSARY.md](GLOSSARY.md).
 
 ## Roadmap
 
@@ -14,7 +14,7 @@ A Windows desktop app for capturing and annotating screenshots, in the style of 
 | M3 · Library | v0.4 | Released | Library Strip, full-window grid, reopen and edit, delete with Undo, the folder as the source of truth |
 | M4 · Complete | v0.5 | Released | Callout, Highlighter, Blur, Crop and canvas expansion, paste images into the canvas, delay timer, startup and polish |
 | M5 · Shortcuts, polish and facelift | v0.6 | Released | Settings lists and remaps all keyboard shortcuts; style panel polish; colour facelift |
-| M6 · Desktop demo tools | v1.0 | Built; awaiting the release checklist | Desktop pointer highlight and Drawing mode, with two global hotkeys |
+| M6 · Desktop demo tools | v1.0 | Built; awaiting the release checklist | Desktop laser pointer and Drawing mode, with two global hotkeys |
 
 ## Workflow
 

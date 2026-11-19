@@ -93,7 +93,7 @@ fn same_accelerator(a: &str, b: &str) -> bool {
     normalize_accelerator(a) == normalize_accelerator(b)
 }
 
-/// Why a demo-tool hotkey (pointer highlight, drawing mode; ticket 49) may not be `new`, as the wire code
+/// Why a demo-tool hotkey (laser pointer, drawing mode; ticket 49) may not be `new`, as the wire code
 /// `src/platform/tauriBridge.ts` maps back to a message: Print Screen, the capture hotkey, or the other
 /// demo hotkey. `None` when it may (whether another app owns it is only known by registering it).
 pub fn demo_refusal(new: &str, capture: &str, other_demo: &str) -> Option<&'static str> {
@@ -109,8 +109,8 @@ pub fn demo_refusal(new: &str, capture: &str, other_demo: &str) -> Option<&'stat
 }
 
 /// The capture hotkey may not take a combination a demo tool already uses.
-pub fn clashes_with_demo(new: &str, pointer_highlight: &str, drawing_mode: &str) -> bool {
-    same_accelerator(new, pointer_highlight) || same_accelerator(new, drawing_mode)
+pub fn clashes_with_demo(new: &str, laser_pointer: &str, drawing_mode: &str) -> bool {
+    same_accelerator(new, laser_pointer) || same_accelerator(new, drawing_mode)
 }
 
 /// Sends bare Print Screen to the Raw Input listener (RegisterHotKey never fires for it on

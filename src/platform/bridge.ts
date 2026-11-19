@@ -83,13 +83,13 @@ export type SetHotkeyResult =
   | { ok: false; reason: "conflict" | "invalid" | "failed" | "demo-hotkey" };
 
 /** The two demo-tool global hotkeys (tickets 40, 41, 49). */
-export type DemoAction = "pointerHighlight" | "drawingMode";
+export type DemoAction = "laserPointer" | "drawingMode";
 
 export interface DemoHotkeys {
-  pointerHighlight: string;
+  laserPointer: string;
   drawingMode: string;
   /** False when the OS refused the combination at startup (another app has it). */
-  pointerHighlightRegistered: boolean;
+  laserPointerRegistered: boolean;
   drawingModeRegistered: boolean;
 }
 
@@ -97,24 +97,24 @@ export type SetDemoHotkeyResult =
   | { ok: true }
   | { ok: false; reason: "conflict" | "invalid" | "failed" | "print-screen" | "capture-hotkey" | "other-demo" };
 
-/** The pointer highlight's sizes (ticket 50); `src-tauri/src/settings.rs` `POINTER_SIZES` must match (see rustParity.test.ts). */
-export const POINTER_SIZES = ["small", "medium", "large"] as const;
-export type PointerSize = (typeof POINTER_SIZES)[number];
+/** The laser pointer's sizes (ticket 50); `src-tauri/src/settings.rs` `LASER_POINTER_SIZES` must match (see rustParity.test.ts). */
+export const LASER_POINTER_SIZES = ["small", "medium", "large"] as const;
+export type LaserPointerSize = (typeof LASER_POINTER_SIZES)[number];
 
-/** How the pointer highlight looks; stored in settings.json. The on/off state is never stored. */
-export interface PointerSettings {
+/** How the laser pointer looks; stored in settings.json. The on/off state is never stored. */
+export interface LaserPointerSettings {
   /** `#rrggbb`. */
   color: string;
-  size: PointerSize;
+  size: LaserPointerSize;
   /** A left click shows a ripple. */
   ripple: boolean;
 }
 
 /** Red, Medium, ripple on; `src-tauri/src/settings.rs` has the same defaults (see rustParity.test.ts). */
-export const DEFAULT_POINTER_SETTINGS: PointerSettings = { color: "#e02424", size: "medium", ripple: true };
+export const DEFAULT_LASER_POINTER_SETTINGS: LaserPointerSettings = { color: "#e02424", size: "medium", ripple: true };
 
 /** What the dot window draws: the settings, and where in the window the dot's centre is (CSS pixels). */
-export interface PointerView extends PointerSettings {
+export interface LaserPointerView extends LaserPointerSettings {
   dotX: number;
   dotY: number;
 }
@@ -340,7 +340,7 @@ export interface PlatformBridge {
    * stays in force and the result says `conflict`.
    */
   setHotkey(accelerator: string): Promise<SetHotkeyResult>;
-  /** The pointer-highlight and drawing-mode hotkeys (defaults ctrl+shift+l and ctrl+shift+d). */
+  /** The laser-pointer and drawing-mode hotkeys (defaults ctrl+shift+l and ctrl+shift+d). */
   getDemoHotkeys(): Promise<DemoHotkeys>;
   /**
    * Re-register one demo hotkey and save it, like `setHotkey`. Refused (nothing changes) for Print
@@ -348,28 +348,28 @@ export interface PlatformBridge {
    */
   setDemoHotkey(action: DemoAction, accelerator: string): Promise<SetDemoHotkeyResult>;
 
-  /** How the pointer highlight looks (colour, size, ripple), as stored. */
-  getPointerSettings(): Promise<PointerSettings>;
+  /** How the laser pointer looks (colour, size, ripple), as stored. */
+  getLaserPointerSettings(): Promise<LaserPointerSettings>;
   /** Store a new look and show it at once on a visible dot. A failed write is logged and kept in memory for this run. */
-  setPointerSettings(settings: PointerSettings): Promise<void>;
-  /** Whether the pointer highlight hides the system mouse arrow while it is on (default true; applied live). Windows only. */
-  getPointerHideCursor(): Promise<boolean>;
-  setPointerHideCursor(hide: boolean): Promise<void>;
+  setLaserPointerSettings(settings: LaserPointerSettings): Promise<void>;
+  /** Whether the laser pointer hides the system mouse arrow while it is on (default true; applied live). Windows only. */
+  getLaserPointerHideCursor(): Promise<boolean>;
+  setLaserPointerHideCursor(hide: boolean): Promise<void>;
   /** Drawing mode's Highlighter opacity in percent (5 to 60, default 20); read when the mode starts. */
   getDrawingHighlighterOpacity(): Promise<number>;
   setDrawingHighlighterOpacity(percent: number): Promise<void>;
-  /** Whether the pointer highlight is on now. Never stored: it is off at every start. */
-  getPointerHighlight(): Promise<boolean>;
-  /** Switch the pointer highlight on or off (the editor's button, ticket 51). The hotkey and the tray item do the same. */
-  setPointerHighlight(on: boolean): Promise<void>;
-  /** The pointer highlight was switched on or off, by the hotkey, the tray item or a button; delivers the new state. */
-  onPointerHighlight(handler: (on: boolean) => void): Promise<() => void>;
+  /** Whether the laser pointer is on now. Never stored: it is off at every start. */
+  getLaserPointer(): Promise<boolean>;
+  /** Switch the laser pointer on or off (the editor's button, ticket 51). The hotkey and the tray item do the same. */
+  setLaserPointer(on: boolean): Promise<void>;
+  /** The laser pointer was switched on or off, by the hotkey, the tray item or a button; delivers the new state. */
+  onLaserPointer(handler: (on: boolean) => void): Promise<() => void>;
   /** The dot window's drawing instructions now (for a window that loads late). */
-  getPointerView(): Promise<PointerView>;
+  getLaserPointerView(): Promise<LaserPointerView>;
   /** The look or the dot's place in its window changed. */
-  onPointerView(handler: (view: PointerView) => void): Promise<() => void>;
+  onLaserPointerView(handler: (view: LaserPointerView) => void): Promise<() => void>;
   /** A left click began: the dot window shows its ripple. */
-  onPointerRipple(handler: () => void): Promise<() => void>;
+  onLaserPointerRipple(handler: () => void): Promise<() => void>;
 
   /**
    * Whether the Windows setting PrintScreenKeyForSnippingEnabled leaves Print Screen with Snipping

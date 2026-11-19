@@ -13,7 +13,7 @@
 //!
 //! The toolbar (ticket 53) is one more small window, `drawing-toolbar`: always on top, never focusable (so a
 //! click on it leaves the keyboard with the overlay that has it), excluded from captures with
-//! `pointer_highlight::exclude_from_capture`, created with the overlays and destroyed with them. The pages talk
+//! `laser_pointer::exclude_from_capture`, created with the overlays and destroyed with them. The pages talk
 //! through events: a tool chosen in one window is relayed to the others (`set_drawing_tool`, which tells every
 //! window; nothing is remembered, every start of the mode is on Arrow), "Use apps" is `set_drawing_click_through`, and the toolbar
 //! asks for its collapsed and expanded size with `resize_drawing_toolbar`.
@@ -179,7 +179,7 @@ fn open_toolbar(app: &AppHandle, bounds: &MonitorBounds, scale: f64) -> Result<(
     let place = drawing_plan::toolbar_placement((bounds.x, bounds.y, bounds.width, bounds.height), scale);
     window.set_position(PhysicalPosition::new(place.x, place.y)).map_err(|e| e.to_string())?;
     window.set_size(PhysicalSize::new(place.width, place.height)).map_err(|e| e.to_string())?;
-    crate::pointer_highlight::exclude_from_capture(&window, "drawing toolbar");
+    crate::laser_pointer::exclude_from_capture(&window, "drawing toolbar");
     window.show().map_err(|e| e.to_string())
 }
 

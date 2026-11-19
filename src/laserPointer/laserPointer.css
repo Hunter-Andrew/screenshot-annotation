@@ -1,29 +1,29 @@
-/* The pointer highlight window (ticket 50): the Laser pointer (three centred layers) and its click ripple on a transparent page. */
-.pointer-dot,
-.pointer-ripple {
+/* The laser pointer window (ticket 50): the Laser pointer (three centred layers) and its click ripple on a transparent page. */
+.laser-pointer-dot,
+.laser-pointer-ripple {
   position: fixed;
   pointer-events: none;
   transform: translate(-50%, -50%);
 }
-.pointer-dot {
+.laser-pointer-dot {
   width: 0;
   height: 0;
 }
-.pointer-layer {
+.laser-pointer-layer {
   position: absolute;
   left: 0;
   top: 0;
   transform: translate(-50%, -50%);
 }
-.pointer-ripple {
+.laser-pointer-ripple {
   box-sizing: border-box;
   border: 3px solid;
   border-radius: 50%;
-  animation-name: pointer-ripple;
+  animation-name: laser-pointer-ripple;
   animation-timing-function: ease-out;
   animation-fill-mode: forwards;
 }
-@keyframes pointer-ripple {
+@keyframes laser-pointer-ripple {
   from {
     width: var(--ripple-from);
     height: var(--ripple-from);

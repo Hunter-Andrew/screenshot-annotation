@@ -6,16 +6,16 @@ import type { DrawingEdit } from "../drawing/toolbarState";
 import { formatStamp } from "../shared/stamp";
 import { demoHotkeyRefusal } from "../settings/hotkey";
 import {
-  DEFAULT_POINTER_SETTINGS,
-  POINTER_SIZES,
+  DEFAULT_LASER_POINTER_SETTINGS,
+  LASER_POINTER_SIZES,
   type CaptureResult,
   type LibraryFile,
   type LibraryItem,
   type OverlayOutcome,
   type OverlayRect,
   type PlatformBridge,
-  type PointerSettings,
-  type PointerView,
+  type LaserPointerSettings,
+  type LaserPointerView,
 } from "./bridge";
 
 export interface SimulatedShot {
@@ -113,21 +113,21 @@ export interface FakeBridge extends PlatformBridge {
   failNextOverlayFrame(message: string): void;
   /** The registered capture hotkey (accelerator). */
   readonly hotkey: string;
-  /** Whether the pointer highlight hides the system arrow (true for a fresh fake) and Drawing mode's Highlighter opacity in percent (20 for a fresh fake). */
-  readonly pointerHideCursor: boolean;
+  /** Whether the laser pointer hides the system arrow (true for a fresh fake) and Drawing mode's Highlighter opacity in percent (20 for a fresh fake). */
+  readonly laserPointerHideCursor: boolean;
   readonly drawingHighlighterOpacity: number;
-  /** The stored pointer highlight look (`fake.pointerSettings` in the fake storage; red, Medium, ripple on for a fresh fake). */
-  readonly pointerSettings: PointerSettings;
-  /** Whether the pointer highlight is on. Not stored: a fresh fake (a reload) has it off, like the real app at start. */
-  readonly pointerHighlightOn: boolean;
-  /** Mimic the pointer highlight hotkey or the tray item: flip the highlight and tell the listeners. */
-  pressPointerHotkey(): void;
+  /** The stored laser pointer look (`fake.laserPointerSettings` in the fake storage; red, Medium, ripple on for a fresh fake). */
+  readonly laserPointerSettings: LaserPointerSettings;
+  /** Whether the laser pointer is on. Not stored: a fresh fake (a reload) has it off, like the real app at start. */
+  readonly laserPointerOn: boolean;
+  /** Mimic the laser pointer hotkey or the tray item: flip the highlight and tell the listeners. */
+  pressLaserPointerHotkey(): void;
   /** Mimic a left click while the highlight is on: the dot window shows its ripple. */
-  clickPointer(): void;
+  clickLaserPointer(): void;
   /** Move the dot inside its window (the platform does this when the window is held back at a monitor's edge). */
-  setPointerDot(x: number, y: number): void;
+  setLaserPointerDot(x: number, y: number): void;
   /** The registered demo-tool hotkeys. */
-  readonly pointerHighlightHotkey: string;
+  readonly laserPointerHotkey: string;
   readonly drawingModeHotkey: string;
   /** Combinations "another app" owns; `setHotkey` reports a conflict for these. Mutable by tests. */
   readonly takenHotkeys: Set<string>;
@@ -199,7 +199,7 @@ export function createFakeBridge(
     setItem: (k, v) => void memory.set(k, v),
   };
   let hotkey = store.getItem("fake.hotkey") ?? "ctrl+shift+s";
-  let pointerHighlightHotkey = store.getItem("fake.pointerHighlightHotkey") ?? "ctrl+shift+l";
+  let laserPointerHotkey = store.getItem("fake.laserPointerHotkey") ?? "ctrl+shift+l";
   let drawingModeHotkey = store.getItem("fake.drawingModeHotkey") ?? "ctrl+shift+d";
   const takenHotkeys = new Set<string>();
   let keyboardSettingsOpened = 0;
@@ -214,24 +214,24 @@ export function createFakeBridge(
   let overlayAttempt: number | null = options.overlayAttempt === undefined ? 1 : options.overlayAttempt;
   const overlayAttemptHandlers = new Set<(attempt: number | null) => void>();
   const delayedCaptures: number[] = [];
-  let pointerOn = false;
-  const pointerStateHandlers = new Set<(on: boolean) => void>();
-  const pointerViewHandlers = new Set<(view: PointerView) => void>();
-  const pointerRippleHandlers = new Set<() => void>();
-  let pointerDot = { dotX: 48, dotY: 48 };
-  const readPointerSettings = (): PointerSettings => {
+  let laserPointerOn = false;
+  const laserPointerStateHandlers = new Set<(on: boolean) => void>();
+  const laserPointerViewHandlers = new Set<(view: LaserPointerView) => void>();
+  const laserPointerRippleHandlers = new Set<() => void>();
+  let laserPointerDot = { dotX: 48, dotY: 48 };
+  const readLaserPointerSettings = (): LaserPointerSettings => {
     try {
-      const stored = JSON.parse(store.getItem("fake.pointerSettings") ?? "null") as Partial<PointerSettings> | null;
+      const stored = JSON.parse(store.getItem("fake.laserPointerSettings") ?? "null") as Partial<LaserPointerSettings> | null;
       return {
-        color: typeof stored?.color === "string" && /^#[0-9a-f]{6}$/i.test(stored.color) ? stored.color.toLowerCase() : DEFAULT_POINTER_SETTINGS.color,
-        size: POINTER_SIZES.find((s) => s === stored?.size) ?? DEFAULT_POINTER_SETTINGS.size,
-        ripple: typeof stored?.ripple === "boolean" ? stored.ripple : DEFAULT_POINTER_SETTINGS.ripple,
+        color: typeof stored?.color === "string" && /^#[0-9a-f]{6}$/i.test(stored.color) ? stored.color.toLowerCase() : DEFAULT_LASER_POINTER_SETTINGS.color,
+        size: LASER_POINTER_SIZES.find((s) => s === stored?.size) ?? DEFAULT_LASER_POINTER_SETTINGS.size,
+        ripple: typeof stored?.ripple === "boolean" ? stored.ripple : DEFAULT_LASER_POINTER_SETTINGS.ripple,
       };
     } catch {
-      return DEFAULT_POINTER_SETTINGS;
+      return DEFAULT_LASER_POINTER_SETTINGS;
     }
   };
-  const readHideCursor = (): boolean => store.getItem("fake.pointerHideCursor") !== "false";
+  const readHideCursor = (): boolean => store.getItem("fake.laserPointerHideCursor") !== "false";
   const readHighlighterOpacity = (): number => {
     try {
       return drawingHighlighterOpacityPercent(JSON.parse(store.getItem("fake.drawingHighlighterOpacity") ?? "null"));
@@ -239,10 +239,10 @@ export function createFakeBridge(
       return drawingHighlighterOpacityPercent(undefined);
     }
   };
-  const pointerView = (): PointerView => ({ ...readPointerSettings(), ...pointerDot });
-  const publishPointerOn = (on: boolean) => {
-    pointerOn = on;
-    pointerStateHandlers.forEach((handler) => handler(on));
+  const laserPointerView = (): LaserPointerView => ({ ...readLaserPointerSettings(), ...laserPointerDot });
+  const publishLaserPointerOn = (on: boolean) => {
+    laserPointerOn = on;
+    laserPointerStateHandlers.forEach((handler) => handler(on));
   };
   let countdown: number | null = null;
   const countdownHandlers = new Set<(remaining: number | null) => void>();
@@ -405,8 +405,8 @@ export function createFakeBridge(
     get hotkey() {
       return hotkey;
     },
-    get pointerHighlightHotkey() {
-      return pointerHighlightHotkey;
+    get laserPointerHotkey() {
+      return laserPointerHotkey;
     },
     get drawingModeHotkey() {
       return drawingModeHotkey;
@@ -429,86 +429,86 @@ export function createFakeBridge(
     setHotkey: async (accelerator) => {
       if (accelerator === hotkey) return { ok: true };
       if (takenHotkeys.has(accelerator)) return { ok: false, reason: "conflict" };
-      if ([pointerHighlightHotkey, drawingModeHotkey].some((d) => d.toLowerCase() === accelerator.toLowerCase()))
+      if ([laserPointerHotkey, drawingModeHotkey].some((d) => d.toLowerCase() === accelerator.toLowerCase()))
         return { ok: false, reason: "demo-hotkey" };
       hotkey = accelerator;
       store.setItem("fake.hotkey", accelerator);
       return { ok: true };
     },
     getDemoHotkeys: async () => ({
-      pointerHighlight: pointerHighlightHotkey,
+      laserPointer: laserPointerHotkey,
       drawingMode: drawingModeHotkey,
-      pointerHighlightRegistered: true,
+      laserPointerRegistered: true,
       drawingModeRegistered: true,
     }),
     setDemoHotkey: async (action, accelerator) => {
-      const current = action === "pointerHighlight" ? pointerHighlightHotkey : drawingModeHotkey;
-      const other = action === "pointerHighlight" ? drawingModeHotkey : pointerHighlightHotkey;
+      const current = action === "laserPointer" ? laserPointerHotkey : drawingModeHotkey;
+      const other = action === "laserPointer" ? drawingModeHotkey : laserPointerHotkey;
       if (accelerator === current) return { ok: true };
       const refusal = demoHotkeyRefusal(accelerator, hotkey, other);
       if (refusal !== null) return { ok: false, reason: refusal };
       if (takenHotkeys.has(accelerator)) return { ok: false, reason: "conflict" };
-      if (action === "pointerHighlight") pointerHighlightHotkey = accelerator;
+      if (action === "laserPointer") laserPointerHotkey = accelerator;
       else drawingModeHotkey = accelerator;
-      store.setItem(action === "pointerHighlight" ? "fake.pointerHighlightHotkey" : "fake.drawingModeHotkey", accelerator);
+      store.setItem(action === "laserPointer" ? "fake.laserPointerHotkey" : "fake.drawingModeHotkey", accelerator);
       return { ok: true };
     },
-    get pointerSettings() {
-      return readPointerSettings();
+    get laserPointerSettings() {
+      return readLaserPointerSettings();
     },
-    get pointerHighlightOn() {
-      return pointerOn;
+    get laserPointerOn() {
+      return laserPointerOn;
     },
-    pressPointerHotkey: () => publishPointerOn(!pointerOn),
-    clickPointer: () => {
-      if (pointerOn && readPointerSettings().ripple) pointerRippleHandlers.forEach((handler) => handler());
+    pressLaserPointerHotkey: () => publishLaserPointerOn(!laserPointerOn),
+    clickLaserPointer: () => {
+      if (laserPointerOn && readLaserPointerSettings().ripple) laserPointerRippleHandlers.forEach((handler) => handler());
     },
-    setPointerDot: (x, y) => {
-      pointerDot = { dotX: x, dotY: y };
-      const view = pointerView();
-      pointerViewHandlers.forEach((handler) => handler(view));
+    setLaserPointerDot: (x, y) => {
+      laserPointerDot = { dotX: x, dotY: y };
+      const view = laserPointerView();
+      laserPointerViewHandlers.forEach((handler) => handler(view));
     },
-    getPointerSettings: async () => readPointerSettings(),
-    setPointerSettings: async (settings) => {
-      store.setItem("fake.pointerSettings", JSON.stringify(settings));
-      const view = pointerView();
-      pointerViewHandlers.forEach((handler) => handler(view));
+    getLaserPointerSettings: async () => readLaserPointerSettings(),
+    setLaserPointerSettings: async (settings) => {
+      store.setItem("fake.laserPointerSettings", JSON.stringify(settings));
+      const view = laserPointerView();
+      laserPointerViewHandlers.forEach((handler) => handler(view));
     },
-    get pointerHideCursor() {
+    get laserPointerHideCursor() {
       return readHideCursor();
     },
     get drawingHighlighterOpacity() {
       return readHighlighterOpacity();
     },
-    getPointerHideCursor: async () => readHideCursor(),
-    setPointerHideCursor: async (hide) => {
-      store.setItem("fake.pointerHideCursor", JSON.stringify(hide));
+    getLaserPointerHideCursor: async () => readHideCursor(),
+    setLaserPointerHideCursor: async (hide) => {
+      store.setItem("fake.laserPointerHideCursor", JSON.stringify(hide));
     },
     getDrawingHighlighterOpacity: async () => readHighlighterOpacity(),
     setDrawingHighlighterOpacity: async (percent) => {
       store.setItem("fake.drawingHighlighterOpacity", JSON.stringify(drawingHighlighterOpacityPercent(percent)));
     },
-    getPointerHighlight: async () => pointerOn,
-    setPointerHighlight: async (on) => {
-      if (on !== pointerOn) publishPointerOn(on);
+    getLaserPointer: async () => laserPointerOn,
+    setLaserPointer: async (on) => {
+      if (on !== laserPointerOn) publishLaserPointerOn(on);
     },
-    onPointerHighlight: async (handler) => {
-      pointerStateHandlers.add(handler);
+    onLaserPointer: async (handler) => {
+      laserPointerStateHandlers.add(handler);
       return () => {
-        pointerStateHandlers.delete(handler);
+        laserPointerStateHandlers.delete(handler);
       };
     },
-    getPointerView: async () => pointerView(),
-    onPointerView: async (handler) => {
-      pointerViewHandlers.add(handler);
+    getLaserPointerView: async () => laserPointerView(),
+    onLaserPointerView: async (handler) => {
+      laserPointerViewHandlers.add(handler);
       return () => {
-        pointerViewHandlers.delete(handler);
+        laserPointerViewHandlers.delete(handler);
       };
     },
-    onPointerRipple: async (handler) => {
-      pointerRippleHandlers.add(handler);
+    onLaserPointerRipple: async (handler) => {
+      laserPointerRippleHandlers.add(handler);
       return () => {
-        pointerRippleHandlers.delete(handler);
+        laserPointerRippleHandlers.delete(handler);
       };
     },
     getPrintScreenNotice: async () => ({

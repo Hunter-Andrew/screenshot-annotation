@@ -89,7 +89,7 @@ export function usesPrintScreen(accelerator: string): boolean {
   return accelerator.split("+").pop() === "PrintScreen";
 }
 
-/** Why a demo-tool hotkey (pointer highlight, drawing mode) cannot take `accelerator`; null when it can. The backend applies the same rules (`hotkey::demo_refusal`). */
+/** Why a demo-tool hotkey (laser pointer, drawing mode) cannot take `accelerator`; null when it can. The backend applies the same rules (`hotkey::demo_refusal`). */
 export type DemoRefusal = "print-screen" | "capture-hotkey" | "other-demo";
 
 export function demoHotkeyRefusal(accelerator: string, capture: string, otherDemo: string): DemoRefusal | null {
