@@ -25,7 +25,7 @@ Spec: `.scratch/snagit-clone/spec.md`. Planned for M6 (v1.0.0, moved from M5 on 
 
 1. **Moved to M6 (v1.0.0)**, together with ticket 41. v1.0.0 is released only when M6 is finished.
 2. **Absorbs ticket 39:** the editor's tool column gets a button that toggles this global pointer (not an editor-only pointer).
-3. **Look: a red "laser dot"** (option C in `.scratch/v1/prototypes/m5-pointer-and-palette.html`): a bright red dot with a soft glow. Default colour red, configurable in Settings.
+3. **Look: a red "laser dot"** (superseded by decision 14) (option C in `.scratch/v1/prototypes/m5-pointer-and-palette.html`): a bright red dot with a soft glow. Default colour red, configurable in Settings.
 4. **Size:** Small / Medium / Large in Settings (default Medium).
 5. **Click ripple:** a brief expanding ring (~400 ms) on click, **on/off in Settings**.
 6. The remaining questions are listed under "Open questions (grill at M6)" above.
@@ -46,6 +46,7 @@ Build through tickets 49 (hotkeys), 50 (pointer highlight), 51 (editor toggle), 
 10. **Full-screen apps:** works over borderless and maximized windows (PowerPoint slideshows, screen-share windows). Exclusive full-screen games are unsupported in v1.0.
 11. **Independent of ticket 41's drawing mode:** the dot keeps following the mouse while drawing mode is on.
 12. **Editor button (absorbs ticket 39):** a toggle at the bottom of the tool column, not a tool. It shows pressed while the pointer is on and uses the hotkey in its tooltip. While the global pointer is on, **no editor tool is selected (Select included) or usable**, and clicks on the canvas do nothing. Choosing a tool, by click or key, turns the pointer off. Turning the pointer off, by button or hotkey, **selects the Select tool** (it does not restore the previous tool).
+14. **Look C, "Hot core + wide haze + thin ring" (chosen by Andrew 2026-11-19 from `.scratch/v1/prototypes/laser-pointer-looks.html`, which stays in the repo as the primary source):** supersedes decision 3 ("laser dot with a soft glow"). The Laser pointer is a wide soft haze (70 x k), one thin ring (36 x k, 1.5 x k border) and a small hot core (8 x k, pale tint of the colour at the centre to the full colour, with a glow), all in the pointer colour and all colour/alpha only; k = core / 14 for Small 10, Medium 14, Large 20, so the size setting keeps its meaning. The haze is held to 90 px (Large would be 100 px) and the ring shrinks in proportion, so everything fits the 96 px window. The click ripple is unchanged. The pale core tint is derived from the chosen colour.
 
 ## Answer
 

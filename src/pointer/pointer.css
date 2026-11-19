@@ -1,8 +1,18 @@
-/* The pointer highlight window (ticket 50): the dot and its click ripple on a transparent page. */
+/* The pointer highlight window (ticket 50): the Laser pointer (three centred layers) and its click ripple on a transparent page. */
 .pointer-dot,
 .pointer-ripple {
   position: fixed;
   pointer-events: none;
+  transform: translate(-50%, -50%);
+}
+.pointer-dot {
+  width: 0;
+  height: 0;
+}
+.pointer-layer {
+  position: absolute;
+  left: 0;
+  top: 0;
   transform: translate(-50%, -50%);
 }
 .pointer-ripple {

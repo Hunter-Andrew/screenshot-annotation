@@ -63,9 +63,14 @@ test("the on/off state follows the hotkey and the tray item, and is not saved", 
 test("the dot window draws the stored look at once and shows the ripple for a click only when it is on", async ({ page }) => {
   await page.goto("/#pointer-highlight");
   const dot = page.getByRole("img", { name: "Pointer highlight" });
-  await expect(dot).toBeVisible();
-  await expect(dot).toHaveCSS("width", "14px");
-  await expect(dot).toHaveCSS("background-color", "rgb(224, 36, 36)");
+  const haze = dot.locator('[data-layer="haze"]');
+  const ring = dot.locator('[data-layer="ring"]');
+  const hot = dot.locator('[data-layer="hot"]');
+  await expect(hot).toBeVisible();
+  await expect(haze).toHaveCSS("width", "70px");
+  await expect(ring).toHaveCSS("width", "36px");
+  await expect(ring).toHaveCSS("border-top-color", "rgba(224, 36, 36, 0.55)");
+  await expect(hot).toHaveCSS("width", "8px");
 
   await page.evaluate(() => (window as unknown as { __fakeBridge: Fake }).__fakeBridge.pressPointerHotkey());
   await page.evaluate(() => (window as unknown as { __fakeBridge: Fake }).__fakeBridge.clickPointer());
@@ -79,8 +84,8 @@ test("the dot window draws the stored look at once and shows the ripple for a cl
       ripple: false,
     }),
   );
-  await expect(dot).toHaveCSS("width", "10px");
-  await expect(dot).toHaveCSS("background-color", "rgb(22, 163, 74)");
+  await expect(haze).toHaveCSS("width", "50px");
+  await expect(ring).toHaveCSS("border-top-color", "rgba(22, 163, 74, 0.55)");
   await page.evaluate(() => (window as unknown as { __fakeBridge: Fake }).__fakeBridge.clickPointer());
   await expect(page.locator("[data-ripple]")).toHaveCount(0);
 });
