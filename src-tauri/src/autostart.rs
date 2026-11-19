@@ -10,7 +10,7 @@ use std::path::Path;
 /// The registry key under HKCU that Windows reads at sign-in.
 pub const RUN_KEY_PATH: &str = r"Software\Microsoft\Windows\CurrentVersion\Run";
 /// The value name this app uses inside it.
-pub const VALUE_NAME: &str = "Screenshot Annotation";
+pub const VALUE_NAME: &str = "Sigil (Screenshot Annotation)";
 
 /// The command line stored in the Run value: the exe path in quotes (a path with spaces needs them),
 /// no arguments, so a sign-in launch starts in the tray like any other launch.
@@ -168,14 +168,14 @@ mod tests {
     }
 
     fn exe() -> PathBuf {
-        PathBuf::from(r"C:\Users\Andrew\AppData\Local\Screenshot Annotation\screenshot-annotation.exe")
+        PathBuf::from(r"C:\Users\Andrew\AppData\Local\Sigil (Screenshot Annotation)\screenshot-annotation.exe")
     }
 
     #[test]
     fn the_command_is_the_quoted_exe_path_with_no_arguments() {
         assert_eq!(
             run_command(&exe()),
-            r#""C:\Users\Andrew\AppData\Local\Screenshot Annotation\screenshot-annotation.exe""#
+            r#""C:\Users\Andrew\AppData\Local\Sigil (Screenshot Annotation)\screenshot-annotation.exe""#
         );
     }
 

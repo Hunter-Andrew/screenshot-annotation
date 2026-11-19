@@ -737,7 +737,7 @@ fn write_plain_png_to_clipboard(app: &AppHandle, png: &[u8]) -> Result<(), Strin
     app.clipboard().write_image(&image).map_err(|e| e.to_string())
 }
 
-/// Saves a new Library PNG under Pictures\Screenshot Annotation\YYYY-MM\. The `x-captured-at`
+/// Saves a new Library PNG under Pictures\Sigil (Screenshot Annotation)\YYYY-MM\. The `x-captured-at`
 /// header carries the local capture time as `YYYY-MM-DD HHmmss`. Returns the path written.
 #[tauri::command]
 fn library_save(app: AppHandle, request: Request<'_>) -> Result<String, String> {

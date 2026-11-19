@@ -1,4 +1,4 @@
-//! The Library as a list (M3, tickets 14, 15 and 17): which PNGs are in `Pictures\Screenshot Annotation`
+//! The Library as a list (M3, tickets 14, 15 and 17): which PNGs are in `Pictures\Sigil (Screenshot Annotation)`
 //! (the folder is the source of truth, ADR 0004), their pixel size, a cheap change signature the
 //! webview polls, the file names of the disposable thumbnail cache, and the in-memory copies that make
 //! Undo of a delete reliable. Pure std (plus `library.rs`), so the tests run anywhere.

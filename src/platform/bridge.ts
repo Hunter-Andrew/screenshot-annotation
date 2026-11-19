@@ -151,7 +151,7 @@ export interface PlatformBridge {
   /** Put a plain PNG (an Export) on the clipboard. */
   copyImage(png: Uint8Array): Promise<void>;
   /**
-   * Save a new Library PNG as Pictures\Screenshot Annotation\YYYY-MM\YYYY-MM-DD HHmmss.png
+   * Save a new Library PNG as Pictures\Sigil (Screenshot Annotation)\YYYY-MM\YYYY-MM-DD HHmmss.png
    * (never overwriting; a -2, -3 suffix on collision, written atomically). Returns the path.
    */
   saveToLibrary(png: Uint8Array, capturedAt: Date): Promise<string>;

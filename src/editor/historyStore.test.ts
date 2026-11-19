@@ -6,7 +6,7 @@ import { createFakeBridge } from "../platform/fakeBridge";
 import { createHistoryStore, historyKey } from "./historyStore";
 
 const NOW = Date.UTC(2026, 10, 15, 12, 0, 0);
-const PATH = "C:\\Pictures\\Screenshot Annotation\\2026-11\\2026-11-15 120000.png";
+const PATH = "C:\\Pictures\\Sigil (Screenshot Annotation)\\2026-11\\2026-11-15 120000.png";
 const png = (n: number) => new Uint8Array([137, 80, 78, 71, n]);
 const history = (n: number): HistoryState => ({
   undo: Array.from({ length: n }, (_, i) => ({

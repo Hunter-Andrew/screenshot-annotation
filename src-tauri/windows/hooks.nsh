@@ -43,5 +43,5 @@
 ; uninstaller), and the relaunched app writes the value again if the setting is still on. The key
 ; itself and every other value in it are never touched.
 !macro NSIS_HOOK_POSTUNINSTALL
-  DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "Screenshot Annotation"
+  DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "Sigil (Screenshot Annotation)"
 !macroend

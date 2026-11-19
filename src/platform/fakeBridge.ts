@@ -696,11 +696,11 @@ export function createFakeBridge(
     failNextLaunchAtSignIn: (message) => {
       launchFailure = message;
     },
-    libraryFolder: "C:\\Users\\fake\\Pictures\\Screenshot Annotation",
+    libraryFolder: "C:\\Users\\fake\\Pictures\\Sigil (Screenshot Annotation)",
     get libraryFolderOpened() {
       return libraryFolderOpened;
     },
-    getLibraryFolder: async () => "C:\\Users\\fake\\Pictures\\Screenshot Annotation",
+    getLibraryFolder: async () => "C:\\Users\\fake\\Pictures\\Sigil (Screenshot Annotation)",
     openLibraryFolder: async () => {
       libraryFolderOpened++;
     },

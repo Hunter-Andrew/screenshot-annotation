@@ -43,7 +43,7 @@ test("Settings: launch at sign-in, the Library folder and Reset tool styles", as
   await expect(page.getByRole("checkbox", { name: "Launch at sign-in" })).not.toBeChecked();
 
   const folder = page.getByLabel("Library folder");
-  await expect(folder).toHaveValue(/Screenshot Annotation/);
+  await expect(folder).toHaveValue(/Sigil \(Screenshot Annotation\)/);
   await expect(folder).toHaveJSProperty("readOnly", true);
   await page.getByRole("button", { name: "Open in Explorer" }).click();
   expect(await fake(page, (f) => f.libraryFolderOpened)).toBe(1);

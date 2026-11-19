@@ -4,7 +4,7 @@ status: accepted
 
 # One PNG per Annotated Image, with editable data embedded
 
-Each Annotated Image is stored as a single PNG in `Pictures\Screenshot Annotation\YYYY-MM\`. The PNG's visible pixels are the finished image, so any app can view it. The original Capture, the Annotations, the Crop and a format version are embedded in a PNG chunk that only this app reads back to make the image editable again. We chose this over a folder per image (capture, JSON, thumbnail) because it gives one self-describing file per image: viewable in Explorer, moved and synced as a unit, with no orphaned parts.
+Each Annotated Image is stored as a single PNG in `Pictures\Sigil (Screenshot Annotation)\YYYY-MM\`. The PNG's visible pixels are the finished image, so any app can view it. The original Capture, the Annotations, the Crop and a format version are embedded in a PNG chunk that only this app reads back to make the image editable again. We chose this over a folder per image (capture, JSON, thumbnail) because it gives one self-describing file per image: viewable in Explorer, moved and synced as a unit, with no orphaned parts.
 
 ## Consequences
 

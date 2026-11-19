@@ -1,11 +1,11 @@
-//! Library file I/O (ADR 0004): `Pictures\Screenshot Annotation\YYYY-MM\YYYY-MM-DD HHmmss.png`,
+//! Library file I/O (ADR 0004): `Pictures\Sigil (Screenshot Annotation)\YYYY-MM\YYYY-MM-DD HHmmss.png`,
 //! a `-2`, `-3`... suffix on a name collision, and atomic writes (temp file, then replace).
 //! Pure std so the tests run anywhere.
 
 use std::path::{Path, PathBuf};
 
 /// Folder under the user's Pictures folder that holds the Library.
-pub const LIBRARY_FOLDER: &str = "Screenshot Annotation";
+pub const LIBRARY_FOLDER: &str = "Sigil (Screenshot Annotation)";
 
 /// A capture time in local time, formatted `YYYY-MM-DD HHmmss` (the file name without extension).
 #[derive(Debug, Clone, PartialEq, Eq)]
