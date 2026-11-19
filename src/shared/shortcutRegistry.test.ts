@@ -15,6 +15,9 @@ const CONTEXTS: ShortcutContext[] = ["overlay", "editor"];
 // Ticket 28 decision 8, written out independently of the registry.
 const FIXED_KEYS = ["escape", "ctrl+z", "ctrl+y", "ctrl+c", "ctrl+v", "ctrl+x", "ctrl+a", "delete", "backspace", "enter", "tab", "arrowup", "arrowdown", "arrowleft", "arrowright"];
 
+// Ticket 41 decision 4 / ticket 54: Arrow, Rectangle, Pen, Highlighter.
+const DRAWING_MODE_KEYS = ["A", "R", "P", "H"];
+
 describe("the shortcut registry", () => {
   it("gives every action a unique id, a label and a context", () => {
     const ids = SHORTCUT_REGISTRY.map((a) => a.id);
@@ -39,12 +42,12 @@ describe("the shortcut registry", () => {
     expect(overlay["overlay.cancel"]).toMatchObject({ defaultKey: "Escape", remappable: false });
   });
 
-  it("marks every decision-8 fixed key as not remappable, and nothing else", () => {
+  it("marks every decision-8 fixed key and the four drawing-mode tool keys (ticket 54) as not remappable, and nothing else", () => {
     for (const a of SHORTCUT_REGISTRY) {
-      expect(a.remappable, a.id).toBe(!FIXED_KEYS.includes(a.defaultKey.toLowerCase()));
+      expect(a.remappable, a.id).toBe(!FIXED_KEYS.includes(a.defaultKey.toLowerCase()) && !DRAWING_MODE_KEYS.includes(a.defaultKey));
     }
     const fixedIds = SHORTCUT_REGISTRY.filter((a) => !a.remappable).map((a) => a.id).sort();
-    expect(fixedIds).toEqual(["editor.copy", "editor.delete", "editor.deleteBackspace", "editor.deselect", "editor.redo", "editor.undo", "overlay.cancel"]);
+    expect(fixedIds).toEqual(["editor.copy", "editor.delete", "editor.deleteBackspace", "editor.deselect", "editor.redo", "editor.undo", "overlay.cancel", "tool.arrow", "tool.highlight", "tool.pen", "tool.rect"]);
   });
 });
 

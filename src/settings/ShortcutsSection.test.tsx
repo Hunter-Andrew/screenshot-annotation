@@ -29,6 +29,14 @@ describe("Settings > Shortcuts", () => {
     expect(within(group("Editor")).getByRole("listitem", { name: "Arrow" })).toHaveTextContent("A");
   });
 
+  it("shows Arrow, Rectangle, Pen and Highlighter read-only with the Fixed marker and no change button", () => {
+    render(<Settings bridge={createFakeBridge()} />);
+    for (const name of ["Arrow", "Rectangle", "Pen", "Highlighter"]) {
+      expect(within(group("Editor")).getByRole("listitem", { name })).toHaveTextContent("Fixed");
+      expect(screen.queryByRole("button", { name: `Change shortcut for ${name}` })).toBeNull();
+    }
+  });
+
   it("lists every registry entry once, and marks fixed ones read-only", () => {
     render(<Settings bridge={createFakeBridge()} />);
     const items = within(screen.getByRole("region", { name: "Shortcuts" })).getAllByRole("listitem");
@@ -36,7 +44,7 @@ describe("Settings > Shortcuts", () => {
     const undo = within(group("Editor")).getByRole("listitem", { name: "Undo" });
     expect(undo).toHaveTextContent("Ctrl+Z");
     expect(undo).toHaveTextContent("Fixed");
-    expect(within(group("Editor")).getByRole("listitem", { name: "Arrow" })).not.toHaveTextContent("Fixed");
+    expect(within(group("Editor")).getByRole("listitem", { name: "Ellipse" })).not.toHaveTextContent("Fixed");
   });
 
   it("also lists the fixed editing keys that have no action of their own, read-only", () => {
@@ -90,75 +98,75 @@ describe("Settings > Shortcuts remapping", () => {
 
   it("Esc cancels recording and changes nothing", async () => {
     const { bridge, user } = await setup();
-    await user.click(changer("Arrow"));
+    await user.click(changer("Ellipse"));
     await user.keyboard("{Escape}");
-    expect(changer("Arrow")).toHaveTextContent("A");
+    expect(changer("Ellipse")).toHaveTextContent("E");
     expect(bridge.shortcutOverrides).toEqual({});
     expect(screen.queryByRole("alert")).toBeNull();
   });
 
   it("refuses a clash with a message naming the other action, and keeps the old key", async () => {
     const { bridge, user } = await setup();
-    await user.click(changer("Arrow"));
+    await user.click(changer("Ellipse"));
     await user.keyboard("l");
-    expect(await within(row("Arrow")).findByRole("alert")).toHaveTextContent(/"Line"/);
-    expect(changer("Arrow")).toHaveTextContent("A");
+    expect(await within(row("Ellipse")).findByRole("alert")).toHaveTextContent(/"Line"/);
+    expect(changer("Ellipse")).toHaveTextContent("E");
     expect(row("Line")).toHaveTextContent("L");
     expect(bridge.shortcutOverrides).toEqual({});
   });
 
   it("refuses a fixed key, the Windows key and Print Screen with a reason", async () => {
     const { user } = await setup();
-    await user.click(changer("Arrow"));
+    await user.click(changer("Ellipse"));
     await user.keyboard("{Enter}");
-    expect(await within(row("Arrow")).findByRole("alert")).toHaveTextContent(/fixed/i);
-    await user.click(changer("Arrow"));
+    expect(await within(row("Ellipse")).findByRole("alert")).toHaveTextContent(/fixed/i);
+    await user.click(changer("Ellipse"));
     await user.keyboard("{Meta>}k{/Meta}");
-    expect(await within(row("Arrow")).findByRole("alert")).toHaveTextContent(/Windows key/);
-    await user.click(changer("Arrow"));
+    expect(await within(row("Ellipse")).findByRole("alert")).toHaveTextContent(/Windows key/);
+    await user.click(changer("Ellipse"));
     await user.keyboard("{PrintScreen}");
-    expect(await within(row("Arrow")).findByRole("alert")).toHaveTextContent(/capture hotkey/);
+    expect(await within(row("Ellipse")).findByRole("alert")).toHaveTextContent(/capture hotkey/);
   });
 
   it("refuses a modifier pressed and released on its own", async () => {
     const { user } = await setup();
-    await user.click(changer("Arrow"));
+    await user.click(changer("Ellipse"));
     await user.keyboard("{Control}");
-    expect(await within(row("Arrow")).findByRole("alert")).toHaveTextContent(/modifier/i);
+    expect(await within(row("Ellipse")).findByRole("alert")).toHaveTextContent(/modifier/i);
   });
 
   it("shows saved overrides, falling back to the default for an invalid one", async () => {
-    await setup({ "tool.arrow": "K", "tool.line": "Win+L", "nope": "Z" });
-    expect(await screen.findByRole("button", { name: "Change shortcut for Arrow" })).toHaveTextContent("K");
+    await setup({ "tool.ellipse": "K", "tool.line": "Win+L", "nope": "Z" });
+    expect(await screen.findByRole("button", { name: "Change shortcut for Ellipse" })).toHaveTextContent("K");
     expect(changer("Line")).toHaveTextContent("L");
   });
 
   it("resets one entry, and refuses when the default is taken", async () => {
-    const { bridge, user } = await setup({ "tool.arrow": "K" });
-    await within(row("Arrow")).findByRole("button", { name: "Reset Arrow" });
-    await user.click(within(row("Arrow")).getByRole("button", { name: "Reset Arrow" }));
+    const { bridge, user } = await setup({ "tool.ellipse": "K" });
+    await within(row("Ellipse")).findByRole("button", { name: "Reset Ellipse" });
+    await user.click(within(row("Ellipse")).getByRole("button", { name: "Reset Ellipse" }));
     await waitFor(() => expect(bridge.shortcutOverrides).toEqual({}));
-    expect(changer("Arrow")).toHaveTextContent("A");
+    expect(changer("Ellipse")).toHaveTextContent("E");
   });
 
   it("refuses to reset onto a key another action now holds", async () => {
-    const { bridge, user } = await setup({ "tool.arrow": "K", "tool.line": "A" });
-    await user.click(await within(row("Arrow")).findByRole("button", { name: "Reset Arrow" }));
-    expect(await within(row("Arrow")).findByRole("alert")).toHaveTextContent(/"Line"/);
-    expect(bridge.shortcutOverrides).toEqual({ "tool.arrow": "K", "tool.line": "A" });
+    const { bridge, user } = await setup({ "tool.ellipse": "K", "tool.text": "E" });
+    await user.click(await within(row("Ellipse")).findByRole("button", { name: "Reset Ellipse" }));
+    expect(await within(row("Ellipse")).findByRole("alert")).toHaveTextContent(/"Text"/);
+    expect(bridge.shortcutOverrides).toEqual({ "tool.ellipse": "K", "tool.text": "E" });
   });
 
   it("Reset all clears every override, even a swapped pair", async () => {
-    const { bridge, user } = await setup({ "tool.arrow": "K", "tool.line": "A", "overlay.magnifier": "N" });
+    const { bridge, user } = await setup({ "tool.ellipse": "K", "tool.text": "E", "overlay.magnifier": "N" });
     await user.click(await screen.findByRole("button", { name: "Reset all shortcuts" }));
     await waitFor(() => expect(bridge.shortcutOverrides).toEqual({}));
-    expect(changer("Arrow")).toHaveTextContent("A");
+    expect(changer("Ellipse")).toHaveTextContent("E");
     expect(changer("Toggle the magnifier")).toHaveTextContent("M");
   });
 
   it("follows a change made in another open Settings window", async () => {
     const { bridge } = await setup();
-    await act(() => bridge.setShortcutOverrides({ "tool.arrow": "K" }));
-    expect(changer("Arrow")).toHaveTextContent("K");
+    await act(() => bridge.setShortcutOverrides({ "tool.ellipse": "K" }));
+    expect(changer("Ellipse")).toHaveTextContent("K");
   });
 });

@@ -24,7 +24,7 @@ export interface ShortcutAction {
   context: ShortcutContext;
   /** "V", "Escape", "Space", "Ctrl+C", "Ctrl+Delete": modifiers joined with "+", then the key. */
   defaultKey: string;
-  /** False for the fixed keys of ticket 28 decision 8 (Esc, Ctrl+Z, Ctrl+Y, Ctrl+C, Delete, Backspace, ...): shown read-only. */
+  /** False for the fixed keys of ticket 28 decision 8 (Esc, Ctrl+Z, Ctrl+Y, Ctrl+C, Delete, Backspace, ...) and the Arrow, Rectangle, Pen and Highlighter keys, fixed to match the drawing mode (ticket 41 decision 4, ticket 54): shown read-only, and a saved override is ignored. */
   remappable: boolean;
 }
 
@@ -34,14 +34,14 @@ export const SHORTCUT_REGISTRY: readonly ShortcutAction[] = [
   { id: "overlay.magnifier", label: "Toggle the magnifier", context: "overlay", defaultKey: "M", remappable: true },
 
   { id: "tool.select", label: "Select", context: "editor", defaultKey: "V", remappable: true },
-  { id: "tool.arrow", label: "Arrow", context: "editor", defaultKey: "A", remappable: true },
+  { id: "tool.arrow", label: "Arrow", context: "editor", defaultKey: "A", remappable: false },
   { id: "tool.line", label: "Line", context: "editor", defaultKey: "L", remappable: true },
-  { id: "tool.pen", label: "Pen", context: "editor", defaultKey: "P", remappable: true },
-  { id: "tool.rect", label: "Rectangle", context: "editor", defaultKey: "R", remappable: true },
+  { id: "tool.pen", label: "Pen", context: "editor", defaultKey: "P", remappable: false },
+  { id: "tool.rect", label: "Rectangle", context: "editor", defaultKey: "R", remappable: false },
   { id: "tool.ellipse", label: "Ellipse", context: "editor", defaultKey: "E", remappable: true },
   { id: "tool.text", label: "Text", context: "editor", defaultKey: "T", remappable: true },
   { id: "tool.callout", label: "Callout", context: "editor", defaultKey: "O", remappable: true },
-  { id: "tool.highlight", label: "Highlighter", context: "editor", defaultKey: "H", remappable: true },
+  { id: "tool.highlight", label: "Highlighter", context: "editor", defaultKey: "H", remappable: false },
   { id: "tool.blur", label: "Blur", context: "editor", defaultKey: "B", remappable: true },
   { id: "tool.crop", label: "Crop", context: "editor", defaultKey: "C", remappable: true },
   { id: "editor.deselect", label: "Deselect and return to Select", context: "editor", defaultKey: "Escape", remappable: false },
