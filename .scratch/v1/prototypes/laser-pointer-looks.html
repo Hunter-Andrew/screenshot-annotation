@@ -1,0 +1,101 @@
+<!doctype html>
+<!--
+PROTOTYPE (throwaway): "What should the desktop pointer highlight look like?" (ticket 40, follow-up 2026-11-19)
+Question: Andrew wants the dot to look more like a real laser pointer: a smaller or less solid core with more
+crosshair-style glow. Five structurally different looks, switch with the bar at the bottom, the arrow keys, or
+?variant=A..E. Sizes Small/Medium/Large use core 10/14/20 px (the shipped size table); everything else scales with it.
+The real dot is a transparent window, so everything below uses only colour and alpha (no blend modes).
+-->
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Laser pointer looks (prototype)</title>
+<style>
+:root{--bg:#f4f4f7;--fg:#16161d;--card:#fff;--line:#d9d9e2;--muted:#5d5d6e}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#121218;--fg:#ececf2;--card:#1c1c25;--line:#2e2e3b;--muted:#a0a0b2}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 "Segoe UI",system-ui,sans-serif;padding:20px 16px 90px}
+main{max-width:1150px;margin:auto}h1{font-size:22px;margin:0 0 2px}p.note{color:var(--muted);margin:0 0 12px}
+.row{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:10px 0}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.card h3{margin:0;padding:8px 12px;font-size:14px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between}
+.card h3 span{color:var(--muted);font-weight:400}
+.bgs{display:grid;grid-template-columns:repeat(3,1fr);height:112px}
+.bg{position:relative;display:grid;place-items:center}
+.light{background:#f7f7f7}.dark{background:#1b1d24}
+.busy{background:repeating-linear-gradient(45deg,#c9d3e0 0 10px,#7d8da6 10px 20px),#999}
+.stage{height:200px;position:relative;cursor:none;overflow:hidden;
+ background:linear-gradient(135deg,#e8edf3 0 33%,#1f2330 33% 66%,#b8c3d4 66%)}
+.stage::before{content:"Move the mouse here · click for the ripple";position:absolute;inset:auto 0 6px;text-align:center;font-size:12px;color:#fff;text-shadow:0 0 3px #000}
+.sp{position:absolute;pointer-events:none;transform:translate(-50%,-50%)}
+.ring{position:absolute;pointer-events:none;border-radius:50%;border:3px solid #e01b24;transform:translate(-50%,-50%);animation:rip .4s ease-out forwards}
+@keyframes rip{from{width:10px;height:10px;opacity:.9}to{width:70px;height:70px;opacity:0}}
+@keyframes flick{0%,100%{opacity:1}50%{opacity:.82}}
+label.t{display:inline-flex;gap:8px;align-items:center;color:var(--muted);font-size:14px;margin-right:16px}
+#bar{position:fixed;left:50%;bottom:14px;transform:translateX(-50%);background:#16161d;color:#fff;border-radius:999px;padding:8px 14px;display:flex;gap:14px;align-items:center;box-shadow:0 6px 24px #0007;z-index:9;font-size:14px}
+#bar button{background:#2a2a38;color:#fff;border:0;border-radius:999px;width:30px;height:30px;font-size:16px;cursor:pointer}
+</style></head><body><main>
+<h1>Laser pointer looks <small style="font-weight:400;color:var(--muted)">(prototype for ticket 40)</small></h1>
+<p class="note" id="desc"></p>
+<label class="t"><input type="checkbox" id="rip" checked> Click ripple</label>
+<label class="t">Colour <input type="color" id="col" value="#ff2a2a"></label>
+<div class="row" id="sizes"></div>
+<p class="note">Static samples (the dot at rest, over a light, a dark and a busy background), then the live stage below each size.</p>
+</main>
+<div id="bar"><button id="prev">&larr;</button><span id="label"></span><button id="next">&rarr;</button></div>
+<script>
+const SIZES=[["Small",10],["Medium",14],["Large",20]];
+let colour="#ff2a2a";
+const rgb=h=>{const m=/^#(..)(..)(..)$/.exec(h);return m?[parseInt(m[1],16),parseInt(m[2],16),parseInt(m[3],16)]:[255,42,42]};
+const rgba=(a)=>{const [r,g,b]=rgb(colour);return `rgba(${r},${g},${b},${a})`};
+/* a pale tint of the colour for the hot centre */
+const hot=()=>{const [r,g,b]=rgb(colour);const m=v=>Math.round(v+(255-v)*.82);return `rgb(${m(r)},${m(g)},${m(b)})`};
+
+/* Each look returns HTML for a dot centred on (0,0); k = core/14 scales every dimension. All drawn with absolutely centred boxes. */
+const box=(w,h,css)=>`<i style="position:absolute;left:50%;top:50%;width:${w}px;height:${h}px;transform:translate(-50%,-50%);${css}"></i>`;
+const LOOKS={
+ A:{name:"Pin-prick + crosshair streaks",desc:"A tiny white-hot core, a tight bloom, and two thin streaks (horizontal and vertical) that fade out: the lens-flare crosshair of a real laser dot on a wall.",
+  html:k=>
+   box(56*k,56*k,`border-radius:50%;background:radial-gradient(circle,${rgba(.55)} 0,${rgba(.25)} 35%,${rgba(0)} 70%)`)+
+   box(84*k,2.2*k,`border-radius:2px;background:linear-gradient(90deg,${rgba(0)},${rgba(.85)} 50%,${rgba(0)})`)+
+   box(2.2*k,84*k,`border-radius:2px;background:linear-gradient(180deg,${rgba(0)},${rgba(.85)} 50%,${rgba(0)})`)+
+   box(6*k,6*k,`border-radius:50%;background:${hot()};box-shadow:0 0 ${5*k}px ${2*k}px ${rgba(.9)}`)},
+ B:{name:"Starburst",desc:"A four-point star, like a camera highlight: long thin diamond rays with a small second star at 45 degrees, and a small bright core.",
+  html:k=>{const star=(s,rot,a)=>box(s*k,s*k,`transform:translate(-50%,-50%) rotate(${rot}deg);clip-path:polygon(50% 0,56% 44%,100% 50%,56% 56%,50% 100%,44% 56%,0 50%,44% 44%);background:radial-gradient(circle,${rgba(a)} 0,${rgba(a*.55)} 45%,${rgba(0)} 100%)`);
+   return box(40*k,40*k,`border-radius:50%;background:radial-gradient(circle,${rgba(.45)} 0,${rgba(0)} 70%)`)+star(90,0,1)+star(48,45,.8)+box(5*k,5*k,`border-radius:50%;background:${hot()};box-shadow:0 0 ${4*k}px ${1.5*k}px ${rgba(.95)}`)}},
+ C:{name:"Hot core + wide haze + thin ring",desc:"The least crosshair of the five: a small bright centre, a very soft wide haze, and one thin ring at the edge of the haze, like a dot seen through fog.",
+  html:k=>
+   box(70*k,70*k,`border-radius:50%;background:radial-gradient(circle,${rgba(.5)} 0,${rgba(.22)} 40%,${rgba(0)} 72%)`)+
+   box(36*k,36*k,`border-radius:50%;border:${1.5*k}px solid ${rgba(.55)}`)+
+   box(8*k,8*k,`border-radius:50%;background:radial-gradient(circle,${hot()} 0,${rgba(1)} 80%);box-shadow:0 0 ${6*k}px ${2*k}px ${rgba(.8)}`)},
+ D:{name:"Speckle shimmer",desc:"A real laser dot looks grainy because of speckle: a small core with a bloom and a handful of faint dots around it, with a very slight flicker.",
+  html:k=>{const pts=[[9,-4,3],[-8,7,2.5],[3,12,2],[-13,-6,2.2],[14,9,1.8],[-4,-14,2.4],[7,-12,1.6],[-11,13,1.6],[18,-2,1.4],[-17,2,1.5]];
+   return `<span style="position:absolute;inset:0;animation:flick .16s infinite">`+
+   box(50*k,50*k,`border-radius:50%;background:radial-gradient(circle,${rgba(.55)} 0,${rgba(.22)} 40%,${rgba(0)} 72%)`)+
+   pts.map(([x,y,s],i)=>`<i style="position:absolute;left:calc(50% + ${x*k}px);top:calc(50% + ${y*k}px);width:${s*k}px;height:${s*k}px;border-radius:50%;background:${rgba(.5+((i%3)*.15))};transform:translate(-50%,-50%)"></i>`).join("")+
+   box(6.5*k,6.5*k,`border-radius:50%;background:${hot()};box-shadow:0 0 ${5*k}px ${2*k}px ${rgba(.9)}`)+`</span>`}},
+ E:{name:"Reticle",desc:"The most literal crosshair: four short ticks around a small gap, a bright centre dot and a soft bloom under them, like a sight.",
+  html:k=>{const t=(w,h,x,y)=>box(w*k,h*k,`left:calc(50% + ${x*k}px);top:calc(50% + ${y*k}px);background:${rgba(.95)};border-radius:1px;box-shadow:0 0 ${4*k}px ${rgba(.8)}`);
+   return box(48*k,48*k,`border-radius:50%;background:radial-gradient(circle,${rgba(.4)} 0,${rgba(0)} 70%)`)+
+   t(2,11,0,-13)+t(2,11,0,13)+t(11,2,-13,0)+t(11,2,13,0)+
+   box(5*k,5*k,`border-radius:50%;background:${hot()};box-shadow:0 0 ${5*k}px ${2*k}px ${rgba(.95)}`)}},
+};
+const KEYS=Object.keys(LOOKS);
+let variant=(new URLSearchParams(location.search).get("variant")||"A").toUpperCase();if(!LOOKS[variant])variant="A";
+
+const dot=(html,extra="")=>`<span style="position:absolute;left:50%;top:50%;width:0;height:0;${extra}">${html}</span>`;
+function draw(){
+ const L=LOOKS[variant];document.getElementById("desc").textContent=L.desc;
+ document.getElementById("label").textContent=variant+" ("+L.name+")";
+ const host=document.getElementById("sizes");host.innerHTML="";
+ SIZES.forEach(([name,core])=>{const k=core/14;const c=document.createElement("div");c.className="card";
+  c.innerHTML=`<h3>${name} <span>core ${core}px</span></h3><div class="bgs">${["light","dark","busy"].map(b=>`<div class="bg ${b}">${dot(L.html(k))}</div>`).join("")}</div><div class="stage"></div>`;
+  const s=c.querySelector(".stage");const p=document.createElement("div");p.className="sp";p.style.display="none";p.style.width="0";p.style.height="0";p.innerHTML=L.html(k);s.appendChild(p);
+  s.onmousemove=e=>{const r=s.getBoundingClientRect();p.style.display="block";p.style.left=e.clientX-r.left+"px";p.style.top=e.clientY-r.top+"px"};
+  s.onmouseleave=()=>p.style.display="none";
+  s.onmousedown=e=>{if(!document.getElementById("rip").checked)return;const r=s.getBoundingClientRect();const g=document.createElement("div");g.className="ring";g.style.borderColor=colour;g.style.left=e.clientX-r.left+"px";g.style.top=e.clientY-r.top+"px";s.appendChild(g);setTimeout(()=>g.remove(),420)};
+  host.appendChild(c)});
+}
+function go(d){variant=KEYS[(KEYS.indexOf(variant)+d+KEYS.length)%KEYS.length];const u=new URL(location);u.searchParams.set("variant",variant);history.replaceState(null,"",u);draw()}
+document.getElementById("prev").onclick=()=>go(-1);document.getElementById("next").onclick=()=>go(1);
+document.getElementById("col").oninput=e=>{colour=e.target.value;draw()};
+addEventListener("keydown",e=>{if(/INPUT|TEXTAREA/.test(document.activeElement.tagName))return;if(e.key==="ArrowLeft")go(-1);if(e.key==="ArrowRight")go(1)});
+draw();
+</script></body></html>
