@@ -156,6 +156,7 @@ export function createTauriBridge(): PlatformBridge {
     overlayWindows: (monitor) => invoke<OverlayRect[]>("overlay_windows", { monitor }),
     overlayReady: (monitor) => invoke<void>("overlay_ready", { monitor }),
     finishOverlay: (outcome) => invoke<void>("overlay_finish", { outcome }),
+    exitDrawingMode: () => invoke<void>("drawing_exit"),
     logOverlay: async (message, fatal = false) => {
       try {
         await invoke<void>("overlay_log", { message, fatal });

@@ -228,6 +228,12 @@ export interface PlatformBridge {
    */
   logOverlay(message: string, fatal?: boolean): Promise<void>;
   /**
+   * Drawing mode (ticket 52): leave the mode. The platform destroys every drawing overlay (the page that
+   * asked included) and the drawings go with them; nothing is saved. Also what the hotkey and the tray
+   * item do from the platform's side, so this is only for the page's own Esc.
+   */
+  exitDrawingMode(): Promise<void>;
+  /**
    * Whether the capture overlay shows its magnifier: a stored setting (default true on a fresh
    * install) that each overlay reads when it starts and the Settings window can change too.
    */

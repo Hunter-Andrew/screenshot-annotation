@@ -8,7 +8,7 @@ import { describe, expect, it } from "vitest";
 import { BACKGROUNDS } from "../core/area";
 import { CAPTURE_DELAYS } from "../platform/bridge";
 import { CANVAS_MARGIN, CHECKERBOARD_THEMES, CROP_MARGIN, DEFAULT_DARK_BACKGROUND, DEFAULT_IMAGE_SETTINGS, OUTSIDE_DARKNESS } from "./imageSettings";
-import { COUNTDOWN_HASH, OVERLAY_HASH_PREFIX, RELEASES_URL, SETTINGS_HASH } from "./constants";
+import { COUNTDOWN_HASH, DRAWING_HASH_PREFIX, OVERLAY_HASH_PREFIX, RELEASES_URL, SETTINGS_HASH } from "./constants";
 
 const rust = (file: string) => readFileSync(resolve(__dirname, "../../src-tauri/src", file), "utf8");
 
@@ -26,6 +26,18 @@ describe("TS/Rust shared constants", () => {
   it("overlay.rs opens each overlay window at the prefix App.tsx routes on", () => {
     const match = rust("overlay.rs").match(/WebviewUrl::App\(format!\("index\.html([^"{]*)\{/);
     expect(match?.[1]).toBe(OVERLAY_HASH_PREFIX);
+  });
+
+  it("drawing.rs opens each Drawing mode overlay window at the prefix App.tsx routes on", () => {
+    const match = rust("drawing.rs").match(/WebviewUrl::App\(format!\("index\.html([^"{]*)\{/);
+    expect(match?.[1]).toBe(DRAWING_HASH_PREFIX);
+  });
+
+  it("the capability glob covers the Drawing mode overlay window labels", () => {
+    const label = rust("drawing_plan.rs").match(/pub const LABEL_PREFIX: &str = "([^"]+)";/)?.[1];
+    const capability = readFileSync(resolve(__dirname, "../../src-tauri/capabilities/default.json"), "utf8");
+    expect(label).toBeTruthy();
+    expect(JSON.parse(capability).windows).toContain(`${label}*`);
   });
 
   it("countdown.rs opens the countdown badge window at the hash App.tsx routes on", () => {
