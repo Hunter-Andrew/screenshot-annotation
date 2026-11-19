@@ -1164,10 +1164,10 @@ fn close_editor_to_tray(app: &AppHandle) {
             use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
             app.dialog()
                 .message(
-                    "Screenshot Annotation is still running in the system tray, so the capture hotkey keeps \
+                    "Sigil is still running in the system tray, so the capture hotkey keeps \
                      working.\n\nClick its tray icon to open the editor again, or right-click it and choose Exit to quit.",
                 )
-                .title("Screenshot Annotation")
+                .title("Sigil (Screenshot Annotation)")
                 .kind(MessageDialogKind::Info)
                 .blocking_show();
         });
@@ -1178,7 +1178,7 @@ fn close_editor_to_tray(app: &AppHandle) {
 /// pre-warmed window and for a window made on demand.
 fn editor_builder<'a>(app: &'a AppHandle) -> WebviewWindowBuilder<'a, tauri::Wry, AppHandle> {
     new_window(app, EDITOR_LABEL, WebviewUrl::App("index.html".into()))
-        .title("Screenshot Annotation")
+        .title("Sigil (Screenshot Annotation)")
         .inner_size(1100.0, 720.0)
         .min_inner_size(760.0, 480.0)
 }
@@ -1469,7 +1469,7 @@ pub fn run() {
             if let Some(icon) = app.default_window_icon() {
                 tray = tray.icon(icon.clone());
             }
-            tray.tooltip("Screenshot Annotation")
+            tray.tooltip("Sigil (Screenshot Annotation)")
                 .menu(&menu.build()?)
                 .show_menu_on_left_click(false)
                 .on_tray_icon_event(|tray, event| {
@@ -1499,7 +1499,7 @@ pub fn run() {
             Ok(())
         })
         .build(tauri::generate_context!())
-        .expect("error while building Screenshot Annotation")
+        .expect("error while building Sigil")
         .run(|app, event| match event {
             // Closing a window must not quit the app; only the tray's Exit does (app.exit(0)).
             RunEvent::ExitRequested { api, code, .. } => {

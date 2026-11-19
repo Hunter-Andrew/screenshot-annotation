@@ -1,4 +1,4 @@
-# Screenshot Annotation
+# Sigil (Screenshot Annotation)
 
 A Windows desktop tool for taking screenshots, marking them up, copying the result, and returning to past work.
 

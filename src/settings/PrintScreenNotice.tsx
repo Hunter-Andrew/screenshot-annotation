@@ -30,7 +30,7 @@ export function PrintScreenNotice({ bridge }: { bridge: PlatformBridge }) {
         Print Screen
       </h2>
       <p>
-        Print Screen opens Snipping Tool. Use it for Screenshot Annotation instead? Open the Windows setting,
+        Print Screen opens Snipping Tool. Use it for Sigil instead? Open the Windows setting,
         turn off &ldquo;Use the Print screen button to open screen capturing&rdquo; (Settings &gt; Bluetooth &amp;
         devices &gt; Keyboard), then record Print Screen as the capture hotkey above.
       </p>

@@ -64,7 +64,7 @@ interface Entry {
 }
 
 /** The status line when a read-only image (saved by a newer version) is opened, and when a paste is refused on it. */
-const READ_ONLY_NOTICE = "Opened read-only: it was saved by a newer version of Screenshot Annotation";
+const READ_ONLY_NOTICE = "Opened read-only: it was saved by a newer version of Sigil";
 const NOTHING_OPEN_NOTICE = "Take or open a capture before pasting an image";
 
 function useSessionImage(session: EditSession | null): AnnotatedImage | null {
@@ -751,7 +751,7 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
       {/* The grid covers the editor; the editor stays mounted (its canvas and view survive) but out of reach. */}
       <div className="editor-body" inert={screen === "grid"}>
         <header className="topbar">
-          <strong>Screenshot Annotation</strong>
+          <strong>Sigil (Screenshot Annotation)</strong>
           <button onClick={() => void bridge.startCapture()}>Capture</button>
           <DelayCapture bridge={bridge} />
           <button

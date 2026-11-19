@@ -1,4 +1,4 @@
-# screenshot-annotation
+# Sigil (Screenshot Annotation)
 
 A Windows desktop app for capturing and annotating screenshots, in the style of Snagit (images only, no video). It installs per-user, with no admin rights needed.
 

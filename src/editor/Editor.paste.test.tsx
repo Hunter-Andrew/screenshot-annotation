@@ -243,7 +243,7 @@ describe("what Ctrl+V does not do", () => {
 
     await paste(solid(4, 4));
 
-    expect(status()).toHaveTextContent("Opened read-only: it was saved by a newer version of Screenshot Annotation");
+    expect(status()).toHaveTextContent("Opened read-only: it was saved by a newer version of Sigil");
     expect(images(kit)).toHaveLength(0);
     await act(async () => void (await vi.advanceTimersByTimeAsync(3000)));
     expect(bridge.libraryUpdates).toEqual([]);

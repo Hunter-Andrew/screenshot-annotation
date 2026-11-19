@@ -161,7 +161,7 @@ fn show_error(app: &AppHandle, message: &str) {
     };
     app.dialog()
         .message(format!("The capture could not start.\n\n{message}\n\n{location}"))
-        .title("Screenshot Annotation")
+        .title("Sigil (Screenshot Annotation)")
         .kind(MessageDialogKind::Error)
         .show(|_| {});
 }

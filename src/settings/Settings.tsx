@@ -54,7 +54,7 @@ export function Settings({ bridge }: { bridge: PlatformBridge }) {
         <h2 id="about-heading" style={{ fontSize: 15 }}>
           About
         </h2>
-        <p>Screenshot Annotation</p>
+        <p>Sigil (Screenshot Annotation)</p>
         <p>{version === null ? "Version …" : `Version ${version}`}</p>
         <button type="button" onClick={() => void bridge.openUrl(RELEASES_URL)}>
           Check for updates
