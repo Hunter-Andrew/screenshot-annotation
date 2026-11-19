@@ -10,35 +10,35 @@ type Fake = {
 const fake = <T,>(page: Page, read: (f: Fake) => T) =>
   page.evaluate(`(${read.toString()})(window.__fakeBridge)`) as Promise<T>;
 
-const switchOn = (page: Page) => page.getByRole("checkbox", { name: "Laser pointer is on" });
+const switchOn = (page: Page) => page.getByRole("checkbox", { name: "Laser pointer is on", exact: true });
 const ripple = (page: Page) => page.getByRole("checkbox", { name: "Show a ripple when I left-click" });
 
 test("colour, size and ripple are set in Demo tools and survive reopening Settings", async ({ page }) => {
   await page.goto("/#settings");
   await expect(page.getByRole("heading", { name: "Laser pointer look" })).toBeVisible();
   // Fresh install: red, Medium, ripple on.
-  await expect(page.getByRole("button", { name: "Pointer color #e02424" })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByRole("button", { name: "Laser pointer color #e02424" })).toHaveAttribute("aria-pressed", "true");
   await expect(page.getByRole("radio", { name: "Medium" })).toBeChecked();
   await expect(ripple(page)).toBeChecked();
 
-  await page.getByRole("button", { name: "Pointer color #2563eb" }).click();
+  await page.getByRole("button", { name: "Laser pointer color #2563eb" }).click();
   await page.getByRole("radio", { name: "Large" }).check();
   await ripple(page).uncheck();
   expect(await fake(page, (f) => f.laserPointerSettings)).toEqual({ color: "#2563eb", size: "large", ripple: false });
 
   await page.reload();
-  await expect(page.getByRole("button", { name: "Pointer color #2563eb" })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByRole("button", { name: "Laser pointer color #2563eb" })).toHaveAttribute("aria-pressed", "true");
   await expect(page.getByRole("radio", { name: "Large" })).toBeChecked();
   await expect(ripple(page)).not.toBeChecked();
 });
 
 test("a custom colour can be typed as hex and picked with the colour picker", async ({ page }) => {
   await page.goto("/#settings");
-  const hex = page.getByRole("textbox", { name: "Pointer color hex" });
+  const hex = page.getByRole("textbox", { name: "Laser pointer color hex" });
   await hex.fill("#12ab34");
   await hex.press("Enter");
   expect((await fake(page, (f) => f.laserPointerSettings)).color).toBe("#12ab34");
-  await page.getByLabel("Custom pointer color").fill("#ff8800");
+  await page.getByLabel("Custom laser pointer color").fill("#ff8800");
   expect((await fake(page, (f) => f.laserPointerSettings)).color).toBe("#ff8800");
   await hex.fill("12");
   await hex.press("Enter");
@@ -92,7 +92,7 @@ test("the dot window draws the stored look at once and shows the ripple for a cl
 
 test("hiding the system mouse arrow is on by default, can be turned off, and survives reopening Settings", async ({ page }) => {
   await page.goto("/#settings");
-  const hide = page.getByRole("checkbox", { name: "Hide the Windows mouse arrow while the dot is on" });
+  const hide = page.getByRole("checkbox", { name: "Hide the Windows mouse arrow while the Laser pointer is on" });
   await expect(hide).toBeChecked();
   await hide.uncheck();
   expect(await page.evaluate(`window.__fakeBridge.laserPointerHideCursor`)).toBe(false);

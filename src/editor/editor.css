@@ -99,7 +99,7 @@
 .tools .tool[aria-pressed="true"] .tool-icon {
   color: var(--accent-text);
 }
-/* The global pointer toggle: at the bottom of the column, pressed like a selected tool but not one. */
+/* The laser pointer toggle: at the bottom of the column, pressed like a selected tool but not one. */
 .tools .laser-pointer-toggle {
   margin-top: auto;
   display: flex;

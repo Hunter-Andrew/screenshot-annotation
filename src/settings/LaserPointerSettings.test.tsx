@@ -14,28 +14,28 @@ const open = async (bridge = createFakeBridge()) => {
 describe("Settings > Demo tools > Laser pointer look", () => {
   it("shows red, Medium and the ripple on for a fresh install", async () => {
     await open();
-    expect(screen.getByRole("button", { name: "Pointer color #e02424" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Laser pointer color #e02424" })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByRole("radio", { name: "Medium" })).toBeChecked();
     expect(screen.getByRole("checkbox", { name: "Show a ripple when I left-click" })).toBeChecked();
   });
 
   it("offers the 8 palette colours, a custom picker and a hex field", async () => {
     await open();
-    expect(screen.getAllByRole("button", { name: /^Pointer color #/ })).toHaveLength(8);
-    expect(screen.getByLabelText("Custom pointer color")).toBeVisible();
-    expect(screen.getByRole("textbox", { name: "Pointer color hex" })).toHaveValue("#e02424");
+    expect(screen.getAllByRole("button", { name: /^Laser pointer color #/ })).toHaveLength(8);
+    expect(screen.getByLabelText("Custom laser pointer color")).toBeVisible();
+    expect(screen.getByRole("textbox", { name: "Laser pointer color hex" })).toHaveValue("#e02424");
   });
 
   it("stores a palette colour at once", async () => {
     const bridge = await open();
-    await userEvent.click(screen.getByRole("button", { name: "Pointer color #2563eb" }));
+    await userEvent.click(screen.getByRole("button", { name: "Laser pointer color #2563eb" }));
     await waitFor(() => expect(bridge.laserPointerSettings.color).toBe("#2563eb"));
-    expect(screen.getByRole("button", { name: "Pointer color #2563eb" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Laser pointer color #2563eb" })).toHaveAttribute("aria-pressed", "true");
   });
 
   it("stores a typed hex colour", async () => {
     const bridge = await open();
-    const hex = screen.getByRole("textbox", { name: "Pointer color hex" });
+    const hex = screen.getByRole("textbox", { name: "Laser pointer color hex" });
     await userEvent.clear(hex);
     await userEvent.type(hex, "#12ab34{Enter}");
     await waitFor(() => expect(bridge.laserPointerSettings.color).toBe("#12ab34"));
@@ -43,7 +43,7 @@ describe("Settings > Demo tools > Laser pointer look", () => {
 
   it("hides the Windows mouse arrow by default, and the checkbox turns that off and on", async () => {
     const bridge = await open();
-    const box = screen.getByRole("checkbox", { name: "Hide the Windows mouse arrow while the dot is on" });
+    const box = screen.getByRole("checkbox", { name: "Hide the Windows mouse arrow while the Laser pointer is on" });
     await waitFor(() => expect(box).toBeEnabled());
     expect(box).toBeChecked();
     expect(bridge.laserPointerHideCursor).toBe(true);
@@ -63,7 +63,7 @@ describe("Settings > Demo tools > Laser pointer look", () => {
 
   it("stores the ripple checkbox and leaves the colour and size alone", async () => {
     const bridge = await open();
-    await userEvent.click(screen.getByRole("button", { name: "Pointer color #16a34a" }));
+    await userEvent.click(screen.getByRole("button", { name: "Laser pointer color #16a34a" }));
     await userEvent.click(screen.getByRole("checkbox", { name: "Show a ripple when I left-click" }));
     await waitFor(() => expect(bridge.laserPointerSettings).toEqual({ color: "#16a34a", size: "medium", ripple: false }));
   });
@@ -72,12 +72,12 @@ describe("Settings > Demo tools > Laser pointer look", () => {
     const bridge = createFakeBridge();
     await bridge.setLaserPointerSettings({ color: "#9333ea", size: "small", ripple: false });
     await open(bridge);
-    expect(screen.getByRole("button", { name: "Pointer color #9333ea" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Laser pointer color #9333ea" })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByRole("radio", { name: "Small" })).toBeChecked();
     expect(screen.getByRole("checkbox", { name: "Show a ripple when I left-click" })).not.toBeChecked();
   });
 
-  it("has a switch that follows the hotkey and the tray item, and can turn the highlight on and off itself", async () => {
+  it("has a switch that follows the hotkey and the tray item, and can turn the Laser pointer on and off itself", async () => {
     const bridge = await open();
     const on = screen.getByRole("checkbox", { name: "Laser pointer is on" });
     expect(on).not.toBeChecked();

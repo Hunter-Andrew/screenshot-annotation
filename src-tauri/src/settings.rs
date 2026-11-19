@@ -9,7 +9,7 @@
 //!   Screen, the capture hotkey or each other; a value that breaks that, or is not text, becomes the default.
 //! - `laserPointerColor` (`#RRGGBB`, default `#e02424`, red), `laserPointerSize` ("small", "medium" or "large"; default
 //!   "medium") and `laserPointerRipple` (true by default): how the laser pointer looks (ticket 50). Change them in
-//!   Settings > Demo tools. Anything else is read as the default. Whether the highlight is on is never stored:
+//!   Settings > Demo tools. Anything else is read as the default. Whether the Laser pointer is on is never stored:
 //!   it is off at every start.
 //! - `laserPointerHideCursor` (true by default): while the laser pointer is on, the Windows mouse arrow is hidden so
 //!   only the dot shows. Set it to false (or untick it in Settings > Demo tools) to keep the arrow.
@@ -274,7 +274,7 @@ fn outside_darkness_or_default<'de, D: serde::Deserializer<'de>>(d: D) -> Result
     tenths_in(d, OUTSIDE_DARKNESS)
 }
 
-/// A stored `#RRGGBB` pointer colour is kept (lower-cased); anything else is red.
+/// A stored `#RRGGBB` laser pointer colour is kept (lower-cased); anything else is red.
 fn laser_pointer_color_or_default<'de, D: serde::Deserializer<'de>>(d: D) -> Result<String, D::Error> {
     Ok(match serde_json::Value::deserialize(d)? {
         serde_json::Value::String(s) if is_hex_color(&s) => s.to_ascii_lowercase(),

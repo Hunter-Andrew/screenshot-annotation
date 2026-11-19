@@ -460,7 +460,7 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
 
   const chooseTool = (next: string) => {
     if (readOnly) return;
-    // A tool chosen while the global pointer is on switches it off (the state event that follows changes nothing).
+    // A tool chosen while the laser pointer is on switches it off (the state event that follows changes nothing).
     if (mode.laserPointerOn) void bridge.setLaserPointer(false).catch(() => {});
     setMode((now) => pickTool(now, next));
     setSelectedId(null);

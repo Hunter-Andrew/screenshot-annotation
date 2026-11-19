@@ -7,7 +7,7 @@ const SIZE_LABELS: Record<LaserPointerSize, string> = { small: "Small", medium: 
 /**
  * Settings > Demo tools > the laser pointer's look (ticket 50): colour (the editor's palette, picker and hex
  * field), size and the click ripple, each stored at once and shown on a visible Laser pointer at once. Also a switch that
- * shows whether the highlight is on (the hotkey and the tray item change it too) so the look can be tried here.
+ * shows whether the Laser pointer is on (the hotkey and the tray item change it too) so the look can be tried here.
  */
 export function LaserPointerSettings({ bridge }: { bridge: PlatformBridge }) {
   const [look, setLook] = useState<LaserPointerSettings | null>(null);
@@ -70,7 +70,7 @@ export function LaserPointerSettings({ bridge }: { bridge: PlatformBridge }) {
         Laser pointer is on
       </label>
       <p className="muted">Off at every start. Switch it on here, from the tray menu or with its hotkey to see changes on the Laser pointer.</p>
-      <ColorField label="Pointer color" color={look?.color ?? "#e02424"} onPick={(color) => change({ color })} />
+      <ColorField label="Laser pointer color" color={look?.color ?? "#e02424"} onPick={(color) => change({ color })} />
       <fieldset disabled={look === null} style={{ border: 0, padding: 0, margin: "8px 0" }}>
         <legend>Size</legend>
         {LASER_POINTER_SIZES.map((size) => (
@@ -101,9 +101,9 @@ export function LaserPointerSettings({ bridge }: { bridge: PlatformBridge }) {
             bridge.setLaserPointerHideCursor(hide).catch((e) => void bridge.logSettings(`setLaserPointerHideCursor failed: ${e}`));
           }}
         />{" "}
-        Hide the Windows mouse arrow while the dot is on
+        Hide the Windows mouse arrow while the Laser pointer is on
       </label>
-      <p className="muted">Only the dot shows. The arrow comes back when the highlight is switched off or the app exits (and at the next start if the app was killed).</p>
+      <p className="muted">Only the dot shows. The arrow comes back when the Laser pointer is switched off or the app exits (and at the next start if the app was killed).</p>
     </div>
   );
 }

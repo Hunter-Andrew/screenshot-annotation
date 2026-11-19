@@ -4,7 +4,7 @@ type Fake = { laserPointerHotkey: string; drawingModeHotkey: string; takenHotkey
 const fake = <T,>(page: Page, read: (f: Fake) => T) =>
   page.evaluate(`(${read.toString()})(window.__fakeBridge)`) as Promise<T>;
 
-const pointer = (page: Page, combo: string) =>
+const laserPointer = (page: Page, combo: string) =>
   page.getByRole("button", { name: `Laser pointer hotkey: ${combo}`, exact: true });
 const drawing = (page: Page, combo: string) =>
   page.getByRole("button", { name: `Drawing mode hotkey: ${combo}`, exact: true });
@@ -12,27 +12,27 @@ const drawing = (page: Page, combo: string) =>
 test("each demo hotkey can be set and survives reopening Settings", async ({ page }) => {
   await page.goto("/#settings");
   await expect(page.getByRole("heading", { name: "Demo tools" })).toBeVisible();
-  await pointer(page, "Ctrl+Shift+L").click();
+  await laserPointer(page, "Ctrl+Shift+L").click();
   await page.keyboard.press("Control+Alt+p");
-  await expect(pointer(page, "Ctrl+Alt+P")).toBeVisible();
+  await expect(laserPointer(page, "Ctrl+Alt+P")).toBeVisible();
   await drawing(page, "Ctrl+Shift+D").click();
   await page.keyboard.press("Control+Alt+o");
   await expect(drawing(page, "Ctrl+Alt+O")).toBeVisible();
   expect(await fake(page, (f) => [f.laserPointerHotkey, f.drawingModeHotkey])).toEqual(["ctrl+alt+p", "ctrl+alt+o"]);
   await page.reload();
-  await expect(pointer(page, "Ctrl+Alt+P")).toBeVisible();
+  await expect(laserPointer(page, "Ctrl+Alt+P")).toBeVisible();
   await expect(drawing(page, "Ctrl+Alt+O")).toBeVisible();
 });
 
 test("the capture hotkey, the other demo hotkey and Print Screen are refused with a message", async ({ page }) => {
   await page.goto("/#settings");
-  await pointer(page, "Ctrl+Shift+L").click();
+  await laserPointer(page, "Ctrl+Shift+L").click();
   await page.keyboard.press("Control+Shift+s");
   await expect(page.getByRole("alert")).toContainText("capture hotkey");
-  await pointer(page, "Ctrl+Shift+L").click();
+  await laserPointer(page, "Ctrl+Shift+L").click();
   await page.keyboard.press("Control+Shift+d");
   await expect(page.getByRole("alert")).toContainText("Drawing mode hotkey");
-  await pointer(page, "Ctrl+Shift+L").click();
+  await laserPointer(page, "Ctrl+Shift+L").click();
   await page.evaluate(() => window.dispatchEvent(new KeyboardEvent("keyup", { code: "PrintScreen" })));
   await expect(page.getByRole("alert")).toContainText("Print Screen");
   expect(await fake(page, (f) => f.laserPointerHotkey)).toBe("ctrl+shift+l");

@@ -44,7 +44,7 @@ html:has(.settings) body {
   outline: 2px solid var(--focus);
   outline-offset: 2px;
 }
-/* ColorField (the editor's colour control, reused for the pointer colour in Demo tools): the editor's rules are scoped to .editor. */
+/* ColorField (the editor's colour control, reused for the laser pointer colour in Demo tools): the editor's rules are scoped to .editor. */
 .settings .swatches {
   display: flex;
   flex-wrap: wrap;

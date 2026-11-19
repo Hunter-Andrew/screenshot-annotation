@@ -120,9 +120,9 @@ export interface FakeBridge extends PlatformBridge {
   readonly laserPointerSettings: LaserPointerSettings;
   /** Whether the laser pointer is on. Not stored: a fresh fake (a reload) has it off, like the real app at start. */
   readonly laserPointerOn: boolean;
-  /** Mimic the laser pointer hotkey or the tray item: flip the highlight and tell the listeners. */
+  /** Mimic the laser pointer hotkey or the tray item: flip the Laser pointer and tell the listeners. */
   pressLaserPointerHotkey(): void;
-  /** Mimic a left click while the highlight is on: the dot window shows its ripple. */
+  /** Mimic a left click while the Laser pointer is on: the dot window shows its ripple. */
   clickLaserPointer(): void;
   /** Move the dot inside its window (the platform does this when the window is held back at a monitor's edge). */
   setLaserPointerDot(x: number, y: number): void;

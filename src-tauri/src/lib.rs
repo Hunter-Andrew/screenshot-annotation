@@ -383,7 +383,7 @@ fn get_laser_pointer_hide_cursor(state: tauri::State<'_, AppSettings>) -> bool {
     state.data.lock().unwrap().laser_pointer_hide_cursor
 }
 
-/// Stores `laserPointerHideCursor` and applies it at once: with the highlight on, the arrow is hidden or brought back. A
+/// Stores `laserPointerHideCursor` and applies it at once: with the Laser pointer on, the arrow is hidden or brought back. A
 /// failed write is logged and the value stays in memory for this run.
 #[tauri::command]
 fn set_laser_pointer_hide_cursor(app: AppHandle, state: tauri::State<'_, AppSettings>, hide: bool) {

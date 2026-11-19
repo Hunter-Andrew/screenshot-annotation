@@ -7,7 +7,7 @@
 //! What the maths decide (window size, position, order of changes, when a click ripples) is in `laser_pointer_math.rs`
 //! (pure, tested); what the dot looks like is `src/laserPointer/LaserPointerDot.tsx`. This file is the window, the
 //! thread and the Windows calls. It cannot be run on the Linux dev box, so docs/release-checklist.md has the
-//! steps to check it by hand. The on/off state is never saved: the highlight is off at every start.
+//! steps to check it by hand. The on/off state is never saved: the Laser pointer is off at every start.
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
@@ -25,7 +25,7 @@ use crate::system_cursor::{self, Action as CursorAction, Hider};
 use crate::{capture, diag, tray_menu};
 
 pub const LABEL: &str = "laser-pointer";
-/// Event carrying whether the highlight is on (a bool) after every change, whoever asked for it.
+/// Event carrying whether the Laser pointer is on (a bool) after every change, whoever asked for it.
 pub const STATE_EVENT: &str = "laser-pointer-state";
 /// Event carrying the dot window's `LaserPointerView` whenever the settings or the dot's place in the window change.
 pub const VIEW_EVENT: &str = "laser-pointer-view";
@@ -33,7 +33,7 @@ pub const VIEW_EVENT: &str = "laser-pointer-view";
 pub const RIPPLE_EVENT: &str = "laser-pointer-ripple";
 /// How often the dot is moved to the pointer.
 const POLL_EVERY: Duration = Duration::from_millis(16);
-/// How often the list of monitors is read again (a monitor can be plugged in while the dot is on).
+/// How often the list of monitors is read again (a monitor can be plugged in while the Laser pointer is on).
 const MONITORS_EVERY: Duration = Duration::from_millis(500);
 
 /// What the dot window draws: the settings, and where in the window the dot's centre is (CSS pixels; the middle
@@ -61,14 +61,14 @@ impl LaserPointerView {
     }
 }
 
-/// The highlight while it is on: the thread that follows the pointer and how to stop it.
+/// The Laser pointer while it is on: the thread that follows the pointer and how to stop it.
 struct Running {
     stop: Arc<AtomicBool>,
     thread: JoinHandle<()>,
 }
 
 pub struct LaserPointerState {
-    /// Some while the highlight is on.
+    /// Some while the Laser pointer is on.
     running: Mutex<Option<Running>>,
     /// One switch-on or switch-off at a time (creating the window takes a moment).
     transition: Mutex<()>,
@@ -171,7 +171,7 @@ fn run_cursor_action(action: CursorAction) {
     }
 }
 
-/// Hide or restore the system mouse arrow so it matches whether the highlight is `on` and the `laserPointerHideCursor`
+/// Hide or restore the system mouse arrow so it matches whether the Laser pointer is `on` and the `laserPointerHideCursor`
 /// setting. Called with the new state by `switch`, and by `refresh_cursor` when the setting changes.
 fn sync_cursor(app: &AppHandle, on: bool) {
     let app_settings = app.state::<crate::AppSettings>();
@@ -223,7 +223,7 @@ fn publish(app: &AppHandle, on: bool) {
     let _ = app.emit(STATE_EVENT, on);
 }
 
-/// Runs on a worker thread. Does nothing when the highlight is already in the wanted state (the tray's check
+/// Runs on a worker thread. Does nothing when the Laser pointer is already in the wanted state (the tray's check
 /// mark is still put right: a click flips it natively before this runs).
 fn switch(app: &AppHandle, want: Option<bool>) {
     let state = app.state::<LaserPointerState>();
