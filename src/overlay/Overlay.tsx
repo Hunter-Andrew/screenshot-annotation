@@ -11,6 +11,9 @@ import {
 } from "../capture/selection";
 import type { OverlayFrame, OverlayOutcome, OverlayRect, PlatformBridge } from "../platform/bridge";
 
+import { actionForKeyEvent } from "../shared/shortcutRegistry";
+import { useShortcutBindings } from "../shared/useShortcutBindings";
+
 /** Magnifier: `SOURCE` native pixels around the pointer, shown `ZOOM` times larger. */
 const SOURCE = 15;
 const ZOOM = 8;
@@ -59,7 +62,8 @@ export function Overlay({ bridge, monitor }: { bridge: PlatformBridge; monitor: 
  * One capture on one monitor: the frozen frame of that monitor stretched over the whole window.
  * Drag to select (the region stops at this monitor's edge) and release to capture at once;
  * hover highlights the window under the pointer and a click captures its visible rectangle;
- * Space takes the whole monitor under the mouse pointer, Esc cancels, M toggles the magnifier.
+ * the monitor key (Space) takes the whole monitor under the mouse pointer, Esc cancels, the magnifier
+ * key (M) toggles the magnifier; the keys come from the shortcut registry and may be remapped.
  * Mouse-pointer-free by construction: the frame was read with the pointer not drawn.
  */
 function ActiveOverlay({ bridge, monitor }: { bridge: PlatformBridge; monitor: number }) {
@@ -77,6 +81,8 @@ function ActiveOverlay({ bridge, monitor }: { bridge: PlatformBridge; monitor: n
   const imageRef = useRef<HTMLImageElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const finished = useRef(false);
+  // The user's remapped keys: read when this capture begins and pushed here when Settings changes them.
+  const bindings = useShortcutBindings(bridge, "overlay", (message) => void bridge.logOverlay(`overlay ${monitor}: ${message}`));
 
   // Anything that goes wrong here is reported to the app's log and ends the capture: the platform
   // tears every overlay down and tells the user, instead of leaving a window that never appears.
@@ -138,11 +144,13 @@ function ActiveOverlay({ bridge, monitor }: { bridge: PlatformBridge; monitor: n
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") finish({ kind: "cancel" });
-      else if (event.key === " ") {
+      // Space and M never cared whether Ctrl or Alt was down, and still do not.
+      const action = actionForKeyEvent(event, bindings, { ignoreCtrlAlt: true });
+      if (action === "overlay.cancel") finish({ kind: "cancel" });
+      else if (action === "overlay.monitor") {
         event.preventDefault();
         finish({ kind: "monitor" });
-      } else if (event.key === "m" || event.key === "M") {
+      } else if (action === "overlay.magnifier") {
         // The platform stores the value and tells every overlay (other monitors included); this
         // window switches at once rather than waiting for that round trip.
         const next = !magnifierRef.current;

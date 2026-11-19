@@ -1,3 +1,4 @@
+import { defaultBindings, keyLabel } from "../shared/shortcutRegistry";
 import { formatCombo } from "../settings/hotkey";
 import { ImageCard } from "./ImageCard";
 import { groupByDate, type LibraryImage } from "./libraryModel";
@@ -48,7 +49,7 @@ export function LibraryGrid(props: Props) {
           {status}
         </span>
         <button type="button" onClick={props.onBack}>
-          Back to editor (Esc)
+          Back to editor ({keyLabel("editor.deselect", defaultBindings("editor"))})
         </button>
       </header>
       <div className="grid-body">

@@ -2,6 +2,7 @@
 // over the Capture image: it holds one Fabric object per Annotation, built by the per-type adapters in
 // ./shapes, and follows the model (`sync`). User gestures leave through `CanvasEvents` as model edits;
 // the canvas never keeps state of its own that the model does not have.
+import { SELECTION_COLOR, SELECTION_TINT } from "./selectionColor";
 import { Canvas, type FabricObject, FabricImage, Rect } from "fabric";
 import { backgroundFill, growsArea, limitPoint, shiftIntoLimit } from "../core/area";
 import { kindOf } from "../core/annotations";
@@ -351,8 +352,8 @@ export function createFabricCanvas(host: HTMLElement, { events, imageUrl, layout
         // Fabric 7 positions by the centre unless told otherwise; the box runs from the press to the pointer.
         originX: "left",
         originY: "top",
-        fill: "rgba(47, 91, 234, 0.06)",
-        stroke: "#2f5bea",
+        fill: SELECTION_TINT,
+        stroke: SELECTION_COLOR,
         strokeWidth: 1.5 / zoom,
         strokeDashArray: [6 / zoom, 4 / zoom],
         strokeUniform: true,

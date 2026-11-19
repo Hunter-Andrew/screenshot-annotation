@@ -125,6 +125,7 @@ export function StylePanel({ kind, style, onChange, toolGroups = [], arrange = n
               <h3>{editor.title}</h3>
               <editor.Editor
                 value={value}
+                thicknessPresets={kind.thicknessPresets}
                 onChange={(next) => onChange(group, next)}
                 selection={typing?.selection ? { font: typing.selection.font, onStyle: typing.onStyle } : null}
               />

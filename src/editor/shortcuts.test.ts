@@ -1,13 +1,12 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
-import {
-  actionForKeyEvent,
-  allowedWhileTyping,
-  defaultBindings,
-  isTypingTarget,
-  keyLabel,
-  SHORTCUT_ACTIONS,
-} from "./shortcuts";
+import { actionForKeyEvent as actionForKey, defaultBindings as defaultContextBindings, keyLabel as keyLabelFor } from "../shared/shortcutRegistry";
+import { allowedWhileTyping, isTypingTarget, SHORTCUT_ACTIONS } from "./shortcuts";
+
+// The editor reads its keys from the shared registry; these tests read them the way the editor does.
+const defaultBindings = () => defaultContextBindings("editor");
+const actionForKeyEvent = (event: Parameters<typeof actionForKey>[0], bindings = defaultBindings()) => actionForKey(event, bindings);
+const keyLabel = (action: string, bindings = defaultBindings()) => keyLabelFor(action, bindings);
 
 const key = (k: string, mods: { ctrl?: boolean; shift?: boolean; alt?: boolean; meta?: boolean } = {}) => ({
   key: k,
@@ -82,7 +81,7 @@ describe("actionForKeyEvent", () => {
   });
 
   it("keeps Delete and Backspace fixed (not remappable) and Ctrl+Delete as Discard", () => {
-    const fixed = SHORTCUT_ACTIONS.filter((a) => a.fixed).map((a) => a.id);
+    const fixed = SHORTCUT_ACTIONS.filter((a) => !a.remappable && ["Delete", "Backspace"].includes(a.defaultKey)).map((a) => a.id);
     expect(fixed).toEqual(["editor.delete", "editor.deleteBackspace"]);
     expect(actionForKeyEvent(key("Delete", { ctrl: true }))).toBe("editor.discard");
   });
@@ -157,7 +156,29 @@ describe("keys while typing in a text field or the text box", () => {
     );
   });
 
+  it("AltGr (reported as Ctrl+Alt) types a character: it never triggers a shortcut in a text field", () => {
+    const altGr = { ...key("k", { ctrl: true, alt: true }), getModifierState: (m: string) => m === "AltGraph" };
+    expect(allowedWhileTyping("tool.arrow", altGr)).toBe(false);
+    expect(allowedWhileTyping("view.zoomIn", altGr)).toBe(false);
+    // The same Ctrl+Alt press without AltGraph is a real shortcut chord.
+    expect(allowedWhileTyping("tool.arrow", { ...key("k", { ctrl: true, alt: true }), getModifierState: () => false })).toBe(true);
+  });
+
   it("nothing acts when no action matched", () => {
     expect(allowedWhileTyping(null, key("x"))).toBe(false);
+  });
+});
+
+describe("remapped keys while typing (ticket 48)", () => {
+  const bindings = { ...defaultBindings(), "tool.arrow": "Ctrl+K", "tool.line": "Alt+L", "tool.rect": "Shift+R" };
+
+  it("Ctrl and Alt combinations stay active, Shift-only keys are suspended", () => {
+    const ctrlK = key("k", { ctrl: true });
+    expect(allowedWhileTyping(actionForKeyEvent(ctrlK, bindings), ctrlK)).toBe(true);
+    const altL = key("l", { alt: true });
+    expect(allowedWhileTyping(actionForKeyEvent(altL, bindings), altL)).toBe(true);
+    const shiftR = key("r", { shift: true });
+    expect(actionForKeyEvent(shiftR, bindings)).toBe("tool.rect");
+    expect(allowedWhileTyping("tool.rect", shiftR)).toBe(false);
   });
 });

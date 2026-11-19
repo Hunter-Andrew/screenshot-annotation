@@ -6,6 +6,7 @@
 //    which this never paints over: it only touches pixels the canvas has drawn.
 //  - CropFrame: the Crop tool's eight handles on the visible area. Dragging one inward crops, outward expands.
 //    It has no outline of its own: nothing is drawn around the area at rest.
+import { SELECTION_COLOR } from "./selectionColor";
 import { FabricObject, Rect } from "fabric";
 import type { Crop } from "../core/annotation";
 
@@ -71,7 +72,7 @@ export class CropFrame extends Rect {
       hasBorders: false,
       transparentCorners: false,
       cornerColor: "#ffffff",
-      cornerStrokeColor: "#2f5bea",
+      cornerStrokeColor: SELECTION_COLOR,
       cornerStyle: "rect",
       cornerSize: 10,
       touchCornerSize: 20,

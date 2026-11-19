@@ -4,7 +4,7 @@
 
 **Blocked by:** nothing (M4 shipped as v0.5.0).
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 ## Open questions (grill before building)
 
@@ -34,3 +34,7 @@ Spec: `.scratch/snagit-clone/spec.md`. Planned for M5 (v0.6.0).
 ## Build note
 
 Define the palette once as shared CSS variables (light and dark), replacing `--accent: #2f5bea` in `src/editor/editor.css` and the hard-coded `#2f5bea` in `src/canvas/shapes/lineShape.ts` and `boxShapes.ts`. Then apply it window by window (editor, Library Strip and grid, Settings, About, toasts), checking AA contrast and the focus ring in both themes after each window.
+
+## Answer
+
+Implemented in M5 (v0.6.0) on integration branch `claude/pensive-davinci-z10bb6`; reviewed with `code-review` and fixes applied. Awaiting the Windows manual checklist (`docs/release-checklist.md`) before any release tag.

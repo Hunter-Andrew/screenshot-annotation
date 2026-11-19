@@ -15,6 +15,9 @@
 //!   you draw with that tool starts the way you left it. One entry per tool ("arrow", "rect"...). The
 //!   editor writes and checks it; a missing or unreadable entry just means that tool uses its default.
 //!   Deleting the whole field (with the app closed) resets every tool to its default style.
+//! - `shortcuts`: your changed keyboard shortcuts, one entry per action, e.g. `{"overlay.magnifier": "N"}`.
+//!   Only changes are stored; a missing, unknown or invalid entry means that action keeps its default key.
+//!   Deleting the field (with the app closed) restores every default. Change them in Settings, not here.
 //! - `launchAtSignIn`: true (the default, also when the field is missing) starts the app in the tray when
 //!   you sign in to Windows, through a value in the per-user Run key. Change it in Settings.
 //! - `imageBackground`: what fills the part of a new image outside the Capture when it is made bigger than
@@ -62,6 +65,10 @@ pub struct Settings {
     /// editor owns the shape (and validates it on read), so a new tool or group needs no change here.
     #[serde(deserialize_with = "object_or_empty")]
     pub tool_styles: serde_json::Map<String, serde_json::Value>,
+    /// Keyboard shortcut overrides, action id to key (ticket 47). Only what the user changed; the
+    /// platform does not look inside: the registry in the front end owns the ids and validates on read.
+    #[serde(deserialize_with = "object_or_empty")]
+    pub shortcuts: serde_json::Map<String, serde_json::Value>,
     /// Start the app when the user signs in to Windows (default true), through the HKCU Run key.
     pub launch_at_sign_in: bool,
     /// The one-time "still running in the tray" notice, shown the first time the editor is closed, was shown.
@@ -255,6 +262,7 @@ impl Default for Settings {
             print_screen_notice_dismissed: false,
             magnifier: true,
             tool_styles: serde_json::Map::new(),
+            shortcuts: serde_json::Map::new(),
             launch_at_sign_in: true,
             tray_notice_shown: false,
             image_background: DEFAULT_IMAGE_BACKGROUND.into(),
@@ -330,6 +338,17 @@ pub fn set_tool_styles(
     styles: serde_json::Map<String, serde_json::Value>,
 ) -> io::Result<()> {
     settings.tool_styles = styles;
+    save(dir, settings)
+}
+
+/// Replaces the stored shortcut overrides and then tries to save; like `set_tool_styles`, the
+/// in-memory value changes even when the write fails.
+pub fn set_shortcuts(
+    dir: &Path,
+    settings: &mut Settings,
+    shortcuts: serde_json::Map<String, serde_json::Value>,
+) -> io::Result<()> {
+    settings.shortcuts = shortcuts;
     save(dir, settings)
 }
 
@@ -608,6 +627,21 @@ mod tests {
         assert_eq!(load(&dir).tool_styles, wanted);
         // The other settings are written alongside, unchanged.
         assert_eq!(load(&dir).hotkey, DEFAULT_HOTKEY);
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn shortcut_overrides_round_trip_and_a_non_object_costs_nothing_else() {
+        let dir = temp_dir("shortcuts-roundtrip");
+        let mut s = Settings::default();
+        let wanted = styles(r#"{"overlay.magnifier":"N"}"#);
+        set_shortcuts(&dir, &mut s, wanted.clone()).unwrap();
+        assert!(fs::read_to_string(dir.join(FILE_NAME)).unwrap().contains("\"shortcuts\""));
+        assert_eq!(load(&dir).shortcuts, wanted);
+        fs::write(dir.join(FILE_NAME), br#"{"hotkey":"alt+x","shortcuts":5}"#).unwrap();
+        let s = load(&dir);
+        assert!(s.shortcuts.is_empty());
+        assert_eq!(s.hotkey, "alt+x");
         fs::remove_dir_all(&dir).unwrap();
     }
 

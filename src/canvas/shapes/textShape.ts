@@ -10,6 +10,7 @@
 // edge), never the font size (src/core/annotations/textBox.ts).
 // A click selects, a double-click edits in place (Fabric's default of editing on the second click is
 // switched off), and leaving the box (a click elsewhere, Esc, another control) ends the edit.
+import { SELECTION_COLOR } from "../selectionColor";
 import { controlsUtils, Textbox } from "fabric";
 import { FONT_FAMILY, type TextAnnotation } from "../../core/annotations/text";
 import { dragTextBox, HANDLES, type HandleName } from "../../core/annotations/textBox";
@@ -62,12 +63,12 @@ export class TextShape extends Textbox {
       lockScalingFlip: true,
       objectCaching: false,
       hasBorders: true,
-      borderColor: "#2f5bea",
+      borderColor: SELECTION_COLOR,
       cornerStyle: "circle",
       cornerSize: 12,
       transparentCorners: false,
       cornerColor: "#ffffff",
-      cornerStrokeColor: "#2f5bea",
+      cornerStrokeColor: SELECTION_COLOR,
       splitByGrapheme: false,
     });
     // All eight handles change the box, never the font size. (Fabric's own scaling handlers would scale the

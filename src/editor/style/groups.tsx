@@ -26,6 +26,8 @@ export interface GroupEditorProps<K extends GroupId> {
   onChange(next: PropertyGroups[K]): void;
   /** Only the Font editor reads it: set while characters are selected, so B, I, U, size and color change those characters only. */
   selection?: SelectionEdit | null;
+  /** Only the Stroke editor reads it: the tool's own thickness presets, when not the shared THICKNESS_PRESETS. */
+  thicknessPresets?: readonly number[];
 }
 
 export interface GroupEditor<K extends GroupId> {
@@ -36,7 +38,7 @@ export interface GroupEditor<K extends GroupId> {
 export { PALETTE };
 export const THICKNESS_PRESETS = [2, 4, 8] as const;
 
-function StrokeEditor({ value, onChange }: GroupEditorProps<"stroke">) {
+function StrokeEditor({ value, onChange, thicknessPresets = THICKNESS_PRESETS }: GroupEditorProps<"stroke">) {
   // The number box keeps what is typed until it is a valid thickness.
   const [text, setText] = useState(String(value.width));
   useEffect(() => setText(String(value.width)), [value.width]);
@@ -61,7 +63,7 @@ function StrokeEditor({ value, onChange }: GroupEditorProps<"stroke">) {
         px
       </label>
       <div className="presets" role="group" aria-label="Thickness presets">
-        {THICKNESS_PRESETS.map((width) => (
+        {thicknessPresets.map((width) => (
           <button
             key={width}
             type="button"

@@ -232,7 +232,7 @@ test("font size: typed, from the presets; bold, italic; the wrap handles leave t
 
 /**
  * Where the selected text's right-middle width handle is on screen. Fabric draws the selection box
- * (border #2f5bea, set in textShape.ts) and its handles on the canvas (lower: objects keep their stacking order), so the box is found by
+ * (border #520DF2, set in textShape.ts) and its handles on the canvas (lower: objects keep their stacking order), so the box is found by
  * scanning that canvas for the border color. Needs 100% zoom (one canvas pixel per Capture pixel).
  */
 async function rightHandle(page: Page, view: { at(x: number, y: number): { x: number; y: number } }) {

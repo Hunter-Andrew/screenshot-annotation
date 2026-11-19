@@ -99,6 +99,8 @@ export interface FakeBridge extends PlatformBridge {
   readonly imageSettings: ImageSettings;
   /** The stored tool styles (`fake.toolStyles` in the fake storage; empty for a fresh fake). */
   readonly toolStyles: Record<string, unknown>;
+  /** The stored shortcut overrides (`fake.shortcuts` in the fake storage; empty for a fresh fake). */
+  readonly shortcutOverrides: Record<string, unknown>;
 }
 
 /** Fake setting storage; the browser build passes localStorage so e2e reloads keep it. */
@@ -171,6 +173,14 @@ export function createFakeBridge(
   let toolStylesResets = 0;
   const toolStylesResetHandlers = new Set<() => void>();
   const magnifierHandlers = new Set<(enabled: boolean) => void>();
+  const shortcutHandlers = new Set<(overrides: Record<string, unknown>) => void>();
+  const readShortcuts = () => JSON.parse(store.getItem("fake.shortcuts") ?? "{}") as Record<string, unknown>;
+  // Another browser tab on the same localStorage stands for another window: tell this one too.
+  if (options.storage && typeof window !== "undefined") {
+    window.addEventListener("storage", (event) => {
+      if (event.key === "fake.shortcuts") shortcutHandlers.forEach((handler) => handler(readShortcuts()));
+    });
+  }
   const imageSettingsHandlers = new Set<(settings: ImageSettings) => void>();
   const readImageSettings = (): ImageSettings => {
     try {
@@ -621,6 +631,20 @@ export function createFakeBridge(
     getToolStyles: async () => JSON.parse(store.getItem("fake.toolStyles") ?? "{}"),
     setToolStyles: async (styles) => {
       store.setItem("fake.toolStyles", JSON.stringify(styles));
+    },
+    get shortcutOverrides() {
+      return JSON.parse(store.getItem("fake.shortcuts") ?? "{}") as Record<string, unknown>;
+    },
+    getShortcutOverrides: async () => JSON.parse(store.getItem("fake.shortcuts") ?? "{}"),
+    setShortcutOverrides: async (overrides) => {
+      store.setItem("fake.shortcuts", JSON.stringify(overrides));
+      shortcutHandlers.forEach((handler) => handler(readShortcuts()));
+    },
+    onShortcutOverrides: async (handler) => {
+      shortcutHandlers.add(handler);
+      return () => {
+        shortcutHandlers.delete(handler);
+      };
     },
     savePngAs: async (png, suggestedName) => {
       if (cancelSaveAs) {

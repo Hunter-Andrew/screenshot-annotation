@@ -92,6 +92,19 @@ describe("Overlay region mode", () => {
     await waitFor(() => expect(bridge.overlayOutcomes).toEqual([{ kind: "monitor" }]));
   });
 
+  it("Space still captures the monitor when Ctrl or Alt is held (it did before shortcuts were remappable)", async () => {
+    await showOverlay(1);
+    fireEvent.keyDown(window, { key: " ", ctrlKey: true });
+    await waitFor(() => expect(bridge.overlayOutcomes).toEqual([{ kind: "monitor" }]));
+  });
+
+  it("M still toggles the magnifier when Alt is held", async () => {
+    await showOverlay(1);
+    move(100, 100);
+    fireEvent.keyDown(window, { key: "m", altKey: true });
+    expect(await screen.findByTestId("magnifier")).toBeVisible();
+  });
+
   it("Esc cancels", async () => {
     await showOverlay(1);
     fireEvent.keyDown(window, { key: "Escape" });
@@ -118,6 +131,16 @@ describe("Overlay region mode", () => {
     fireEvent.keyDown(window, { key: "M" });
     await waitFor(() => expect(screen.queryByTestId("magnifier")).toBeNull());
     expect(bridge.magnifier).toBe(false);
+  });
+
+  it("a shortcut remapped in Settings applies to this open overlay at once", async () => {
+    await showOverlay(1); // magnifier stored off
+    move(100, 100);
+    await act(() => bridge.setShortcutOverrides({ "overlay.magnifier": "N" }));
+    fireEvent.keyDown(window, { key: "m" }); // the old key does nothing
+    expect(screen.queryByTestId("magnifier")).toBeNull();
+    fireEvent.keyDown(window, { key: "n" });
+    expect(await screen.findByTestId("magnifier")).toBeVisible();
   });
 
   it("follows the value another overlay (another monitor) stored", async () => {

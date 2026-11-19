@@ -126,6 +126,8 @@ export function FontEditor({ value, onChange, selection }: GroupEditorProps<"fon
             <AlignIcon align={align} />
           </button>
         ))}
+      </div>
+      <div className="presets" role="group" aria-label="Vertical alignment">
         {VERTICAL_ALIGNS.map((valign) => (
           <button
             key={valign}

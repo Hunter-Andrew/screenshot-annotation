@@ -4,7 +4,7 @@
 
 **Parent:** ticket 28. **Blocked by:** 45.
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 ## Acceptance criteria
 
@@ -15,3 +15,7 @@
 - [ ] E2E with the fake bridge: the section lists Space, M and a tool key under the right groups
 
 Planned for M5 (v0.6.0).
+
+## Answer
+
+Implemented in M5 (v0.6.0) on integration branch `claude/pensive-davinci-z10bb6`; reviewed with `code-review` and fixes applied. Awaiting the Windows manual checklist (`docs/release-checklist.md`) before any release tag.

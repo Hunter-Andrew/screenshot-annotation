@@ -20,6 +20,8 @@ export interface AnnotationKind<A extends Annotation = Annotation> {
   readonly shortcutAction: string;
   /** The property groups this tool opts into; the Style panel shows exactly these. */
   readonly groups: readonly GroupId[];
+  /** Stroke thickness presets for this tool, when it is not the shared default (the Highlighter's larger ones). */
+  readonly thicknessPresets?: readonly number[];
   /**
    * Property groups that belong to the active TOOL only (the Pen's Mode and Eraser size): the Style panel shows
    * them while the tool is picked, above `groups`, and never for a selected Annotation, which does not store them.

@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within as inside } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { textKind } from "../../core/annotations/text";
@@ -89,11 +89,14 @@ describe("Font group", () => {
     expect(onChange).toHaveBeenLastCalledWith("font", { ...textKind.defaultStyle.font, underline: true });
   });
 
-  it("has Align top, middle and bottom beside the horizontal alignment: Middle for a new text, Top for an older one", async () => {
+  it("has Align top, middle and bottom together in their own row, apart from the horizontal alignment: Middle for a new text, Top for an older one", async () => {
     const onChange = panel();
     expect(screen.getByRole("button", { name: "Align middle" })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByRole("button", { name: "Align top" })).toHaveAttribute("aria-pressed", "false");
-    expect(screen.getByRole("button", { name: "Align top" }).parentElement).toBe(screen.getByRole("button", { name: "Align left" }).parentElement);
+    const horizontal = screen.getByRole("group", { name: "Alignment" });
+    const vertical = screen.getByRole("group", { name: "Vertical alignment" });
+    expect(inside(horizontal).getAllByRole("button").map((b) => b.getAttribute("aria-label"))).toEqual(["Align left", "Align center", "Align right"]);
+    expect(inside(vertical).getAllByRole("button").map((b) => b.getAttribute("aria-label"))).toEqual(["Align top", "Align middle", "Align bottom"]);
 
     await userEvent.click(screen.getByRole("button", { name: "Align bottom" }));
     expect(onChange).toHaveBeenLastCalledWith("font", { ...textKind.defaultStyle.font, valign: "bottom" });

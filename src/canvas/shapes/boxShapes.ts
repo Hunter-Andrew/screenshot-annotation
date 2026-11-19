@@ -7,6 +7,7 @@
 // must stay the same thickness the anchor drifts by the stroke width. Instead the eight handles are
 // custom controls (like the Arrow's end points) that set the box straight from the pointer, so the
 // object never has a scale: the model's x, y, width and height are always what is on screen.
+import { SELECTION_COLOR } from "../selectionColor";
 import { Control, Ellipse, type FabricObject, Point, Rect } from "fabric";
 import type { BoxGeometry } from "../../core/annotations/box";
 import { fillPaint } from "../../core/propertyGroups";
@@ -23,8 +24,8 @@ export const OPTIONS = {
   cornerSize: 12,
   transparentCorners: false,
   cornerColor: "#ffffff",
-  cornerStrokeColor: "#2f5bea",
-  borderColor: "#2f5bea",
+  cornerStrokeColor: SELECTION_COLOR,
+  borderColor: SELECTION_COLOR,
 } as const;
 
 /** The box each object shows right now (its position is the object's own left/top). */
