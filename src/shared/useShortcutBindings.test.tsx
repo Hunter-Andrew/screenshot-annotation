@@ -22,10 +22,10 @@ function slowRead() {
 describe("useShortcutBindings", () => {
   it("starts on the defaults and then follows the stored overrides", async () => {
     const bridge = createFakeBridge();
-    await bridge.setShortcutOverrides({ "tool.arrow": "K" });
+    await bridge.setShortcutOverrides({ "tool.ellipse": "K" });
     const { result } = renderHook(() => useShortcutBindings(bridge, "editor", () => {}));
-    expect(result.current["tool.arrow"]).toBe("A");
-    await waitFor(() => expect(result.current["tool.arrow"]).toBe("K"));
+    expect(result.current["tool.ellipse"]).toBe("E");
+    await waitFor(() => expect(result.current["tool.ellipse"]).toBe("K"));
   });
 
   it("follows a change pushed while it is open", async () => {
@@ -38,12 +38,12 @@ describe("useShortcutBindings", () => {
   it("does not let the initial read overwrite a change event that arrived first", async () => {
     const { bridge, slow, release } = slowRead();
     const { result } = renderHook(() => useShortcutBindings(slow, "editor", () => {}));
-    await act(() => bridge.setShortcutOverrides({ "tool.arrow": "K" })); // the event; the held read already saw {}
-    expect(result.current["tool.arrow"]).toBe("K");
+    await act(() => bridge.setShortcutOverrides({ "tool.ellipse": "K" })); // the event; the held read already saw {}
+    expect(result.current["tool.ellipse"]).toBe("K");
     await act(async () => {
       release();
     });
-    expect(result.current["tool.arrow"]).toBe("K");
+    expect(result.current["tool.ellipse"]).toBe("K");
   });
 
   it("reports an unreadable setting to the log and keeps the defaults", async () => {
@@ -53,6 +53,6 @@ describe("useShortcutBindings", () => {
     const { result } = renderHook(() => useShortcutBindings(broken, "editor", (m) => logged.push(m)));
     await waitFor(() => expect(logged).toHaveLength(1));
     expect(logged[0]).toMatch(/getShortcutOverrides failed/);
-    expect(result.current["tool.arrow"]).toBe("A");
+    expect(result.current["tool.ellipse"]).toBe("E");
   });
 });
