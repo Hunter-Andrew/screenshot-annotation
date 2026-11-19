@@ -16,7 +16,10 @@ export interface StubCanvas extends AnnotationCanvas {
   images: Readonly<Record<string, Uint8Array>> | undefined;
   tool: string;
   drawStyle: Style;
+  /** The selected Annotation when exactly one is; null for none or several. */
   selected: string | null;
+  /** Every selected Annotation. */
+  selectedIds: string[];
   scale: number;
   /** The visible area, background and margin the editor last told the canvas. */
   layout: CanvasLayout;
@@ -32,6 +35,10 @@ export interface StubCanvas extends AnnotationCanvas {
   erase(path: Point[], radius: number): void;
   /** The user clicks an Annotation (or empty space, with null). */
   click(id: string | null): void;
+  /** The user drags a rubber band (or Shift-clicks) around several Annotations. */
+  clickMany(ids: readonly string[]): void;
+  /** The user drags a multi-selection: each Annotation's new geometry. */
+  editMany(updates: readonly { id: string; patch: Partial<Annotation>; bounds?: Crop }[]): void;
   /** The characters the user selects while typing in a box (null: a caret only, or the edit ended). */
   selectText(selection: TextSelection | null): void;
   /** Every `styleTextSelection` the editor asked for, in order. */
@@ -66,6 +73,7 @@ export function createStubKit(): StubKit {
         tool: "select",
         drawStyle: {},
         selected: null,
+        selectedIds: [],
         scale: 1,
         layout,
         interactive: true,
@@ -79,12 +87,14 @@ export function createStubKit(): StubKit {
         setTool(tool) {
           canvas.tool = tool;
           canvas.selected = null;
+          canvas.selectedIds = [];
         },
         setDrawStyle(style) {
           canvas.drawStyle = style;
         },
-        select(id) {
-          canvas.selected = id;
+        select(ids) {
+          canvas.selectedIds = [...ids];
+          canvas.selected = ids.length === 1 ? ids[0]! : null;
         },
         setScale(scale) {
           canvas.scale = scale;
@@ -111,8 +121,15 @@ export function createStubKit(): StubKit {
         selectText: (selection) => events.onTextSelection?.(selection),
         click(id) {
           canvas.selected = id;
-          events.onSelect(id);
+          canvas.selectedIds = id === null ? [] : [id];
+          events.onSelect(canvas.selectedIds);
         },
+        clickMany(ids) {
+          canvas.selectedIds = [...ids];
+          canvas.selected = ids.length === 1 ? ids[0]! : null;
+          events.onSelect(ids);
+        },
+        editMany: (updates) => events.onUpdateMany(updates),
       };
       canvases.push(canvas);
       return canvas;

@@ -3,7 +3,7 @@
 // ./shapes, and follows the model (`sync`). User gestures leave through `CanvasEvents` as model edits;
 // the canvas never keeps state of its own that the model does not have.
 import { SELECTION_COLOR, SELECTION_TINT } from "./selectionColor";
-import { Canvas, type FabricObject, FabricImage, Rect } from "fabric";
+import { ActiveSelection, Canvas, type FabricObject, FabricImage, Rect } from "fabric";
 import { backgroundFill, growsArea, limitPoint, shiftIntoLimit } from "../core/area";
 import { kindOf } from "../core/annotations";
 import { erasePieces } from "../core/annotations/erase";
@@ -37,12 +37,14 @@ export function createFabricCanvas(host: HTMLElement, { events, imageUrl, layout
   const canvas = new Canvas(element, {
     width: layout.workspace.width,
     height: layout.workspace.height,
-    selection: false, // no rubber-band multi-select: one Annotation at a time for now
+    selection: true, // the rubber band of the Select tool (switched off for every other tool, see `updateMarquee`)
+    selectionColor: SELECTION_TINT,
+    selectionBorderColor: SELECTION_COLOR,
+    selectionLineWidth: 1,
     preserveObjectStacking: true,
     stopContextMenu: true,
     fireRightClick: false,
   });
-  canvas.selectionKey = null; // and no Shift multi-select
   canvas.setTargetFindTolerance(6); // thin arrows stay easy to grab
   // The wrapper sits over the Capture image, which the editor lays out underneath.
   Object.assign(canvas.wrapperEl.style, { position: "absolute", left: "0", top: "0" });
@@ -288,11 +290,54 @@ export function createFabricCanvas(host: HTMLElement, { events, imageUrl, layout
     }
   };
 
-  canvas.on("selection:created", (e) => quiet || events.onSelect(idOf.get(e.selected[0]!) ?? null));
-  canvas.on("selection:updated", (e) => quiet || events.onSelect(idOf.get(e.selected[0]!) ?? null));
-  canvas.on("selection:cleared", () => quiet || events.onSelect(null));
+  let regrouping = false;
+  /** The rubber band (and Shift-click) is the Select tool's alone: another tool's drag draws. */
+  const updateMarquee = () => {
+    canvas.selection = interactive && tool === SELECT;
+  };
+  /** A multi-selection only moves as a whole: no resize or rotate handles. */
+  const styleGroup = (active: FabricObject | undefined) => {
+    if (!(active instanceof ActiveSelection)) return;
+    active.set({
+      hasControls: false,
+      borderColor: SELECTION_COLOR,
+      borderScaleFactor: 1.5,
+      borderDashArray: [6, 4],
+      padding: 2,
+    });
+  };
+  const selectedIds = () => canvas.getActiveObjects().flatMap((object) => idOf.get(object) ?? []);
+  const announceSelection = () => {
+    if (quiet) return;
+    styleGroup(canvas.getActiveObject());
+    events.onSelect(selectedIds());
+  };
+  canvas.on("selection:created", announceSelection);
+  canvas.on("selection:updated", announceSelection);
+  canvas.on("selection:cleared", () => quiet || events.onSelect([]));
   canvas.on("object:modified", ({ target }) => {
     if (target && target === frame) return finishHandleDrag(frame);
+    if (target instanceof ActiveSelection) {
+      // Releasing and regrouping the members makes Fabric fire this event again for the group: only the drag counts.
+      if (regrouping) return;
+      // A multi-selection was dragged. Its members' own positions are relative to the group until it is let go:
+      // release it (which puts their real positions back), read each, and group them again.
+      const members = target.getObjects().slice();
+      regrouping = true;
+      silently(() => canvas.discardActiveObject());
+      const updates = members.flatMap((object) => {
+        const id = idOf.get(object);
+        const annotation = id ? applied.get(id) : undefined;
+        if (!id || !annotation) return [];
+        return [{ id, patch: adapterFor(annotation.type)!.read(object), bounds: boundsOf(object) }];
+      });
+      silently(() => canvas.setActiveObject(new ActiveSelection(members, { canvas })));
+      regrouping = false;
+      styleGroup(canvas.getActiveObject());
+      if (updates.length > 0) events.onUpdateMany(updates);
+      endGesture();
+      return;
+    }
     const id = target && idOf.get(target);
     const annotation = id ? applied.get(id) : undefined;
     if (!id || !annotation) return;
@@ -540,6 +585,7 @@ export function createFabricCanvas(host: HTMLElement, { events, imageUrl, layout
       clearErase(); // an erase drag too: the strokes come back, nothing is recorded
       silently(() => canvas.discardActiveObject());
       showFrame(interactive && tool === CROP);
+      updateMarquee();
       refreshMode();
       canvas.requestRenderAll();
     },
@@ -553,10 +599,23 @@ export function createFabricCanvas(host: HTMLElement, { events, imageUrl, layout
       refreshMode();
       canvas.requestRenderAll();
     },
-    select(id) {
-      const object = id === null ? undefined : objectsById.get(id);
+    select(ids) {
+      const objects = ids.flatMap((id) => objectsById.get(id) ?? []);
+      if (objects.length > 1) {
+        const now = canvas.getActiveObjects();
+        const same = now.length === objects.length && objects.every((object) => now.includes(object));
+        if (!same) {
+          silently(() => {
+            canvas.discardActiveObject();
+            canvas.setActiveObject(new ActiveSelection(objects, { canvas }));
+          });
+        }
+        styleGroup(canvas.getActiveObject());
+        canvas.requestRenderAll();
+        return;
+      }
       // With the Crop tool on, "nothing selected" still leaves the frame's handles up.
-      const target = object ?? frame ?? undefined;
+      const target = objects[0] ?? frame ?? undefined;
       silently(() => (target ? canvas.setActiveObject(target) : canvas.discardActiveObject()));
       canvas.requestRenderAll();
     },
@@ -581,6 +640,7 @@ export function createFabricCanvas(host: HTMLElement, { events, imageUrl, layout
       interactive = next;
       if (!next) silently(() => canvas.discardActiveObject());
       showFrame(interactive && tool === CROP);
+      updateMarquee();
       refreshMode();
     },
     dispose() {

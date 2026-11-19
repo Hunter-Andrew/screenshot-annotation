@@ -15,6 +15,7 @@ import { eraseEdit } from "../core/annotations/erase";
 import { changedRunKeys, resetRunKeys } from "../core/annotations/runs";
 import { AREA_LIMIT_MESSAGE, followAreaEdit, setAreaEdit } from "../core/area";
 import type { Edit } from "../core/editSession";
+import { type FollowedEdit, followAreaEdits } from "../core/multiEdit";
 import { DEFAULT_IMAGE_SETTINGS, type ImageSettings } from "../shared/imageSettings";
 import { kindOf } from "../core/annotations";
 import { DEFAULT_IMAGE_STYLE } from "../core/annotations/image";
@@ -116,7 +117,11 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
   const [mode, setMode] = useState(INITIAL_MODE);
   const tool = activeTool(mode);
   const [laserPointerHotkey, setLaserPointerHotkey] = useState<string | null>(null);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  // Every selected Annotation: several after a rubber band (or Shift-click), which then move and delete together.
+  const [selectedIds, setSelectedIds] = useState<readonly string[]>([]);
+  /** The selected Annotation when exactly one is: what the Style panel and the Arrange buttons are about. */
+  const selectedId = selectedIds.length === 1 ? selectedIds[0]! : null;
+  const setSelectedId = (id: string | null) => setSelectedIds(id === null ? [] : [id]);
   // Last-used style per tool: loaded from the settings at start, stored again (after a short pause) when changed.
   const [toolStyles, setToolStyles] = useState<Record<string, Style>>({});
   const [canvas, setCanvas] = useState<AnnotationCanvas | null>(null);
@@ -323,8 +328,10 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
 
   // Undo can remove the selected Annotation (undoing its creation): nothing is selected then.
   useEffect(() => {
-    if (selectedId !== null && image && !image.model.annotations.some((a) => a.id === selectedId)) setSelectedId(null);
-  }, [image, selectedId]);
+    if (!image) return;
+    const alive = selectedIds.filter((id) => image.model.annotations.some((a) => a.id === id));
+    if (alive.length !== selectedIds.length) setSelectedIds(alive);
+  }, [image, selectedIds]);
 
   const captureBytes = image?.capture ?? null;
   const imageUrl = useMemo(
@@ -386,6 +393,15 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
     if (grown.limited) report(AREA_LIMIT_MESSAGE);
   };
 
+  /** Several Annotations changed together (a multi-selection moved or deleted): one undo step. */
+  const commitMany = (items: readonly FollowedEdit[]) => {
+    if (!current) return;
+    limitNotice.current = null;
+    const followed = followAreaEdits(current.session.image, items, imageSettings.background);
+    if (followed.edit) current.session.apply(followed.edit);
+    if (followed.limited) report(AREA_LIMIT_MESSAGE);
+  };
+
   const events: CanvasEvents = {
     onCreate: (annotation, bounds) => {
       if (!current) return;
@@ -405,6 +421,7 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
       if (limited) report(AREA_LIMIT_MESSAGE);
     },
     onUpdate: (id, patch, bounds) => commit({ kind: "update", id, patch }, bounds),
+    onUpdateMany: (updates) => commitMany(updates.map(({ id, patch, bounds }) => ({ edit: { kind: "update", id, patch }, bounds }))),
     onCrop: (next, how) => {
       if (!current) return;
       limitNotice.current = null;
@@ -417,15 +434,15 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
     // A drag went further than the image may grow: it stopped at the limit (the edit it made was applied first).
     onLimit: () => report(AREA_LIMIT_MESSAGE),
     onTextSelection: setTextSelection,
-    onSelect: (id) => {
-      setSelectedId(id);
-      if (id !== null) setSelection(NO_SELECTION); // working on an Annotation: Delete means it, not the picked thumbnails
+    onSelect: (ids) => {
+      setSelectedIds([...ids]);
+      if (ids.length > 0) setSelection(NO_SELECTION); // working on an Annotation: Delete means it, not the picked thumbnails
     },
   };
 
   useEffect(() => canvas?.sync(image?.model ?? emptyModel(), image?.images), [canvas, image?.model, image?.images]);
   useEffect(() => canvas?.setTool(tool), [canvas, tool]);
-  useEffect(() => canvas?.select(selectedId), [canvas, selectedId, image?.model]);
+  useEffect(() => canvas?.select(selectedIds), [canvas, selectedIds, image?.model]);
   useEffect(
     () => canvas?.setDrawStyle(tool === SELECT_TOOL.id ? {} : styleOf(tool, null)),
     [canvas, tool, toolStyles],
@@ -483,7 +500,13 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
   const selectedIndex = image?.model.annotations.findIndex((a) => a.id === selectedId) ?? -1;
   const stackSize = image?.model.annotations.length ?? 0;
   const deleteSelected = () => {
-    if (!current || readOnly || selectedIndex < 0) return;
+    if (!current || readOnly) return;
+    if (selectedIds.length > 1) {
+      commitMany(selectedIds.map((id) => ({ edit: { kind: "delete", id } })));
+      setSelectedIds([]);
+      return;
+    }
+    if (selectedIndex < 0) return;
     commit({ kind: "delete", id: selectedId! });
     setSelectedId(null);
   };
@@ -668,7 +691,7 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
   // --- keyboard: every key goes through the one shortcut table ------------------------------------
 
   const selectionSize = selection.selected.size;
-  const keys = { laserPointerOn: mode.laserPointerOn, chooseTool, copy, discard, view, selectedId, hasImage: image !== null, undo, redo, deleteSelected, moveSelected, selectionSize, deleteSelection, clearSelection };
+  const keys = { laserPointerOn: mode.laserPointerOn, chooseTool, copy, discard, view, selectedId, hasImage: image !== null, selectedCount: selectedIds.length, undo, redo, deleteSelected, moveSelected, selectionSize, deleteSelection, clearSelection };
   const latest = useRef(keys);
   latest.current = keys;
   useEffect(() => {
@@ -700,7 +723,7 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
           break;
         case "editor.copy":
           // Ctrl+C copies the image only when nothing is selected (there is nothing else to copy yet).
-          if (now.selectedId !== null || !now.hasImage) return;
+          if (now.selectedCount > 0 || !now.hasImage) return;
           void now.copy();
           break;
         case "editor.discard":
@@ -807,6 +830,7 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
         </main>
         <StylePanel
           kind={readOnly ? null : (styledKind ?? null)}
+          selectedCount={selectedIds.length}
           style={panelStyle}
           onChange={restyle}
           textEditing={
@@ -817,7 +841,7 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
           toolGroups={!selected && tool !== SELECT_TOOL.id ? styledKind?.toolGroups : undefined}
           image={
             // With the Select tool and nothing selected, and while the Crop tool is on: the image's own settings.
-            image && !readOnly && ((tool === SELECT_TOOL.id && selectedId === null) || tool === CROP_TOOL.id)
+            image && !readOnly && ((tool === SELECT_TOOL.id && selectedIds.length === 0) || tool === CROP_TOOL.id)
               ? { background, onChange: chooseBackground, showOutside, onShowOutside: chooseShowOutside }
               : null
           }
