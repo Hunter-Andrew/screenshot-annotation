@@ -37,7 +37,7 @@ test("shows the buttons in order, icon-only, with the key in each tooltip, and A
   expect(accent).toBe("rgb(37, 232, 183)"); // the facelift green, #25E8B7
 });
 
-test("each tool button highlights and is remembered by the platform", async ({ page }) => {
+test("each tool button highlights and tells the platform", async ({ page }) => {
   for (const [name, tool] of [["Rectangle", "rect"], ["Pen", "pen"], ["Highlighter", "highlight"], ["Arrow", "arrow"]] as const) {
     await button(page, name).click();
     await expect(button(page, name)).toHaveAttribute("aria-pressed", "true");

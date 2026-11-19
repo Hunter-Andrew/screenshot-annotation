@@ -14,12 +14,11 @@
 //! The toolbar (ticket 53) is one more small window, `drawing-toolbar`: always on top, never focusable (so a
 //! click on it leaves the keyboard with the overlay that has it), excluded from captures with
 //! `pointer_highlight::exclude_from_capture`, created with the overlays and destroyed with them. The pages talk
-//! through events: the platform remembers the tool for the app session (`get_drawing_tool` and
-//! `set_drawing_tool`, which tells every window), "Use apps" is `set_drawing_click_through`, and the toolbar
+//! through events: a tool chosen in one window is relayed to the others (`set_drawing_tool`, which tells every
+//! window; nothing is remembered, every start of the mode is on Arrow), "Use apps" is `set_drawing_click_through`, and the toolbar
 //! asks for its collapsed and expanded size with `resize_drawing_toolbar`.
 
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Mutex;
 
 use tauri::{AppHandle, Emitter, LogicalSize, Manager, PhysicalPosition, PhysicalSize, WebviewUrl};
 
@@ -32,9 +31,6 @@ use crate::geometry::{self, MonitorBounds};
 pub struct DrawingState {
     /// True from the moment the mode starts until `end`; only `start` and `end` change it.
     active: AtomicBool,
-    /// The tool last chosen, kept for the app session so the next start of the mode opens on it. Empty (the
-    /// default) until one is chosen, which reads as Arrow.
-    tool: Mutex<String>,
 }
 
 /// Event carrying the chosen tool (its name, a string) to every window after `set_drawing_tool`.
@@ -222,29 +218,13 @@ pub async fn drawing_exit(app: AppHandle) {
     end(&app, "Esc");
 }
 
-/// The tool the mode opens on: the last one chosen in this app session, Arrow before any.
-#[tauri::command]
-pub async fn get_drawing_tool(app: AppHandle) -> String {
-    let state = app.state::<DrawingState>();
-    let tool = state.tool.lock().unwrap_or_else(|p| p.into_inner()).clone();
-    if drawing_plan::is_tool(&tool) {
-        tool
-    } else {
-        drawing_plan::DEFAULT_TOOL.to_string()
-    }
-}
-
-/// A tool was chosen on the toolbar or by a key of an overlay: remember it and tell every window.
+/// A tool was chosen on the toolbar or by a key of an overlay: tell every window (it is not kept: each start of
+/// the mode begins on Arrow).
 #[tauri::command]
 pub async fn set_drawing_tool(app: AppHandle, tool: String) {
     if !drawing_plan::is_tool(&tool) {
         diag::log(&format!("drawing mode: ignored an unknown tool {tool:?}"));
         return;
-    }
-    {
-        let state = app.state::<DrawingState>();
-        let mut slot = state.tool.lock().unwrap_or_else(|p| p.into_inner());
-        *slot = tool.clone();
     }
     let _ = app.emit(TOOL_EVENT, tool);
 }

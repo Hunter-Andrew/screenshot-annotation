@@ -257,12 +257,7 @@ export interface PlatformBridge {
    * item do from the platform's side, so this is only for the page's own Esc.
    */
   exitDrawingMode(): Promise<void>;
-  /**
-   * Drawing mode's tool (ticket 53). The platform keeps the last one chosen for the app session, so a
-   * window that opens asks for it (Arrow before any was chosen).
-   */
-  getDrawingTool(): Promise<DrawingTool>;
-  /** Choose the tool from the toolbar or a key of an overlay: remembered, and delivered to every drawing window via `onDrawingTool`. */
+  /** Choose the tool from the toolbar or a key of an overlay: delivered to every drawing window via `onDrawingTool` (not remembered: every start of the mode begins on Arrow). */
   setDrawingTool(tool: DrawingTool): Promise<void>;
   /** The tool changed (anywhere), including the change this window asked for. */
   onDrawingTool(handler: (tool: DrawingTool) => void): Promise<() => void>;

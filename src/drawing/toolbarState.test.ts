@@ -26,10 +26,6 @@ describe("a fresh toolbar", () => {
     expect(canUndo(initialToolbarState())).toBe(false);
     expect(undoTarget(initialToolbarState())).toBeNull();
   });
-
-  it("starts on the tool remembered from the last time in this session", () => {
-    expect(initialToolbarState("pen").tool).toBe("pen");
-  });
 });
 
 describe("tools and Use apps", () => {

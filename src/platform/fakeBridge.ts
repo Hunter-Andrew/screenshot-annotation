@@ -95,7 +95,7 @@ export interface FakeBridge extends PlatformBridge {
   readonly overlayLogs: { message: string; fatal: boolean }[];
   /** How many times a drawing overlay asked to leave Drawing mode (Esc). */
   readonly drawingExits: number;
-  /** The Drawing mode tool the platform remembers (Arrow in a fresh fake: the fake forgets it on a reload, like the app at start). */
+  /** The Drawing mode tool last chosen in this fake (Arrow in a fresh one). Only a record for tests: no window reads it at start. */
   readonly drawingTool: DrawingTool;
   /** Whether the toolbar's "Use apps" last made the overlays click-through, and every change in order. */
   readonly drawingClickThrough: boolean;
@@ -751,7 +751,6 @@ export function createFakeBridge(
     },
     pretendDrawingEdit: (edit) => drawingEditHandlers.forEach((handler) => handler(edit)),
     pretendDrawingTool: publishDrawingTool,
-    getDrawingTool: async () => drawingTool,
     setDrawingTool: async (tool) => publishDrawingTool(tool),
     onDrawingTool: async (handler) => subscribe(drawingToolHandlers, handler),
     setDrawingClickThrough: async (on) => {

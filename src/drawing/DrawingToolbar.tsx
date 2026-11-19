@@ -23,7 +23,7 @@ const isTool = (id: string): id is DrawingTool => (DRAWING_TOOLS as readonly str
  * own. The platform opens it top-centre on the monitor under the mouse, never gives it keyboard focus (so the
  * overlay keeps the keys), keeps it out of captures, and lets it be dragged (`data-tauri-drag-region`, on the pill's
  * background and the grip). The window talks to the overlays only through the bridge: the tool is chosen there and
- * remembered, Undo asks the overlay that drew last, and "Use apps" makes the overlays click-through.
+ * relayed to the overlays, Undo asks the overlay that drew last, and "Use apps" makes the overlays click-through.
  */
 export function DrawingToolbar({ bridge }: { bridge: PlatformBridge }) {
   const [state, setState] = useState<ToolbarState>(() => initialToolbarState());
@@ -39,19 +39,16 @@ export function DrawingToolbar({ bridge }: { bridge: PlatformBridge }) {
 
   useEffect(() => {
     let alive = true;
-    let heardEvent = false;
     const offs: (() => void)[] = [];
     const log = (what: string) => (e: unknown) => void bridge.logOverlay(`drawing toolbar: ${what} failed: ${e}`);
     const keep = (subscription: Promise<() => void>) =>
       void subscription.then((off) => (alive ? offs.push(off) : off()), log("subscribing"));
     keep(
       bridge.onDrawingTool((tool) => {
-        heardEvent = true;
         if (alive) setState((s) => selectTool(s, tool));
       }),
     );
     keep(bridge.onDrawingEdit((edit) => alive && setState((s) => recordEdit(s, edit))));
-    bridge.getDrawingTool().then((tool) => alive && !heardEvent && setState((s) => selectTool(s, tool)), log("getDrawingTool"));
     return () => {
       alive = false;
       offs.forEach((off) => off());

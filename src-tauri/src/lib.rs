@@ -1321,7 +1321,6 @@ pub fn run() {
             overlay::overlay_log,
             overlay::overlay_finish,
             drawing::drawing_exit,
-            drawing::get_drawing_tool,
             drawing::set_drawing_tool,
             drawing::set_drawing_click_through,
             drawing::resize_drawing_toolbar,

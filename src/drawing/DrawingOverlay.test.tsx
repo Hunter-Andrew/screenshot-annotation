@@ -145,12 +145,12 @@ describe("Drawing mode overlay", () => {
 });
 
 describe("Drawing mode overlay and its toolbar (ticket 53)", () => {
-  it("starts on the tool the platform remembers from earlier in the session", async () => {
+  it("always starts on Arrow, even when another tool was chosen earlier in the session", async () => {
     bridge = createFakeBridge({ storage: memory() });
     await bridge.setDrawingTool("pen");
     render(<DrawingOverlay bridge={bridge} monitor={0} />);
     await act(async () => {});
-    expect(screen.getByTestId("drawing-canvas").dataset.tool).toBe("pen");
+    expect(screen.getByTestId("drawing-canvas").dataset.tool).toBe("arrow");
   });
 
   it("follows a tool chosen on the toolbar or on another overlay", async () => {

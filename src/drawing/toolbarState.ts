@@ -22,9 +22,9 @@ export interface ToolbarState {
   undone: readonly number[];
 }
 
-/** `remembered`: the tool last used earlier in this app session (Arrow when there is none). */
-export const initialToolbarState = (remembered: DrawingTool = DEFAULT_TOOL): ToolbarState => ({
-  tool: remembered,
+/** Always Arrow (Andrew, 2026-11-19): the tool last used is not remembered between starts of the mode. */
+export const initialToolbarState = (): ToolbarState => ({
+  tool: DEFAULT_TOOL,
   collapsed: false,
   useApps: false,
   made: [],

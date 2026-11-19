@@ -57,12 +57,11 @@ export function DrawingOverlay({ bridge, monitor }: { bridge: PlatformBridge; mo
     return () => window.removeEventListener("resize", onResize);
   }, []);
 
-  // The toolbar (its own window) and the other overlays share one tool: the platform remembers it for the session.
+  // The toolbar (its own window) and the other overlays share one tool while the mode is on: a change is relayed through the platform. Every start is Arrow.
   const logFailure = (what: string) => (e: unknown) => void bridge.logOverlay(`drawing ${monitor}: ${what} failed: ${e}`);
   const undoRequest = useRef<() => void>(() => {});
   useEffect(() => {
     let alive = true;
-    let heardEvent = false;
     const offs: (() => void)[] = [];
     const keep = (subscription: Promise<() => void>) =>
       void subscription.then(
@@ -71,15 +70,10 @@ export function DrawingOverlay({ bridge, monitor }: { bridge: PlatformBridge; mo
       );
     keep(
       bridge.onDrawingTool((tool) => {
-        heardEvent = true;
         if (alive) setState((s) => selectTool(s, tool));
       }),
     );
     keep(bridge.onDrawingUndo((target) => alive && target === monitor && undoRequest.current()));
-    bridge.getDrawingTool().then(
-      (tool) => alive && !heardEvent && setState((s) => selectTool(s, tool)),
-      logFailure("getDrawingTool"),
-    );
     return () => {
       alive = false;
       offs.forEach((off) => off());

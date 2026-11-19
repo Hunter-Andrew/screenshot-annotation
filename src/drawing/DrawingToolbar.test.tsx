@@ -43,10 +43,10 @@ describe("the Drawing mode toolbar", () => {
     expect(button("Pen")).toHaveAttribute("aria-pressed", "false");
   });
 
-  it("starts on the tool remembered from earlier in the session", async () => {
+  it("always starts on Arrow, whatever tool was used before (Andrew, 2026-11-19)", async () => {
     await show("pen");
-    expect(button("Pen")).toHaveAttribute("aria-pressed", "true");
-    expect(button("Arrow")).toHaveAttribute("aria-pressed", "false");
+    expect(button("Arrow")).toHaveAttribute("aria-pressed", "true");
+    expect(button("Pen")).toHaveAttribute("aria-pressed", "false");
   });
 
   it("choosing a tool highlights it and tells the platform, so the overlays follow", async () => {

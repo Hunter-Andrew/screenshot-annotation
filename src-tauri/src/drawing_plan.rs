@@ -24,6 +24,9 @@ pub fn is_window(name: &str) -> bool {
 
 /// The four tools, as the page names them (`DRAWING_TOOLS` in src/drawing/drawingState.ts); Arrow is the first.
 pub const TOOLS: [&str; 4] = ["arrow", "rect", "pen", "highlight"];
+/// Every start of the mode is on Arrow; the pages decide that (nothing here uses the constant), so it is kept only as
+/// the checked mirror of `DEFAULT_TOOL` in drawingState.ts.
+#[allow(dead_code)]
 pub const DEFAULT_TOOL: &str = "arrow";
 
 pub fn is_tool(name: &str) -> bool {

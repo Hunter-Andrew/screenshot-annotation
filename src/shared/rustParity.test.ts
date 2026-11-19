@@ -248,7 +248,7 @@ describe("TS/Rust shared constants", () => {
     const tauriBridge = readFileSync(resolve(__dirname, "../platform/tauriBridge.ts"), "utf8");
     const lib = rust("lib.rs");
     const drawing = rust("drawing.rs");
-    for (const command of ["get_drawing_tool", "set_drawing_tool", "set_drawing_click_through", "resize_drawing_toolbar"]) {
+    for (const command of ["set_drawing_tool", "set_drawing_click_through", "resize_drawing_toolbar"]) {
       expect(tauriBridge).toContain(`invoke<`);
       expect(tauriBridge).toContain(`"${command}"`);
       expect(drawing).toMatch(new RegExp(`pub async fn ${command}\\(`));
