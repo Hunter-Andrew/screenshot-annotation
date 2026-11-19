@@ -91,6 +91,8 @@ export interface FakeBridge extends PlatformBridge {
   readonly overlayOutcomes: OverlayOutcome[];
   /** Lines the overlay page wrote to the diagnostics log. */
   readonly overlayLogs: { message: string; fatal: boolean }[];
+  /** How many times a drawing overlay asked to leave Drawing mode (Esc). */
+  readonly drawingExits: number;
   /** Make the next `overlayFrame` call reject with this message. */
   failNextOverlayFrame(message: string): void;
   /** The registered capture hotkey (accelerator). */
@@ -220,6 +222,7 @@ export function createFakeBridge(
   let launchFailure: string | null = null;
   let libraryFolderOpened = 0;
   let toolStylesResets = 0;
+  let drawingExits = 0;
   const toolStylesResetHandlers = new Set<() => void>();
   const magnifierHandlers = new Set<(enabled: boolean) => void>();
   const shortcutHandlers = new Set<(overrides: Record<string, unknown>) => void>();
@@ -691,6 +694,12 @@ export function createFakeBridge(
     },
     logOverlay: async (message, fatal = false) => {
       overlayLogs.push({ message, fatal });
+    },
+    get drawingExits() {
+      return drawingExits;
+    },
+    exitDrawingMode: async () => {
+      drawingExits++;
     },
     get magnifier() {
       return store.getItem("fake.magnifier") !== "0";

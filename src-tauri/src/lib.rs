@@ -5,6 +5,8 @@ mod capture_wire;
 mod countdown;
 mod delay;
 mod diag;
+mod drawing;
+mod drawing_plan;
 mod editor_window;
 mod geometry;
 mod history_store;
@@ -32,7 +34,7 @@ use std::time::Duration;
 
 use tauri::{
     ipc::{InvokeBody, Request, Response},
-    menu::{CheckMenuItemBuilder, MenuBuilder},
+    menu::{CheckMenuItemBuilder, MenuBuilder, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
     AppHandle, Emitter, Manager, RunEvent, WebviewUrl, WebviewWindowBuilder,
 };
@@ -327,6 +329,8 @@ fn set_demo_hotkey(
             demo.set(if pointer { 0 } else { 1 }, &accelerator);
             if pointer {
                 pointer_highlight::refresh_tray_label(&app, &accelerator);
+            } else {
+                drawing::update_tray_label(&app, &accelerator);
             }
             Ok(())
         }
@@ -1249,6 +1253,7 @@ pub fn run() {
         })
         .manage(RawInput::default())
         .manage(overlay::OverlayState::default())
+        .manage(drawing::DrawingState::default())
         // A second launch focuses the running instance.
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| request_editor(app, "second launch")))
         .plugin(tauri_plugin_clipboard_manager::init())
@@ -1305,6 +1310,7 @@ pub fn run() {
             overlay::overlay_ready,
             overlay::overlay_log,
             overlay::overlay_finish,
+            drawing::drawing_exit,
             get_magnifier,
             set_magnifier,
             get_image_settings,
@@ -1339,6 +1345,8 @@ pub fn run() {
                             } else {
                                 diag::log("hotkey event: drawing mode hotkey pressed");
                                 let _ = app.emit(DRAWING_MODE_HOTKEY_EVENT, ());
+                                // Drawing mode (ticket 52) starts or ends here.
+                                drawing::toggle(app.clone(), "hotkey");
                             }
                         } else {
                             capture_async(app.clone(), "hotkey");
@@ -1370,6 +1378,7 @@ pub fn run() {
             let notice_pending = !loaded.print_screen_notice_dismissed && reading.enabled();
             let launch_at_sign_in = loaded.launch_at_sign_in;
             let pointer_hotkey = loaded.pointer_highlight_hotkey.clone();
+            let drawing_hotkey = loaded.drawing_mode_hotkey.clone();
             app.manage(AppSettings { dir, data: Mutex::new(loaded) });
             if notice_pending {
                 // First run: open Settings, where the one-time Print Screen notice lives.
@@ -1380,8 +1389,15 @@ pub fn run() {
 
             let mut menu = MenuBuilder::new(app);
             // The pointer highlight is off at every start (its state is not saved), so its item starts unchecked.
-            for entry in tray_menu::entries(&delay::CHOICES, &pointer_hotkey, false) {
+            for entry in tray_menu::entries(&delay::CHOICES, &pointer_hotkey, false, &drawing_hotkey) {
                 menu = match entry {
+                    // The "Draw on screen" item is kept, so its label can follow the hotkey when it is changed.
+                    tray_menu::Entry::Item { id, label } if id == tray_menu::DRAW_ID => {
+                        let draw = MenuItem::with_id(app, id, label, true, None::<&str>)?;
+                        let menu = menu.item(&draw);
+                        app.manage(drawing::TrayItem(draw));
+                        menu
+                    }
                     tray_menu::Entry::Item { id, label } => menu.text(id, label),
                     tray_menu::Entry::Check { id, label, checked } => {
                         let item = CheckMenuItemBuilder::with_id(id, label).checked(checked).build(app.handle())?;
@@ -1412,6 +1428,7 @@ pub fn run() {
                 .on_menu_event(|app, event| match tray_menu::action_for(event.id.as_ref()) {
                     Some(tray_menu::Action::Capture) => capture_async(app.clone(), "tray"),
                     Some(tray_menu::Action::CaptureIn(seconds)) => overlay::begin_delayed(app.clone(), seconds),
+                    Some(tray_menu::Action::DrawOnScreen) => drawing::toggle(app.clone(), "tray"),
                     Some(tray_menu::Action::OpenLogFolder) => open_log_folder(),
                     Some(tray_menu::Action::TogglePointerHighlight) => pointer_highlight::request(app, None),
                     Some(tray_menu::Action::OpenEditor) => request_editor(app, "tray menu"),

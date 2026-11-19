@@ -17,3 +17,5 @@ export const COUNTDOWN_HASH = "#countdown";
 
 /** Route of the pointer highlight window; `src-tauri/src/pointer_highlight.rs` must open the same hash (see rustParity.test.ts). */
 export const POINTER_HIGHLIGHT_HASH = "#pointer-highlight";
+/** Route of a Drawing mode overlay window: `#drawing/<monitor index>`; `src-tauri/src/drawing.rs` must open the same prefix (see rustParity.test.ts). */
+export const DRAWING_HASH_PREFIX = "#drawing/";
