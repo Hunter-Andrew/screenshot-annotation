@@ -117,3 +117,25 @@ test("a drawing tool still draws where the frame would start: no rubber band whi
   await expect.poll(async () => (await saved(page)).length, { timeout: 6000 }).toBe(4);
   await expect(page.getByText(/Annotations selected/)).toHaveCount(0);
 });
+
+test("after a group move the Annotations are drawn where they were dropped (lines too), and the area does not grow", async ({ page }) => {
+  await page.goto("/");
+  await capture(page, 600, 400);
+  const at = await mapper(page, 600);
+  await page.keyboard.press("l");
+  await drag(page, at(40, 60), at(120, 120));
+  await drag(page, at(200, 60), at(280, 120));
+  await expect.poll(async () => (await saved(page)).length, { timeout: 6000 }).toBe(2);
+  await page.keyboard.press("v");
+  await drag(page, at(20, 30), at(300, 160));
+  await expect(page.getByText("2 Annotations selected")).toBeVisible();
+  await drag(page, at(80, 90), at(80, 250)); // straight down 160 px
+  await expect.poll(async () => (await saved(page)).map((a) => Math.round((a as unknown as { y1: number }).y1)), { timeout: 6000 }).toEqual([220, 220]);
+
+  // Let the group go, then frame where they should now be: only if they are drawn there are both caught.
+  await page.mouse.click(at(300, 20).x, at(300, 20).y);
+  await expect(page.getByText("2 Annotations selected")).toHaveCount(0);
+  await drag(page, at(20, 200), at(300, 330));
+  await expect(page.getByText("2 Annotations selected")).toBeVisible();
+  await expect(page.getByLabel("Zoom level")).toHaveText("100%");
+});

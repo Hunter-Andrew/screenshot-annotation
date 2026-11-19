@@ -545,6 +545,13 @@ export function createFabricCanvas(host: HTMLElement, { events, imageUrl, layout
     sync(model: AnnotationModel, images) {
       knownImages = images ?? knownImages;
       clearErase();
+      // Members of a multi-selection hold positions relative to the group, so an object that is changed (or removed)
+      // while grouped lands in the wrong place. Let the group go first; the editor selects the same ones again after.
+      const active = canvas.getActiveObject();
+      if (active instanceof ActiveSelection) {
+        const stale = model.annotations.length !== objectsById.size || model.annotations.some((a) => applied.get(a.id) !== a);
+        if (stale) silently(() => canvas.discardActiveObject());
+      }
       const wanted = new Set<string>();
       for (const annotation of model.annotations) {
         const adapter = adapterFor(annotation.type);
