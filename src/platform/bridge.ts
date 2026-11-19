@@ -78,7 +78,22 @@ export interface HotkeyState {
 
 export type SetHotkeyResult =
   | { ok: true }
-  | { ok: false; reason: "conflict" | "invalid" | "failed" };
+  | { ok: false; reason: "conflict" | "invalid" | "failed" | "demo-hotkey" };
+
+/** The two demo-tool global hotkeys (tickets 40, 41, 49). */
+export type DemoAction = "pointerHighlight" | "drawingMode";
+
+export interface DemoHotkeys {
+  pointerHighlight: string;
+  drawingMode: string;
+  /** False when the OS refused the combination at startup (another app has it). */
+  pointerHighlightRegistered: boolean;
+  drawingModeRegistered: boolean;
+}
+
+export type SetDemoHotkeyResult =
+  | { ok: true }
+  | { ok: false; reason: "conflict" | "invalid" | "failed" | "print-screen" | "capture-hotkey" | "other-demo" };
 
 /** The delays the delay timer offers, in seconds (the tray menu lists the same; `src-tauri/src/delay.rs` must match, see rustParity.test.ts). */
 export const CAPTURE_DELAYS = [3, 5, 10] as const;
@@ -281,6 +296,13 @@ export interface PlatformBridge {
    * stays in force and the result says `conflict`.
    */
   setHotkey(accelerator: string): Promise<SetHotkeyResult>;
+  /** The pointer-highlight and drawing-mode hotkeys (defaults ctrl+shift+l and ctrl+shift+d). */
+  getDemoHotkeys(): Promise<DemoHotkeys>;
+  /**
+   * Re-register one demo hotkey and save it, like `setHotkey`. Refused (nothing changes) for Print
+   * Screen, the capture hotkey and the other demo hotkey, or when another app owns the combination.
+   */
+  setDemoHotkey(action: DemoAction, accelerator: string): Promise<SetDemoHotkeyResult>;
 
   /**
    * Whether the Windows setting PrintScreenKeyForSnippingEnabled leaves Print Screen with Snipping

@@ -53,6 +53,36 @@ pub fn change_hotkey(
     Ok(())
 }
 
+/// Whether the key part of an accelerator is Print Screen, alone or with modifiers (mirrors `usesPrintScreen`
+/// in `src/settings/hotkey.ts`).
+pub fn uses_print_screen(accelerator: &str) -> bool {
+    accelerator.rsplit('+').next().is_some_and(|key| key.trim().eq_ignore_ascii_case("PrintScreen"))
+}
+
+fn same_accelerator(a: &str, b: &str) -> bool {
+    a.trim().eq_ignore_ascii_case(b.trim())
+}
+
+/// Why a demo-tool hotkey (pointer highlight, drawing mode; ticket 49) may not be `new`, as the wire code
+/// `src/platform/tauriBridge.ts` maps back to a message: Print Screen, the capture hotkey, or the other
+/// demo hotkey. `None` when it may (whether another app owns it is only known by registering it).
+pub fn demo_refusal(new: &str, capture: &str, other_demo: &str) -> Option<&'static str> {
+    if uses_print_screen(new) {
+        Some("print-screen")
+    } else if same_accelerator(new, capture) {
+        Some("capture-hotkey")
+    } else if same_accelerator(new, other_demo) {
+        Some("other-demo")
+    } else {
+        None
+    }
+}
+
+/// The capture hotkey may not take a combination a demo tool already uses.
+pub fn clashes_with_demo(new: &str, pointer_highlight: &str, drawing_mode: &str) -> bool {
+    same_accelerator(new, pointer_highlight) || same_accelerator(new, drawing_mode)
+}
+
 /// Sends bare Print Screen to the Raw Input listener (RegisterHotKey never fires for it on
 /// Andrew's laptop; ticket 26, ADR 0007) and every other combination to the global-shortcut plugin,
 /// so `change_hotkey` keeps its ordering and rollback unchanged. If the listener cannot start, bare
@@ -179,6 +209,42 @@ mod tests {
         assert_eq!(change_hotkey(&live, "ctrl+shift+s", "ctrl+shift+s", || panic!("no save")), Ok(()));
         let dead = Fake { held: RefCell::new(vec![]), taken_by_others: vec!["ctrl+shift+s".into()] };
         assert_eq!(change_hotkey(&dead, "ctrl+shift+s", "ctrl+shift+s", || Ok(())), Err("conflict"));
+    }
+
+    #[test]
+    fn a_free_combination_is_not_refused_for_a_demo_hotkey() {
+        assert_eq!(demo_refusal("ctrl+shift+l", "ctrl+shift+s", "ctrl+shift+d"), None);
+    }
+
+    #[test]
+    fn print_screen_is_refused_for_a_demo_hotkey_bare_or_with_modifiers() {
+        assert_eq!(demo_refusal("PrintScreen", "ctrl+shift+s", "ctrl+shift+d"), Some("print-screen"));
+        assert_eq!(demo_refusal("ctrl+PrintScreen", "ctrl+shift+s", "ctrl+shift+d"), Some("print-screen"));
+        assert!(!uses_print_screen("ctrl+shift+s"));
+        assert!(!uses_print_screen(""));
+    }
+
+    #[test]
+    fn the_capture_hotkey_and_the_other_demo_hotkey_are_refused_for_a_demo_hotkey() {
+        assert_eq!(demo_refusal("ctrl+shift+s", "ctrl+shift+s", "ctrl+shift+d"), Some("capture-hotkey"));
+        assert_eq!(demo_refusal("CTRL+SHIFT+D", "ctrl+shift+s", "ctrl+shift+d"), Some("other-demo"));
+    }
+
+    #[test]
+    fn the_capture_hotkey_may_not_take_a_demo_combination() {
+        assert!(clashes_with_demo("ctrl+shift+l", "ctrl+shift+l", "ctrl+shift+d"));
+        assert!(clashes_with_demo("ctrl+shift+d", "ctrl+shift+l", "ctrl+shift+d"));
+        assert!(!clashes_with_demo("ctrl+alt+k", "ctrl+shift+l", "ctrl+shift+d"));
+    }
+
+    #[test]
+    fn a_demo_hotkey_change_keeps_the_register_first_rollback() {
+        let reg = fake_holding("ctrl+shift+l", &["ctrl+alt+j"]);
+        assert_eq!(change_hotkey(&reg, "ctrl+shift+l", "ctrl+alt+j", || panic!("must not persist")), Err("conflict"));
+        assert_eq!(*reg.held.borrow(), vec!["ctrl+shift+l".to_string()]);
+        let r = change_hotkey(&reg, "ctrl+shift+l", "ctrl+alt+k", || Err(io::Error::other("disk full")));
+        assert_eq!(r, Err("failed"));
+        assert_eq!(*reg.held.borrow(), vec!["ctrl+shift+l".to_string()]);
     }
 
     // Routing between the Raw Input listener and the plugin.

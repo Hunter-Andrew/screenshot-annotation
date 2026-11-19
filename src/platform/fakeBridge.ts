@@ -1,6 +1,7 @@
 import { encodeRgbaPng, readSize } from "../core/png";
 import { CANVAS_MARGIN, CROP_MARGIN, DEFAULT_IMAGE_SETTINGS, type ImageSettings, inRange, isDarkBackground, OUTSIDE_DARKNESS, sanitizeImageSettings } from "../shared/imageSettings";
 import { formatStamp } from "../shared/stamp";
+import { demoHotkeyRefusal } from "../settings/hotkey";
 import type { CaptureResult, LibraryFile, LibraryItem, OverlayOutcome, OverlayRect, PlatformBridge } from "./bridge";
 
 export interface SimulatedShot {
@@ -83,6 +84,9 @@ export interface FakeBridge extends PlatformBridge {
   failNextOverlayFrame(message: string): void;
   /** The registered capture hotkey (accelerator). */
   readonly hotkey: string;
+  /** The registered demo-tool hotkeys. */
+  readonly pointerHighlightHotkey: string;
+  readonly drawingModeHotkey: string;
   /** Combinations "another app" owns; `setHotkey` reports a conflict for these. Mutable by tests. */
   readonly takenHotkeys: Set<string>;
   /** How many times the Bluetooth & devices settings deep link was opened. */
@@ -153,6 +157,8 @@ export function createFakeBridge(
     setItem: (k, v) => void memory.set(k, v),
   };
   let hotkey = store.getItem("fake.hotkey") ?? "ctrl+shift+s";
+  let pointerHighlightHotkey = store.getItem("fake.pointerHighlightHotkey") ?? "ctrl+shift+l";
+  let drawingModeHotkey = store.getItem("fake.drawingModeHotkey") ?? "ctrl+shift+d";
   const takenHotkeys = new Set<string>();
   let keyboardSettingsOpened = 0;
   let snippingEnabled = options.printScreenSnippingEnabled ?? true;
@@ -308,6 +314,12 @@ export function createFakeBridge(
     get hotkey() {
       return hotkey;
     },
+    get pointerHighlightHotkey() {
+      return pointerHighlightHotkey;
+    },
+    get drawingModeHotkey() {
+      return drawingModeHotkey;
+    },
     takenHotkeys,
     settingsLogs,
     setPrintScreenSnipping: (enabled) => {
@@ -326,8 +338,28 @@ export function createFakeBridge(
     setHotkey: async (accelerator) => {
       if (accelerator === hotkey) return { ok: true };
       if (takenHotkeys.has(accelerator)) return { ok: false, reason: "conflict" };
+      if ([pointerHighlightHotkey, drawingModeHotkey].some((d) => d.toLowerCase() === accelerator.toLowerCase()))
+        return { ok: false, reason: "demo-hotkey" };
       hotkey = accelerator;
       store.setItem("fake.hotkey", accelerator);
+      return { ok: true };
+    },
+    getDemoHotkeys: async () => ({
+      pointerHighlight: pointerHighlightHotkey,
+      drawingMode: drawingModeHotkey,
+      pointerHighlightRegistered: true,
+      drawingModeRegistered: true,
+    }),
+    setDemoHotkey: async (action, accelerator) => {
+      const current = action === "pointerHighlight" ? pointerHighlightHotkey : drawingModeHotkey;
+      const other = action === "pointerHighlight" ? drawingModeHotkey : pointerHighlightHotkey;
+      if (accelerator === current) return { ok: true };
+      const refusal = demoHotkeyRefusal(accelerator, hotkey, other);
+      if (refusal !== null) return { ok: false, reason: refusal };
+      if (takenHotkeys.has(accelerator)) return { ok: false, reason: "conflict" };
+      if (action === "pointerHighlight") pointerHighlightHotkey = accelerator;
+      else drawingModeHotkey = accelerator;
+      store.setItem(action === "pointerHighlight" ? "fake.pointerHighlightHotkey" : "fake.drawingModeHotkey", accelerator);
       return { ok: true };
     },
     getPrintScreenNotice: async () => ({

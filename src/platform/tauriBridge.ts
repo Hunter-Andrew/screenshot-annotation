@@ -5,6 +5,7 @@ import { formatStamp } from "../shared/stamp";
 import { watchLibrary } from "./libraryWatch";
 import type {
   CaptureResult,
+  DemoHotkeys,
   HotkeyState,
   LibraryFile,
   LibraryItem,
@@ -90,7 +91,22 @@ export function createTauriBridge(): PlatformBridge {
         await invoke<void>("set_hotkey", { accelerator });
         return { ok: true };
       } catch (e) {
-        return { ok: false, reason: e === "conflict" || e === "invalid" ? e : "failed" };
+        return { ok: false, reason: e === "conflict" || e === "invalid" || e === "demo-hotkey" ? e : "failed" };
+      }
+    },
+    getDemoHotkeys: () => invoke<DemoHotkeys>("get_demo_hotkeys"),
+    setDemoHotkey: async (action, accelerator) => {
+      try {
+        await invoke<void>("set_demo_hotkey", { action, accelerator });
+        return { ok: true };
+      } catch (e) {
+        return {
+          ok: false,
+          reason:
+            e === "conflict" || e === "invalid" || e === "print-screen" || e === "capture-hotkey" || e === "other-demo"
+              ? e
+              : "failed",
+        };
       }
     },
     getPrintScreenNotice: () =>

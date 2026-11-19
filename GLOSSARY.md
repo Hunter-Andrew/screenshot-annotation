@@ -60,6 +60,14 @@ _Avoid_: Tray (means the Windows system tray), filmstrip, recent captures
 Taking a Capture after a wait of 3, 5 or 10 seconds, started from the tray menu or the editor's top bar, so menus and tooltips can be opened first. A countdown badge follows the mouse pointer and is not part of the Capture.
 _Avoid_: Timer capture, scheduled capture
 
+**Pointer highlight**:
+A red dot (colour, size and click ripple are Settings) that follows the mouse pointer over the whole desktop, in every app, to show an audience where it is during a demo or screen share. Switched on and off by its own global hotkey (default Ctrl+Shift+L), the tray item or the editor's toggle; off at every start. Drawn by a small transparent, click-through window that is hidden from Captures. It is not an Annotation and never part of an Annotated Image.
+_Avoid_: Laser pointer, cursor highlight, spotlight
+
+**Drawing mode**:
+A temporary state, started and ended by its own global hotkey (default Ctrl+Shift+D), in which the user draws arrows, rectangles, pen strokes and highlighter strokes over the live desktop for an audience. Nothing is saved; leaving the mode clears every drawing. A Capture taken during it includes the drawings. Its drawings are not Annotations and never reach the Library.
+_Avoid_: Screen annotation, whiteboard, markup mode
+
 **Export**:
 The flattened image produced from an Annotated Image for use outside the app (clipboard or Save as). It is a plain image that never carries the editable data or the original Capture.
 _Avoid_: Render, output

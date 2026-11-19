@@ -3,6 +3,7 @@ import "./settings.css";
 import type { PlatformBridge } from "../platform/bridge";
 import { MAIN_STYLE, RELEASES_URL } from "../shared/constants";
 import { ShortcutsSection } from "./ShortcutsSection";
+import { DemoToolsSection } from "./DemoToolsSection";
 import { LaunchAtSignIn } from "./LaunchAtSignIn";
 import { ImageSettingsSection } from "./ImageSettingsSection";
 import { LibraryFolder } from "./LibraryFolder";
@@ -21,6 +22,7 @@ export function Settings({ bridge }: { bridge: PlatformBridge }) {
       <h1 style={{ fontSize: 18 }}>Settings</h1>
       <ShortcutsSection bridge={bridge} />
       <PrintScreenNotice bridge={bridge} />
+      <DemoToolsSection bridge={bridge} />
       <MagnifierSetting bridge={bridge} />
       <ImageSettingsSection bridge={bridge} />
       <LaunchAtSignIn bridge={bridge} />

@@ -4,7 +4,7 @@ import { comboFromKeyEvent, formatCombo, isBarePrintScreen } from "./hotkey";
 import { shouldWarnPrintScreenTaken } from "./noticeRule";
 
 type Problem =
-  | { accelerator: string; reason: "conflict" | "failed" | "raw-input" }
+  | { accelerator: string; reason: "conflict" | "failed" | "raw-input" | "demo-hotkey" }
   | "needs-modifier"
   | "unsupported-key"
   | "lost-focus"
@@ -74,7 +74,10 @@ export function HotkeyRecorder({ bridge }: { bridge: PlatformBridge }) {
             if (!state.registered) setProblem(unregisteredProblem(state));
           });
         } else {
-          setProblem({ accelerator, reason: saved.reason === "conflict" ? "conflict" : "failed" });
+          setProblem({
+            accelerator,
+            reason: saved.reason === "conflict" || saved.reason === "demo-hotkey" ? saved.reason : "failed",
+          });
         }
       });
     };
@@ -163,6 +166,8 @@ function describe(problem: NonNullable<Problem>): string {
       `Windows may never deliver for Print Screen. Details are in capture.log (tray menu: Open log folder). ` +
       `Another hotkey such as Ctrl+Print Screen works.`
     );
+  if (problem.reason === "demo-hotkey")
+    return `${name} is already a demo-tool hotkey (Settings > Demo tools). Pick a different combination.`;
   return problem.reason === "conflict"
     ? `${name} is already in use by another app. The previous hotkey stays in force; pick a different combination.`
     : `Could not save ${name}. The previous hotkey stays in force.`;

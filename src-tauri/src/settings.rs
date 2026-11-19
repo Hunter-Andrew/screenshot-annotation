@@ -4,6 +4,9 @@
 //!
 //! What the fields in `settings.json` mean (plain language; the user may open this file):
 //! - `hotkey`: the capture hotkey, e.g. "ctrl+shift+s" or "PrintScreen". Change it in Settings, not here.
+//! - `pointerHighlightHotkey` / `drawingModeHotkey`: the global hotkeys of the two demo tools, e.g.
+//!   "ctrl+shift+l" and "ctrl+shift+d" (the defaults). Change them in Settings > Demo tools. Never Print
+//!   Screen, the capture hotkey or each other; a value that breaks that, or is not text, becomes the default.
 //! - `printScreenNoticeDismissed`: true means "you answered the one-time Print Screen notice" (clicked
 //!   either of its two buttons). It only stops that notice from showing again. It does NOT mean Print
 //!   Screen works or that the Windows setting is off; the warning under the hotkey field reads that live
@@ -51,12 +54,21 @@ pub const FILE_NAME: &str = "settings.json";
 /// Where an unparseable settings.json is kept (see `load`).
 pub const CORRUPT_FILE_NAME: &str = "settings.json.corrupt";
 pub const DEFAULT_HOTKEY: &str = "ctrl+shift+s";
+pub const DEFAULT_POINTER_HIGHLIGHT_HOTKEY: &str = "ctrl+shift+l";
+pub const DEFAULT_DRAWING_MODE_HOTKEY: &str = "ctrl+shift+d";
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct Settings {
     /// Capture hotkey as an accelerator string, e.g. "ctrl+shift+s" or "PrintScreen".
     pub hotkey: String,
+    /// Global hotkey that switches the pointer highlight on and off (ticket 49). Never Print Screen, the
+    /// capture hotkey or the drawing-mode hotkey; anything unusable is the default.
+    #[serde(deserialize_with = "pointer_highlight_hotkey_or_default")]
+    pub pointer_highlight_hotkey: String,
+    /// Global hotkey that starts and ends drawing mode (ticket 49); same rules.
+    #[serde(deserialize_with = "drawing_mode_hotkey_or_default")]
+    pub drawing_mode_hotkey: String,
     /// The one-time Print Screen / Snipping Tool notice was answered.
     pub print_screen_notice_dismissed: bool,
     /// Show the magnifier in the capture overlay (default true).
@@ -236,6 +248,33 @@ fn bool_or_true<'de, D: serde::Deserializer<'de>>(d: D) -> Result<bool, D::Error
     })
 }
 
+/// A stored demo hotkey is kept when it is a non-empty string that is not Print Screen; anything else is `default`.
+fn demo_hotkey_or<'de, D: serde::Deserializer<'de>>(d: D, default: &str) -> Result<String, D::Error> {
+    Ok(match serde_json::Value::deserialize(d)? {
+        serde_json::Value::String(s) if !s.trim().is_empty() && !crate::hotkey::uses_print_screen(&s) => s,
+        _ => default.to_string(),
+    })
+}
+
+fn pointer_highlight_hotkey_or_default<'de, D: serde::Deserializer<'de>>(d: D) -> Result<String, D::Error> {
+    demo_hotkey_or(d, DEFAULT_POINTER_HIGHLIGHT_HOTKEY)
+}
+
+fn drawing_mode_hotkey_or_default<'de, D: serde::Deserializer<'de>>(d: D) -> Result<String, D::Error> {
+    demo_hotkey_or(d, DEFAULT_DRAWING_MODE_HOTKEY)
+}
+
+/// A hand-edited file may give both demo tools, or a demo tool and the capture hotkey, the same
+/// combination: the later field falls back to its default so each combination has one action.
+fn resolve_demo_hotkey_clashes(s: &mut Settings) {
+    if crate::hotkey::demo_refusal(&s.pointer_highlight_hotkey, &s.hotkey, &s.drawing_mode_hotkey).is_some() {
+        s.pointer_highlight_hotkey = DEFAULT_POINTER_HIGHLIGHT_HOTKEY.into();
+    }
+    if crate::hotkey::demo_refusal(&s.drawing_mode_hotkey, &s.hotkey, &s.pointer_highlight_hotkey).is_some() {
+        s.drawing_mode_hotkey = DEFAULT_DRAWING_MODE_HOTKEY.into();
+    }
+}
+
 fn bool_or_false<'de, D: serde::Deserializer<'de>>(d: D) -> Result<bool, D::Error> {
     Ok(matches!(serde_json::Value::deserialize(d)?, serde_json::Value::Bool(true)))
 }
@@ -259,6 +298,8 @@ impl Default for Settings {
     fn default() -> Self {
         Settings {
             hotkey: DEFAULT_HOTKEY.into(),
+            pointer_highlight_hotkey: DEFAULT_POINTER_HIGHLIGHT_HOTKEY.into(),
+            drawing_mode_hotkey: DEFAULT_DRAWING_MODE_HOTKEY.into(),
             print_screen_notice_dismissed: false,
             magnifier: true,
             tool_styles: serde_json::Map::new(),
@@ -294,7 +335,10 @@ where
 pub fn load(dir: &Path) -> Settings {
     let Ok(bytes) = fs::read(dir.join(FILE_NAME)) else { return Settings::default() };
     match serde_json::from_slice(&bytes) {
-        Ok(settings) => settings,
+        Ok(mut settings) => {
+            resolve_demo_hotkey_clashes(&mut settings);
+            settings
+        }
         Err(parse_error) => {
             let outcome = match fs::write(dir.join(CORRUPT_FILE_NAME), &bytes) {
                 Ok(()) => format!("a copy was kept as {CORRUPT_FILE_NAME}"),
@@ -462,6 +506,64 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("sa-settings-{name}-{}", std::process::id()));
         let _ = fs::remove_dir_all(&dir);
         dir
+    }
+
+    #[test]
+    fn the_demo_hotkeys_default_for_a_fresh_install_and_for_files_from_before_they_existed() {
+        let s = load(&temp_dir("demo-fresh"));
+        assert_eq!((s.pointer_highlight_hotkey.as_str(), s.drawing_mode_hotkey.as_str()), ("ctrl+shift+l", "ctrl+shift+d"));
+        let dir = temp_dir("demo-old-file");
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(dir.join(FILE_NAME), br#"{"hotkey":"alt+x"}"#).unwrap();
+        let s = load(&dir);
+        assert_eq!(s.hotkey, "alt+x");
+        assert_eq!((s.pointer_highlight_hotkey.as_str(), s.drawing_mode_hotkey.as_str()), ("ctrl+shift+l", "ctrl+shift+d"));
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn the_demo_hotkeys_round_trip_through_the_file() {
+        let dir = temp_dir("demo-round-trip");
+        let s = Settings {
+            pointer_highlight_hotkey: "ctrl+alt+p".into(),
+            drawing_mode_hotkey: "ctrl+alt+o".into(),
+            ..Settings::default()
+        };
+        save(&dir, &s).unwrap();
+        let back = load(&dir);
+        assert_eq!(back.pointer_highlight_hotkey, "ctrl+alt+p");
+        assert_eq!(back.drawing_mode_hotkey, "ctrl+alt+o");
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn an_unusable_demo_hotkey_falls_back_to_its_default_and_keeps_the_rest() {
+        let dir = temp_dir("demo-invalid");
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(dir.join(FILE_NAME), br#"{"hotkey":"alt+x","pointerHighlightHotkey":5,"drawingModeHotkey":"PrintScreen"}"#).unwrap();
+        let s = load(&dir);
+        assert_eq!(s.hotkey, "alt+x");
+        assert_eq!(s.pointer_highlight_hotkey, "ctrl+shift+l");
+        assert_eq!(s.drawing_mode_hotkey, "ctrl+shift+d");
+        fs::write(dir.join(FILE_NAME), br#"{"pointerHighlightHotkey":"","drawingModeHotkey":"ctrl+PrintScreen"}"#).unwrap();
+        let s = load(&dir);
+        assert_eq!((s.pointer_highlight_hotkey.as_str(), s.drawing_mode_hotkey.as_str()), ("ctrl+shift+l", "ctrl+shift+d"));
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn a_demo_hotkey_that_clashes_with_the_capture_or_the_other_demo_hotkey_falls_back() {
+        let dir = temp_dir("demo-clash");
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(dir.join(FILE_NAME), br#"{"hotkey":"ctrl+alt+p","pointerHighlightHotkey":"ctrl+alt+p","drawingModeHotkey":"ctrl+alt+o"}"#).unwrap();
+        let s = load(&dir);
+        assert_eq!(s.pointer_highlight_hotkey, "ctrl+shift+l");
+        assert_eq!(s.drawing_mode_hotkey, "ctrl+alt+o");
+        fs::write(dir.join(FILE_NAME), br#"{"pointerHighlightHotkey":"ctrl+alt+o","drawingModeHotkey":"ctrl+alt+o"}"#).unwrap();
+        let s = load(&dir);
+        assert_eq!(s.pointer_highlight_hotkey, "ctrl+shift+l");
+        assert_eq!(s.drawing_mode_hotkey, "ctrl+alt+o");
+        fs::remove_dir_all(&dir).unwrap();
     }
 
     #[test]

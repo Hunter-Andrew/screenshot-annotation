@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { comboFromKeyEvent, formatCombo, isBarePrintScreen, isModifierCode, usesPrintScreen } from "./hotkey";
+import { comboFromKeyEvent, demoHotkeyRefusal, formatCombo, isBarePrintScreen, isModifierCode, usesPrintScreen } from "./hotkey";
 
 const ev = (
   code: string,
@@ -102,5 +102,25 @@ describe("usesPrintScreen", () => {
     const e = { code: "PrintScreen", ctrlKey: true, shiftKey: false, altKey: false, metaKey: false };
     const result = comboFromKeyEvent(e);
     expect(result.kind === "combo" && usesPrintScreen(result.accelerator)).toBe(true);
+  });
+});
+
+describe("demoHotkeyRefusal", () => {
+  const capture = "ctrl+shift+s";
+  it("accepts a free combination", () => {
+    expect(demoHotkeyRefusal("ctrl+shift+l", capture, "ctrl+shift+d")).toBeNull();
+  });
+  it("refuses Print Screen, bare or with modifiers", () => {
+    expect(demoHotkeyRefusal("PrintScreen", capture, "ctrl+shift+d")).toBe("print-screen");
+    expect(demoHotkeyRefusal("ctrl+PrintScreen", capture, "ctrl+shift+d")).toBe("print-screen");
+  });
+  it("refuses the capture hotkey", () => {
+    expect(demoHotkeyRefusal("ctrl+shift+s", capture, "ctrl+shift+d")).toBe("capture-hotkey");
+  });
+  it("refuses the other demo hotkey", () => {
+    expect(demoHotkeyRefusal("ctrl+shift+d", capture, "ctrl+shift+d")).toBe("other-demo");
+  });
+  it("compares case-insensitively", () => {
+    expect(demoHotkeyRefusal("CTRL+SHIFT+S", capture, "ctrl+shift+d")).toBe("capture-hotkey");
   });
 });
