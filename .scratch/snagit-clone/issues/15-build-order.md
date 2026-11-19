@@ -80,6 +80,9 @@ Decided with Andrew on 2026-11-14. Each milestone is a release Andrew installs o
 **M6 · Desktop demo tools (v1.0.0), after M5** (split from M5 on 2026-11-18, Andrew)
 - Desktop pointer highlight (ticket 40, absorbing ticket 39 as an editor button that toggles it) and screen annotation (ticket 41), designed together: click-through overlay windows plus their own `RegisterHotKey` global hotkeys.
 - v1.0.0 is released only when M6 is finished.
+- **Grilled 2026-11-19 (Andrew):** decisions are in tickets 40 and 41. Two global hotkeys (pointer Ctrl+Shift+L, drawing mode Ctrl+Shift+D), a "Demo tools" Settings section, the red laser dot with left-click ripple, drawing mode with Arrow, Rectangle, Pen and Highlighter using the editor's saved styles, a Teams-style toolbar pill with "Use apps", fixed drawing-mode keys that work only while the overlay has focus, and the pointer and drawings kept out of / in captures as decided there. Ticket 39 stays merged into 40.
+- **M6 build tickets (2026-11-19):** 49 hotkeys and Settings section (with glossary and ADR); 50 pointer highlight; 51 editor toggle button and tool exclusion; 52 drawing overlays and tools; 53 toolbar pill and key rows; 54 fixed editor tool keys (Arrow, Rectangle, Pen, Highlighter); 55 M6 release checklist.
+- **M6 build order:** 54 and 49 first (independent) → 50 and 52 (parallel, both need 49) → 51 (needs 50) and 53 (needs 52) → 55 last.
 
 **Planning approach**
 - Only M0 is broken into implementation tickets now (`.scratch/m0-skeleton/`). Later milestones are broken down when reached.

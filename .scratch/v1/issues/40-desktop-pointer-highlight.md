@@ -17,7 +17,7 @@
 
 **Blocked by:** nothing (M4 shipped as v0.5.0); M5 (v0.6.0) first.
 
-**Status:** needs-triage
+**Status:** ready-for-agent (grilled 2026-11-19; build through tickets 49-55)
 
 Spec: `.scratch/snagit-clone/spec.md`. Planned for M6 (v1.0.0, moved from M5 on 2026-11-18); requested by Andrew on 2026-11-17.
 
@@ -29,3 +29,20 @@ Spec: `.scratch/snagit-clone/spec.md`. Planned for M6 (v1.0.0, moved from M5 on 
 4. **Size:** Small / Medium / Large in Settings (default Medium).
 5. **Click ripple:** a brief expanding ring (~400 ms) on click, **on/off in Settings**.
 6. The remaining questions are listed under "Open questions (grill at M6)" above.
+
+## Decisions (grilling, 2026-11-19; settles the open questions above)
+
+Build through tickets 49 (hotkeys), 50 (pointer highlight), 51 (editor toggle), 55 (checklist). Shared decisions with ticket 41 are in both files.
+
+1. **Hotkey:** its own global hotkey, default **Ctrl+Shift+L**, rebindable in a new Settings section "Demo tools" (with ticket 41's hotkey). `RegisterHotKey` only. Never Print Screen, never the capture hotkey, never the other demo hotkey; a clash is refused with a message naming the other action.
+2. **Always visible while on:** no idle-hide.
+3. **Off at every start;** the on/off state is not saved. Only colour, size and ripple persist.
+4. **Tray:** a checked item "Pointer highlight" showing the hotkey.
+5. **Size (physical pixels at 100% scale, scaled by the monitor's scale factor):** core dot Small 10, Medium 14 (default), Large 20, with the prototype's two-layer glow scaled to match (inner about 70%, outer about 30% opacity); tune on the Windows PC.
+6. **Colour:** default red; the 8 annotation colours, custom picker and hex field in Settings. The ripple uses the pointer colour.
+7. **Click ripple:** an expanding ring of about 400 ms on **left click only**, on/off in Settings. Clicks are detected by polling the button state in the same loop as the dot; no mouse hook.
+8. **Window design:** one small (about 96 px) transparent, click-through, non-focusable, always-on-top window that follows the cursor from monitor to monitor, polled about every 16 ms. When the pointer moves to another monitor, set the position first, then the size, so the size applies at the target monitor's scale (as the capture overlay does). It must look the same size on a 24-inch monitor and a laptop screen (verify on the Windows PC).
+9. **Captures:** the dot and ripple are hidden from captures with `SetWindowDisplayAffinity(WDA_EXCLUDEFROMCAPTURE)` (Windows 10 2004 and later; the `windows` feature is already enabled).
+10. **Full-screen apps:** works over borderless and maximized windows (PowerPoint slideshows, screen-share windows). Exclusive full-screen games are unsupported in v1.0.
+11. **Independent of ticket 41's drawing mode:** the dot keeps following the mouse while drawing mode is on.
+12. **Editor button (absorbs ticket 39):** a toggle at the bottom of the tool column, not a tool. It shows pressed while the pointer is on and uses the hotkey in its tooltip. While the global pointer is on, **no editor tool is selected (Select included) or usable**, and clicks on the canvas do nothing. Choosing a tool, by click or key, turns the pointer off. Turning the pointer off, by button or hotkey, **selects the Select tool** (it does not restore the previous tool).
