@@ -67,8 +67,8 @@ test.describe("the Highlighter", () => {
     expect(h!.type).toBe("highlight");
     expect(h!.points.every((p) => Math.abs(p.y - 150) <= 2)).toBe(true);
     expect(Math.abs(h!.points.at(-1)!.x - 400)).toBeLessThanOrEqual(3);
-    expect(h!.stroke).toEqual({ color: "#ffff00", width: 20 });
-    expect(h!.opacity.value).toBe(0.8);
+    expect(h!.stroke).toEqual({ color: "#ffff00", width: 18 });
+    expect(h!.opacity.value).toBe(0.6);
 
     await page.getByRole("button", { name: "Copy", exact: true }).click();
     await expect.poll(() => page.evaluate(() => (window as unknown as InPage).__fakeBridge.copiedImages.length)).toBe(1);
@@ -76,8 +76,8 @@ test.describe("the Highlighter", () => {
     const px = decodePixels(png);
     const pixel = (x: number, y: number) => Array.from(px.rgba.slice((y * px.width + x) * 4, (y * px.width + x) * 4 + 4));
     const [r, g, b] = pixel(250, 150);
-    // #ffff00 multiplied over white is #ffff00; at the default 80% a fifth of the white shows through.
-    expect([r, g, b]).toEqual([255, 255, 51]);
+    // #ffff00 multiplied over white is #ffff00; at the default 60% two fifths of the white shows through.
+    expect([r, g, b]).toEqual([255, 255, 102]);
     expect(pixel(250, 250)).toEqual([255, 255, 255, 255]); // untouched below the stroke
   });
 
@@ -130,14 +130,14 @@ test.describe("the Highlighter", () => {
     expect(await ringPixels(100, 100, Math.round(10 * scale))).toBe(0);
   });
 
-  test("the opacity is one of four presets, 80% to start with, and the stroke is saved with the chosen one", async ({ page }) => {
+  test("the opacity is one of four presets, 60% to start with, and the stroke is saved with the chosen one", async ({ page }) => {
     await page.goto("/");
     await capture(page, 300, 200);
     const box = (await page.locator(".stage").boundingBox())!;
     await page.keyboard.press("h");
     const opacity = page.getByRole("region", { name: "Opacity" });
     await expect(opacity.getByRole("button")).toHaveText(["25%", "40%", "60%", "80%", "100%"]);
-    await expect(opacity.getByRole("button", { name: "80%" })).toHaveAttribute("aria-pressed", "true");
+    await expect(opacity.getByRole("button", { name: "60%" })).toHaveAttribute("aria-pressed", "true");
     await expect(opacity.getByRole("slider")).toHaveCount(0);
     await opacity.getByRole("button", { name: "40%" }).click();
     await expect(opacity.getByRole("button", { name: "40%" })).toHaveAttribute("aria-pressed", "true");

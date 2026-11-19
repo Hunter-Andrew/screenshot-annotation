@@ -87,8 +87,8 @@ test.describe("the Blur tool in the editor", () => {
     const [blur] = await savedBlurs(page);
     expect(blur).toMatchObject({ type: "blur", strength: { blockSize: 16 } });
     expect([Math.round(blur!.x), Math.round(blur!.y)]).toEqual([80, 60]);
-    // Back on Select after one use.
-    await expect(page.getByRole("button", { name: /^Select/ })).toHaveAttribute("aria-pressed", "true");
+    // Blur stays the active tool after one use (like Pen and Highlighter).
+    await expect(page.getByRole("button", { name: /^Blur/ })).toHaveAttribute("aria-pressed", "true");
 
     // The live canvas shows the pixelated Capture: one flat colour per 16 px block.
     const block = averageOf(80, 60, 96, 76);
@@ -114,6 +114,7 @@ test.describe("the Blur tool in the editor", () => {
     await dragBlur(page, pt, [40, 40], [136, 104]);
     await expect.poll(async () => (await savedBlurs(page)).length, { timeout: 6000 }).toBe(1);
 
+    await page.keyboard.press("v"); // Blur stays the tool after one use: back to Select to move it
     // Drag it from its middle (the whole box grabs it, it is not outline-only) 100 px to the right.
     const grab = pt(88, 72);
     await page.mouse.move(grab.x, grab.y);

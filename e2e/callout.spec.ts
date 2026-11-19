@@ -1,4 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
+import { legacyTextStyles } from "./legacyStyles";
 import { decodePixels, hasChunk } from "../src/core/testing";
 import { liveArea } from "./liveCanvas";
 
@@ -63,6 +64,7 @@ async function copyPixels(page: Page) {
 }
 
 test("O draws a callout: text in a speech box, a tail you can drag and switch off", async ({ page }) => {
+  await legacyTextStyles(page);
   await page.goto("/");
   await capture(page, 600, 400);
   await page.getByRole("button", { name: "100%" }).click();

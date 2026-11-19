@@ -10,7 +10,7 @@ const drawing = (page: Page, combo: string) =>
   page.getByRole("button", { name: `Drawing mode hotkey: ${combo}`, exact: true });
 
 test("each demo hotkey can be set and survives reopening Settings", async ({ page }) => {
-  await page.goto("/#settings");
+  await page.goto("/#settings/shortcuts");
   await expect(page.getByRole("heading", { name: "Demo tools" })).toBeVisible();
   await laserPointer(page, "Alt+P").click();
   await page.keyboard.press("Control+Alt+p");
@@ -25,12 +25,12 @@ test("each demo hotkey can be set and survives reopening Settings", async ({ pag
 });
 
 test("the capture hotkey, the other demo hotkey and Print Screen are refused with a message", async ({ page }) => {
-  await page.goto("/#settings");
+  await page.goto("/#settings/shortcuts");
   await laserPointer(page, "Alt+P").click();
   await page.keyboard.press("Control+Shift+s");
   await expect(page.getByRole("alert")).toContainText("capture hotkey");
   await laserPointer(page, "Alt+P").click();
-  await page.keyboard.press("Control+Shift+d");
+  await page.keyboard.press("Alt+d");
   await expect(page.getByRole("alert")).toContainText("Drawing mode hotkey");
   await laserPointer(page, "Alt+P").click();
   await page.evaluate(() => window.dispatchEvent(new KeyboardEvent("keyup", { code: "PrintScreen" })));
@@ -39,14 +39,14 @@ test("the capture hotkey, the other demo hotkey and Print Screen are refused wit
 });
 
 test("the capture hotkey cannot take a demo combination", async ({ page }) => {
-  await page.goto("/#settings");
+  await page.goto("/#settings/shortcuts");
   await page.getByRole("button", { name: "Ctrl+Shift+S", exact: true }).click();
-  await page.keyboard.press("Control+Shift+l");
+  await page.keyboard.press("Alt+p");
   await expect(page.getByRole("alert").first()).toContainText("demo-tool hotkey");
 });
 
 test("a combination another app owns shows the conflict message and keeps the old hotkey", async ({ page }) => {
-  await page.goto("/#settings");
+  await page.goto("/#settings/shortcuts");
   await page.evaluate(() => (window as unknown as { __fakeBridge: Fake }).__fakeBridge.takenHotkeys.add("ctrl+alt+j"));
   await drawing(page, "Alt+D").click();
   await page.keyboard.press("Control+Alt+j");

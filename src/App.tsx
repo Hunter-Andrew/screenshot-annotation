@@ -6,7 +6,7 @@ import type { PlatformBridge } from "./platform/bridge";
 import { Settings } from "./settings/Settings";
 import { Overlay } from "./overlay/Overlay";
 import { LaserPointerDot } from "./laserPointer/LaserPointerDot";
-import { COUNTDOWN_HASH, DRAWING_HASH_PREFIX, DRAWING_TOOLBAR_HASH, OVERLAY_HASH_PREFIX, LASER_POINTER_HASH, SETTINGS_HASH } from "./shared/constants";
+import { COUNTDOWN_HASH, DRAWING_HASH_PREFIX, DRAWING_TOOLBAR_HASH, OVERLAY_HASH_PREFIX, LASER_POINTER_HASH, SETTINGS_HASH, SHORTCUTS_HASH } from "./shared/constants";
 
 /** The Settings window loads this same page at `SETTINGS_HASH`; every other URL is the editor. */
 export function App({ bridge }: { bridge: PlatformBridge }) {
@@ -20,7 +20,7 @@ export function App({ bridge }: { bridge: PlatformBridge }) {
   if (hash === DRAWING_TOOLBAR_HASH) {
     return <DrawingToolbar bridge={bridge} />;
   }
-  if (hash === SETTINGS_HASH) {
+  if (hash === SETTINGS_HASH || hash === SHORTCUTS_HASH) {
     return <Settings bridge={bridge} />;
   }
   if (hash === COUNTDOWN_HASH) {

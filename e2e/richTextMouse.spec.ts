@@ -1,4 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
+import { legacyTextStyles } from "./legacyStyles";
 
 // Regression: "I am not able to select any text to differentiate; I can only apply changes to the text box in
 // general" (real Windows WebView2). Cause: a press on the text being typed in (to drag-select, or to put the caret)
@@ -70,6 +71,10 @@ async function openForEdit(page: Page, view: { at(x: number, y: number): { x: nu
   await expect(page.locator("textarea")).toBeFocused();
   return { box: box!, point: (dx: number) => view.at(box!.x + dx, box!.y + 12) };
 }
+
+test.beforeEach(async ({ page }) => {
+  await legacyTextStyles(page);
+});
 
 test("dragging over text with the mouse selects it, and Bold then styles only that selection", async ({ page }) => {
   const view = await openCapture(page);

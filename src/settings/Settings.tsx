@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import "./settings.css";
 import type { PlatformBridge } from "../platform/bridge";
-import { MAIN_STYLE, RELEASES_URL } from "../shared/constants";
+import { MAIN_STYLE, RELEASES_URL, SHORTCUTS_HASH } from "../shared/constants";
 import { ShortcutsSection } from "./ShortcutsSection";
 import { DemoHotkeys, DemoToolsSection } from "./DemoToolsSection";
 import { LaunchAtSignIn } from "./LaunchAtSignIn";
@@ -17,7 +17,7 @@ export function Settings({ bridge }: { bridge: PlatformBridge }) {
     void bridge.getVersion().then(setVersion);
   }, [bridge]);
 
-  const [screen, setScreen] = useState<"main" | "shortcuts">("main");
+  const [screen, setScreen] = useState<"main" | "shortcuts">(() => (window.location.hash === SHORTCUTS_HASH ? "shortcuts" : "main"));
 
   // Every hotkey setting lives on its own screen, opened from the main one.
   if (screen === "shortcuts") {

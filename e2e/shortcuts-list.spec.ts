@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 test("Settings lists Space, M and a tool key under the right groups, without sideways scroll", async ({ page }) => {
-  await page.goto("/#settings");
+  await page.goto("/#settings/shortcuts");
   const shortcuts = page.getByRole("region", { name: "Shortcuts" });
   await expect(shortcuts).toBeVisible();
 

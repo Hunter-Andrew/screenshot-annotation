@@ -1,4 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
+import { legacyTextStyles } from "./legacyStyles";
 import { decodePixels } from "../src/core/testing";
 import { liveArea } from "./liveCanvas";
 
@@ -182,6 +183,7 @@ test("with a caret only, a color for the whole box takes the colors of the chara
 });
 
 test("a font size and a color for the selection: the box's own size and color stay, and a bigger run makes its line taller", async ({ page }) => {
+  await legacyTextStyles(page);
   const view = await openCapture(page);
   await typeText(page, view, "Hello world");
   await select(page, 6, 11);

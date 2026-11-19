@@ -1,4 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
+import { legacyTextStyles } from "./legacyStyles";
 import { decodePixels, hasChunk } from "../src/core/testing";
 import { liveArea } from "./liveCanvas";
 
@@ -101,7 +102,7 @@ test("click with the Text tool, type on the image: red text with a white outline
   const [text] = await saved(page);
   expect(text).toMatchObject({
     type: "text",
-    font: { size: 24, bold: false, italic: false, color: "#e02424" },
+    font: { size: 32, bold: false, italic: false, color: "#e02424", align: "center", valign: "middle" },
     textOutline: { enabled: true, color: "#ffffff", width: 2 },
   });
   expect(close(text!.x, 60) && close(text!.y, 80)).toBe(true);
@@ -528,6 +529,7 @@ test("Text: dragging draws a dashed area, then types in it, wrapping at the drag
 });
 
 test("Text: the dragged height is a minimum; a short text still fills the area, also after a reload, and the width stays", async ({ page }) => {
+  await legacyTextStyles(page);
   await page.goto("/");
   await capture(page, 600, 300);
   const view = await atActualSize(page, 600);
@@ -781,6 +783,7 @@ test("Text: a box cannot be dragged narrower than a few letters or flipped over"
 });
 
 test("Text: alignment left, centre and right moves the lines inside the box, in the canvas and in the Export", async ({ page }) => {
+  await legacyTextStyles(page);
   await page.goto("/");
   await capture(page, 700, 300);
   const view = await atActualSize(page, 700);

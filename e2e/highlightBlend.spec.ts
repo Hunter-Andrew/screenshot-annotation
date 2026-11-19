@@ -9,8 +9,8 @@ import { liveArea } from "./liveCanvas";
 const W = 300;
 const H = 200;
 const YELLOW = [255, 255, 0, 255];
-/** The default stroke is #ffff00 at 80%: a fifth of the Capture shows through the multiplied colour. */
-const YELLOW_80 = [255, 255, 51, 255];
+/** The default stroke is #ffff00 at 60%: two fifths of the Capture shows through the multiplied colour. */
+const YELLOW_60 = [255, 255, 102, 255];
 const BLACK = [0, 0, 0, 255];
 const WHITE = [255, 255, 255, 255];
 
@@ -90,7 +90,7 @@ test.describe("the Highlighter's multiply blend", () => {
     expect(px(under, 100, 100)).toEqual(YELLOW);
   });
 
-  test("the editor canvas draws the same multiply, the default is #ffff00 at 80%, and Copy matches", async ({ page }) => {
+  test("the editor canvas draws the same multiply, the default is #ffff00 at 60%, and Copy matches", async ({ page }) => {
     await page.goto("/");
     await page.evaluate(
       ({ W, H, columns }) => {
@@ -116,18 +116,18 @@ test.describe("the Highlighter's multiply blend", () => {
     await page.mouse.up();
 
     const live = async (x: number, y: number) => Array.from((await liveArea(page, { x, y, w: 1, h: 1 }))!.data);
-    await expect.poll(() => live(100, 100)).toEqual(YELLOW_80);
+    await expect.poll(() => live(100, 100)).toEqual(YELLOW_60);
     expect(await live(50, 100)).toEqual(BLACK);
     expect(await live(180, 100)).toEqual(BLACK);
-    expect(await live(220, 100)).toEqual(YELLOW_80);
+    expect(await live(220, 100)).toEqual(YELLOW_60);
     expect(await live(100, 60)).toEqual(WHITE);
 
     await page.getByRole("button", { name: "Copy", exact: true }).click();
     await expect.poll(() => page.evaluate(() => (window as unknown as InPage).__fakeBridge.copiedImages.length)).toBe(1);
     const copied = decodePixels(Uint8Array.from(await page.evaluate(() => Array.from((window as unknown as InPage).__fakeBridge.copiedImages[0]!))));
-    expect(px(copied, 100, 100)).toEqual(YELLOW_80);
+    expect(px(copied, 100, 100)).toEqual(YELLOW_60);
     expect(px(copied, 50, 100)).toEqual(BLACK);
-    expect(px(copied, 220, 100)).toEqual(YELLOW_80);
+    expect(px(copied, 220, 100)).toEqual(YELLOW_60);
 
     const savedHighlights = (): Promise<Record<string, unknown>[]> => page.evaluate(async () => {
       const { decodeLibraryPng } = await import(/* @vite-ignore */ "/src/core/annotatedImage.ts" as string);
@@ -135,6 +135,6 @@ test.describe("the Highlighter's multiply blend", () => {
       return file ? (decodeLibraryPng(file.bytes).model.annotations as never) : [];
     });
     await expect.poll(async () => (await savedHighlights()).length, { timeout: 6000 }).toBe(1);
-    expect((await savedHighlights())[0]).toMatchObject({ type: "highlight", stroke: { color: "#ffff00" }, opacity: { value: 0.8 } });
+    expect((await savedHighlights())[0]).toMatchObject({ type: "highlight", stroke: { color: "#ffff00" }, opacity: { value: 0.6 } });
   });
 });

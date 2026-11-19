@@ -5,6 +5,8 @@ export const RELEASES_URL = "https://github.com/Hunter-Andrew/screenshot-annotat
 
 /** Route of the Settings window; `src-tauri/src/lib.rs` must open the same hash (see rustParity.test.ts). */
 export const SETTINGS_HASH = "#settings";
+/** Opens Settings straight on the keyboard shortcuts screen (reloads and tests land there). */
+export const SHORTCUTS_HASH = "#settings/shortcuts";
 
 /** Route of a capture overlay window: `#overlay/<monitor index>`; `src-tauri/src/overlay.rs` must open the same prefix (see rustParity.test.ts). */
 export const OVERLAY_HASH_PREFIX = "#overlay/";

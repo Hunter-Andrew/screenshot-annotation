@@ -14,13 +14,12 @@ type Fake = {
 const fake = <T,>(page: Page, read: (f: Fake) => T) =>
   page.evaluate(`(${read.toString()})(window.__fakeBridge)`) as Promise<T>;
 
-test("the editor's top bar starts the delay timer with 3, 5 or 10 seconds", async ({ page }) => {
+test("the editor's top bar has a single 3 second delay timer button", async ({ page }) => {
   await page.goto("/");
   const group = page.getByRole("group", { name: "Capture after a delay" });
-  await expect(group.getByRole("button")).toHaveText(["3s", "5s", "10s"]);
-  await group.getByRole("button", { name: "Capture in 5 seconds" }).click();
+  await expect(group.getByRole("button")).toHaveText(["3s"]);
   await group.getByRole("button", { name: "Capture in 3 seconds" }).click();
-  expect(await fake(page, (f) => f.delayedCaptures)).toEqual([5, 3]);
+  expect(await fake(page, (f) => f.delayedCaptures)).toEqual([3]);
 });
 
 test("the countdown badge page shows the number the platform sends, on a transparent page", async ({ page }) => {
