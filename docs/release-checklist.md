@@ -32,6 +32,17 @@ For v0.5.0 (M4), on top of the lists above (tickets 22, 23 and 24 are only prove
 - [ ] **The delay timer works and its countdown is not in the capture.** Tray menu > "Capture in 5s", open a menu in another app during the wait: the number follows the pointer, then the overlay opens with the menu in the frozen picture and no countdown number in it.
 - [ ] **Launch at sign-in survives sign-out/in, and the checkbox is honest.** Fresh install: Settings shows "Launch at sign-in" ticked; sign out and in again: the tray icon returns. Untick it, sign out and in: no tray icon until you start the app yourself.
 
+For v1.0.0 (M6), on top of the lists above (tickets 49 to 54; the Linux test suite cannot see any of this, and it needs two monitors of different scaling, for example a 24-inch monitor and a laptop screen). The full steps are in "Demo tools hotkeys", "Pointer highlight" and "Drawing mode" below:
+
+- [ ] **The two demo hotkeys work, rebind, refuse clashes and survive a restart.** Ctrl+Shift+L toggles the pointer highlight and Ctrl+Shift+D toggles drawing mode, from any app. In Settings > Demo tools rebind each: the new key works at once and the old one does nothing. Print Screen, the capture hotkey, the other demo hotkey and a key another app already holds are refused with a message, and the old key keeps working. Quit from the tray and start the app: the rebound keys still work, and both tools start off.
+- [ ] **The pointer dot looks the same on both screens and never gets in the way.** Dot on, on a 24-inch monitor and a laptop screen of a different scale: same apparent size on both, and it follows the pointer across the border. Click and drag through it onto buttons, links and title bars of other apps: everything works as without it. Only a left click shows the ripple (right, middle and wheel do not). Quit and start the app: the dot is off.
+- [ ] **The dot, the toolbar and the ripple are not in a capture, but the drawings are.** With the dot on, or with drawings and the toolbar up, take a capture with the app's hotkey (and with Win+Shift+S): no dot, no ripple and no toolbar in the picture; the drawings are in it.
+- [ ] **Drawing mode covers both monitors and gives way to apps.** Draw on both monitors; each drawing stops at its own monitor's edge. Click Use apps and work in a real app (click a link, type into Notepad): the drawings stay and the app below responds. Esc, and separately the hotkey, clear every drawing and remove the toolbar.
+- [ ] **Both tools work over a PowerPoint slideshow and a screen-share window.** Start a slideshow (F5) and a screen share (Teams or Zoom): the dot and the drawings show over them and the pointer still clicks through the dot. Exclusive full-screen games are unsupported in v1.0 (ADR 0009); do not test them.
+- [ ] **The drawing keys never type into another app.** With drawing mode on, Alt+Tab to another app and type A, R, P, H, Ctrl+Z, Ctrl+Y and Esc: they only act in that app; nothing is drawn or ended.
+- [ ] **The editor's Pointer button works and excludes the tools.** The button at the bottom of the tool column turns the dot on and off, shows pressed while it is on, and no editor tool is usable while it is on. Choosing a tool turns the dot off; turning it off selects Select.
+- [ ] **The instant capture with the editor minimized shows no ghost frame (carried over from v0.6.0).** Repeat the minimized, immediate capture check from v0.5.0 above once more, with the dot on: no trace of the editor, its minimize animation or the dot in the picture.
+
 Already checked on earlier releases and only worth repeating if the installer or capture code changed: no-admin install, uninstall leaves `Pictures\Screenshot Annotation` alone, capture on all monitors, Teams and Outlook paste, Discard to the Recycle Bin.
 
 ## Full checklist (reference)
@@ -181,6 +192,14 @@ Tickets 22 and 23. All of these need the installed Windows build; none can be ru
 - [ ] **M5** Highlighter presets (ticket 44): the Highlighter's thickness presets are 8, 12, 18, 24 and 30 (no 2); each draws the thickness it says, and a stroke made earlier keeps its thickness.
 - [ ] **M5** Facelift (ticket 42): check the editor, Settings and the overlay in both light and dark Windows themes: text is readable, the purple accent leads, the green second accent shows where it should, and the keyboard focus ring is clearly visible on buttons, fields and tool buttons in both themes.
 
+## Demo tools hotkeys (M6)
+
+Ticket 49 (ADR 0009). Windows only: `RegisterHotKey` and other apps' keys cannot be tested on Linux.
+
+- [ ] **M6** Both hotkeys register (ticket 49): a fresh install has Ctrl+Shift+L (Pointer highlight) and Ctrl+Shift+D (Drawing mode) working from any app, with no low-level hook and no key blocked for other apps (typing the same keys elsewhere is unaffected when the app is not the target). Settings has a "Demo tools" section after Shortcuts with a recorder for each.
+- [ ] **M6** Rebind and refuse clashes (ticket 49): record a new key for each: it works at once and the old key does nothing; the tray labels show the new key. Recording Print Screen, the capture hotkey or the other demo hotkey is refused with a message naming the reason or the other action. Recording a key another app holds (for example one from a launcher) shows the registration failure message and the previous key keeps working (rolled back, as for the capture hotkey).
+- [ ] **M6** Hotkeys survive a restart (ticket 49): quit from the tray and start the app: both rebound keys work. Edit `settings.json` to hold an invalid value for one: it falls back to its default on the next start.
+
 ## Pointer highlight (M6)
 
 Ticket 50 (decisions in ticket 40; ADR 0009). Windows only: the Linux test suite cannot see any of this. Sizes are a first guess (Small 10, Medium 14, Large 20 px dot at 100% scale): tune `src/pointer/pointerStyle.ts` if they look wrong.
@@ -218,6 +237,7 @@ Tickets 41, 49, 52 and 53. All of these need the installed Windows build on a ma
 - [ ] **M6** Drawing mode toolbar ends with the mode (ticket 53): Esc, the X button and the hotkey Ctrl+Shift+D each end the mode and remove the pill together with every drawing (also when the pill was collapsed, moved to the other monitor, or Use apps was on). A capture started during the mode (Ctrl+Shift+S) closes the pill too, after the frozen picture was taken; start the mode again afterwards: it opens top-centre again.
 - [ ] **M6** Drawing mode toolbar is not in a capture (ticket 53): with the pill showing, take a capture with the app's hotkey (the frozen picture and the saved image have the drawings and no pill), with Win+Shift+S, with the Snipping Tool, and in a Teams or Zoom screen share (viewers see the drawings but no pill). (On a Windows older than 10 version 2004 the pill cannot be hidden; `capture.log` then says `SetWindowDisplayAffinity failed` for the drawing toolbar.)
 - [ ] **M6** Settings lists the Drawing mode keys (ticket 53): Settings > Shortcuts has a "Drawing mode" group below Editor with seven read-only rows marked Fixed and no change button: Arrow A, Rectangle R, Pen P, Highlighter H, Undo the last drawing Ctrl+Z, Redo Ctrl+Y, Leave Drawing mode and clear the drawings Esc. At the smallest Settings window width there is no horizontal scroll bar.
+- [ ] **M6** Editor tool keys A, R, P and H are fixed (ticket 54): in Settings > Shortcuts they are read-only rows marked Fixed with no remap control. Quit the app, add `"tool.arrow": "K"` to the `shortcuts` object in `settings.json` by hand and start the app: the override is ignored and A, R, P, H still select Arrow, Rectangle, Pen and Highlighter in the editor. Another tool key (Line) can still be remapped.
 
 ## Speed
 
