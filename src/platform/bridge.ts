@@ -120,7 +120,7 @@ export interface LaserPointerView extends LaserPointerSettings {
 }
 
 /** The delays the delay timer offers, in seconds (the tray menu lists the same; `src-tauri/src/delay.rs` must match, see rustParity.test.ts). */
-export const CAPTURE_DELAYS = [3, 5, 10] as const;
+export const CAPTURE_DELAYS = [3] as const;
 
 export interface PlatformBridge {
   /** The installed app version, e.g. "0.1.0". */

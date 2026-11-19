@@ -9,7 +9,7 @@ describe("the style each drawing tool uses", () => {
     expect(s.arrow).toMatchObject({ stroke: RED, arrowheads: { ends: "end" } });
     expect(s.rect).toMatchObject({ stroke: RED, fill: { mode: "none" } });
     expect(s.pen).toMatchObject({ stroke: RED });
-    expect(s.highlight).toMatchObject({ stroke: { color: "#ffff00", width: 20 }, opacity: { value: 0.2 } });
+    expect(s.highlight).toMatchObject({ stroke: { color: "#ffff00", width: 18 }, opacity: { value: 0.2 } });
   });
 
   it("uses what the editor stored for each tool", () => {

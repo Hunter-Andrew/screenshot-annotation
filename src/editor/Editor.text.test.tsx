@@ -50,8 +50,8 @@ describe("the Text tool in the editor", () => {
     expect(screen.getByRole("region", { name: "Font" })).toBeVisible();
     expect(screen.getByRole("region", { name: "Text outline" })).toBeVisible();
     expect(kit.latest.drawStyle).toMatchObject({
-      font: { size: 24, color: "#e02424" },
-      textOutline: { enabled: true, color: "#ffffff" },
+      font: { size: 32, align: "center", valign: "middle", color: "#e02424" },
+      textOutline: { enabled: true, color: "#ffffff", width: 2 },
     });
   });
 

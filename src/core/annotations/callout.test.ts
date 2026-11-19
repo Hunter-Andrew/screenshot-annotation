@@ -3,6 +3,11 @@ import { sanitizeStyle } from "../propertyGroups";
 import { calloutKind, DEFAULT_CALLOUT_MIN_HEIGHT } from "./callout";
 
 describe("Callout", () => {
+  it("starts at size 32, centred both ways, with the tail on", () => {
+    expect(calloutKind.defaultStyle.font).toMatchObject({ size: 32, align: "center", valign: "middle" });
+    expect(calloutKind.defaultStyle.tail).toEqual({ enabled: true });
+  });
+
   it("uses Font, Text outline, Stroke, Fill and the Tail switch, with the tail on by default", () => {
     expect(calloutKind.groups).toEqual(["font", "textOutline", "stroke", "fill", "tail"]);
     expect(calloutKind.defaultStyle.tail).toEqual({ enabled: true });

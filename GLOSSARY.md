@@ -57,7 +57,7 @@ The horizontal row of Annotated Image thumbnails along the bottom of the editor;
 _Avoid_: Tray (means the Windows system tray), filmstrip, recent captures
 
 **Delay timer**:
-Taking a Capture after a wait of 3, 5 or 10 seconds, started from the tray menu or the editor's top bar, so menus and tooltips can be opened first. A countdown badge follows the mouse pointer and is not part of the Capture.
+Taking a Capture after a wait of 3 seconds, started from the tray menu or the editor's top bar, so menus and tooltips can be opened first. A countdown badge follows the mouse pointer and is not part of the Capture.
 _Avoid_: Timer capture, scheduled capture
 
 **Laser pointer**:

@@ -64,7 +64,7 @@ export const calloutKind: AnnotationKind<CalloutAnnotation> = {
   shortcutAction: "tool.callout",
   groups: ["font", "textOutline", "stroke", "fill", "tail"],
   defaultStyle: {
-    font: { size: 20, bold: false, italic: false, color: "#e02424", align: "left", valign: "middle", underline: false },
+    font: { size: 32, bold: false, italic: false, color: "#e02424", align: "center", valign: "middle", underline: false },
     textOutline: { enabled: false, color: "#ffffff", width: 2 },
     stroke: { color: "#e02424", width: 3 },
     fill: { mode: "solid", color: "#ffffff", opacity: 0.4 },

@@ -22,7 +22,7 @@ describe("Font group", () => {
   it("takes a typed size from 8 to 200 and ignores anything outside it", async () => {
     const onChange = panel();
     const size = screen.getByRole("spinbutton", { name: "Font size" });
-    expect(size).toHaveValue(24);
+    expect(size).toHaveValue(32);
 
     await userEvent.clear(size);
     await userEvent.type(size, "40");
@@ -57,14 +57,13 @@ describe("Font group", () => {
     expect(onChange).toHaveBeenLastCalledWith("font", { ...textKind.defaultStyle.font, italic: true });
   });
 
-  it("has Align left, centre and right: the current one pressed, left for a text saved before alignment existed", async () => {
+  it("has Align left, centre and right: the current one pressed (centre by default), left for a text saved before alignment existed", async () => {
     const onChange = panel();
-    const left = screen.getByRole("button", { name: "Align left" });
-    expect(left).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByRole("button", { name: "Align center" })).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByRole("button", { name: "Align center" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Align left" })).toHaveAttribute("aria-pressed", "false");
 
-    await userEvent.click(screen.getByRole("button", { name: "Align center" }));
-    expect(onChange).toHaveBeenLastCalledWith("font", { ...textKind.defaultStyle.font, align: "center" });
+    await userEvent.click(screen.getByRole("button", { name: "Align left" }));
+    expect(onChange).toHaveBeenLastCalledWith("font", { ...textKind.defaultStyle.font, align: "left" });
     await userEvent.click(screen.getByRole("button", { name: "Align right" }));
     expect(onChange).toHaveBeenLastCalledWith("font", { ...textKind.defaultStyle.font, align: "right" });
   });

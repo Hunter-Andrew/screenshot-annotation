@@ -92,7 +92,7 @@ describe("tools and shortcut keys", () => {
     await waitFor(() => expect(kit.latest.tool).toBe("select"));
   });
 
-  it("B picks the Blur tool, whose Style panel has only Strength, and it returns to Select after one use", async () => {
+  it("B picks the Blur tool, whose Style panel has only Strength, and it stays on Blur after one use", async () => {
     const bridge = createFakeBridge();
     const kit = await openEditor(bridge);
     await capture(bridge);
@@ -107,7 +107,7 @@ describe("tools and shortcut keys", () => {
     await act(async () =>
       kit.latest.draw({ id: "b1", type: "blur", x: 10, y: 10, width: 80, height: 40, strength: { blockSize: 12 } }),
     );
-    expect(screen.getByRole("button", { name: /^Select/ })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: /^Blur/ })).toHaveAttribute("aria-pressed", "true");
   });
 
   it("Esc deselects the Annotation and returns to Select", async () => {
