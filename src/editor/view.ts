@@ -69,21 +69,28 @@ export interface ScrollRequest {
   scroll: { left: number; top: number };
   from: number;
   to: number;
+  /** Where the zoom is anchored, in the view's own pixels (0,0 = its top-left); the middle of the view when left out. */
+  pointer?: { x: number; y: number };
 }
 
-/** The scroll position that keeps whatever is in the middle of the view in the middle after a zoom. */
-export function scrollAfterZoom({ image, view, scroll, from, to, padding }: ScrollRequest): { left: number; top: number } {
+/**
+ * The scroll position that keeps whatever is under `pointer` (by default the middle of the view) under it after a zoom.
+ * An image smaller than the view is centred, not scrolled, so it anchors on its own middle whatever the pointer.
+ */
+export function scrollAfterZoom({ image, view, scroll, from, to, padding, pointer }: ScrollRequest): { left: number; top: number } {
   const same = { x: WELL_PADDING, y: WELL_PADDING };
   const [before, after] = [padding?.from ?? same, padding?.to ?? same];
-  const axis = (imageLength: number, viewLength: number, scrolled: number, padFrom: number, padTo: number) => {
+  const axis = (imageLength: number, viewLength: number, scrolled: number, padFrom: number, padTo: number, at: number | undefined) => {
     const oldContent = imageLength * from + 2 * padFrom;
     // Smaller than the view means it was centred, not scrolled: anchor on the image's own middle.
-    const anchor = oldContent <= viewLength ? imageLength / 2 : (scrolled + viewLength / 2 - padFrom) / from;
-    return Math.max(0, padTo + anchor * to - viewLength / 2);
+    if (oldContent <= viewLength) return Math.max(0, padTo + (imageLength / 2) * to - viewLength / 2);
+    const held = Math.min(Math.max(at ?? viewLength / 2, 0), viewLength);
+    const anchor = (scrolled + held - padFrom) / from;
+    return Math.max(0, padTo + anchor * to - held);
   };
   return {
-    left: axis(image.width, view.width, scroll.left, before.x, after.x),
-    top: axis(image.height, view.height, scroll.top, before.y, after.y),
+    left: axis(image.width, view.width, scroll.left, before.x, after.x, pointer?.x),
+    top: axis(image.height, view.height, scroll.top, before.y, after.y, pointer?.y),
   };
 }
 

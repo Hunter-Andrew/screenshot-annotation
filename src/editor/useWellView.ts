@@ -1,5 +1,5 @@
 // Connects the pure view maths (view.ts) to the well element: measures it as the window resizes,
-// applies Fit/zoom, keeps the middle of the view fixed across a zoom, and starts every newly shown
+// applies Fit/zoom, keeps the middle of the view (or, for Ctrl + wheel, the point under the mouse) fixed across a zoom, and starts every newly shown
 // image at Fit with the scroll at the top-left (the part of Andrew's M1 note about switching images).
 import { type RefObject, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { effectiveScale, FIT, marginPx, scrollAfterZoom, type Size, type ViewMode, WELL_PADDING, zoomStep } from "./view";
@@ -86,7 +86,7 @@ export function useWellView(
   }, [scale]);
 
   const zoomTo = useCallback(
-    (next: number) => {
+    (next: number, pointer?: { x: number; y: number }) => {
       const el = wellRef.current;
       if (!el || !image || next === scale) return;
       pendingScroll.current = scrollAfterZoom({
@@ -95,6 +95,7 @@ export function useWellView(
         scroll: { left: el.scrollLeft, top: el.scrollTop },
         from: scale,
         to: next,
+        pointer,
         padding: { from: margin, to: marginPx(image, next, well, { kind: "zoom", scale: next }, canvasMargin) },
       });
       setMode({ kind: "zoom", scale: next });
@@ -102,10 +103,10 @@ export function useWellView(
     [image, scale, margin, well, canvasMargin],
   );
 
-  const zoomInRef = useRef<() => void>(() => {});
-  const zoomOutRef = useRef<() => void>(() => {});
-  zoomInRef.current = () => zoomTo(zoomStep(scale, 1));
-  zoomOutRef.current = () => zoomTo(zoomStep(scale, -1));
+  const zoomInRef = useRef<(pointer?: { x: number; y: number }) => void>(() => {});
+  const zoomOutRef = useRef<(pointer?: { x: number; y: number }) => void>(() => {});
+  zoomInRef.current = (pointer) => zoomTo(zoomStep(scale, 1), pointer);
+  zoomOutRef.current = (pointer) => zoomTo(zoomStep(scale, -1), pointer);
 
   // Ctrl + wheel zooms (and must not zoom the whole window, which the webview would otherwise do).
   useEffect(() => {
@@ -114,8 +115,11 @@ export function useWellView(
     const onWheel = (event: WheelEvent) => {
       if (!event.ctrlKey) return;
       event.preventDefault();
-      if (event.deltaY < 0) zoomInRef.current();
-      else if (event.deltaY > 0) zoomOutRef.current();
+      // Zoom around the mouse: its position inside the well's visible part.
+      const rect = el.getBoundingClientRect();
+      const pointer = { x: event.clientX - rect.left - el.clientLeft, y: event.clientY - rect.top - el.clientTop };
+      if (event.deltaY < 0) zoomInRef.current(pointer);
+      else if (event.deltaY > 0) zoomOutRef.current(pointer);
     };
     el.addEventListener("wheel", onWheel, { passive: false });
     return () => el.removeEventListener("wheel", onWheel);
