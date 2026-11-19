@@ -36,11 +36,11 @@
      the drag ended); let the pointer fall through to what is beneath. */
   pointer-events: none;
 }
-/* A toggle that is on: the second accent (green). The selected tool overrides this with the main accent. */
+/* A toggle that is on: the second accent (green) as a fill with dark text. The selected tool overrides this with the main accent. */
 .editor button[aria-pressed="true"] {
-  background: var(--pressed2);
-  border-color: var(--accent2);
-  color: var(--accent2-text);
+  background: var(--accent2);
+  border-color: var(--accent2-edge);
+  color: var(--accent2-fg);
 }
 .editor button.primary {
   background: var(--accent);
@@ -210,8 +210,6 @@
   gap: 8px;
   margin: 0 0 12px;
   padding: 8px;
-  border: 1px solid var(--accent2);
-  border-radius: 6px;
   cursor: pointer;
 }
 .style-panel .tool-option.placeholder {
@@ -221,6 +219,9 @@
   margin: 0 0 6px;
   font-size: 12px;
   color: var(--accent2-text);
+  /* #25E8B7 is too light for text on a light surface: the text is a darker shade, the bright green is the underline. */
+  text-decoration: underline 2px solid var(--accent2);
+  text-underline-offset: 3px;
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
@@ -391,11 +392,11 @@
   text-align: left;
 }
 .editor .lib-card[data-current="true"] .lib-open {
-  border-color: var(--accent2);
+  border-color: var(--accent2-edge);
 }
 .editor .lib-card[data-selected="true"] .lib-open {
   background: var(--pressed2);
-  outline: 3px solid var(--accent2);
+  outline: 3px solid var(--accent2-edge);
   outline-offset: -1px;
 }
 .lib-thumb {

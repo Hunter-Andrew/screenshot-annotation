@@ -134,6 +134,12 @@ fn end(app: &AppHandle, keep: bool) -> Option<Session> {
     session
 }
 
+/// True while the editor is on screen for the user: shown and not minimized. (A minimized window still counts as
+/// visible to `is_visible`; one the user minimized is out of the picture already and is left alone.)
+fn editor_is_open(win: &tauri::WebviewWindow) -> bool {
+    win.is_visible().unwrap_or(false) && !win.is_minimized().unwrap_or(false)
+}
+
 fn restore_editor(app: &AppHandle, was_visible: bool) {
     if was_visible {
         crate::show_editor(app);
@@ -205,11 +211,11 @@ pub fn begin_delayed(app: AppHandle, seconds: u32) {
         if !claim(&app) {
             return;
         }
-        // The user needs the screen to arrange it (open a menu, hover a tooltip): hide the editor now,
+        // The user needs the screen to arrange it (open a menu, hover a tooltip): minimize the editor now,
         // and remember to bring it back if nothing is captured.
         let editor_hidden = match app.get_webview_window(crate::EDITOR_LABEL) {
-            Some(win) if win.is_visible().unwrap_or(false) => {
-                crate::hide_editor(&win);
+            Some(win) if editor_is_open(&win) => {
+                crate::minimize_editor(&win);
                 true
             }
             _ => false,
@@ -267,11 +273,11 @@ fn run(app: &AppHandle, attempt: u64, editor_hidden_already: bool) {
             diag::log("editor was hidden by the delay timer");
             true
         }
-        Some(win) if win.is_visible().unwrap_or(false) => {
-            crate::hide_editor(&win);
-            // The editor fades out: wait for it to be fully gone, or it is partly in the picture.
-            std::thread::sleep(crate::delay::wait_after_hiding_editor(crate::HIDE_SETTLE));
-            diag::log("editor was visible: hidden for the capture");
+        Some(win) if editor_is_open(&win) => {
+            crate::minimize_editor(&win);
+            // Only the short settle, no fade wait: the capture is meant to be instant (see the delay module).
+            std::thread::sleep(crate::delay::wait_after_minimizing_editor(true, crate::HIDE_SETTLE));
+            diag::log("editor was open: minimized for the capture");
             true
         }
         _ => {
