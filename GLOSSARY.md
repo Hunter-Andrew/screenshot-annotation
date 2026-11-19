@@ -61,8 +61,12 @@ Taking a Capture after a wait of 3, 5 or 10 seconds, started from the tray menu 
 _Avoid_: Timer capture, scheduled capture
 
 **Pointer highlight**:
-A red dot (colour, size and click ripple are Settings) that follows the mouse pointer over the whole desktop, in every app, to show an audience where it is during a demo or screen share. Switched on and off by its own global hotkey (default Ctrl+Shift+L), the tray item or the editor's toggle; off at every start. Drawn by a small transparent, click-through window that is hidden from Captures. It is not an Annotation and never part of an Annotated Image.
-_Avoid_: Laser pointer, cursor highlight, spotlight
+The mode in which a Laser pointer follows the mouse over the whole desktop, in every app, to show an audience where it is during a demo or screen share. Switched on and off by its own global hotkey (default Ctrl+Shift+L), the tray item or the editor's toggle; off at every start. It is not an Annotation and never part of an Annotated Image.
+_Avoid_: Cursor highlight, spotlight, pointer mode
+
+**Laser pointer**:
+The mark the Pointer highlight draws in place of the mouse pointer: a small bright core with a soft haze and a thin ring, red by default (colour, size and the click ripple are Settings). It is hidden from Captures.
+_Avoid_: Laser dot, pointer dot, cursor
 
 **Drawing mode**:
 A temporary state, started and ended by its own global hotkey (default Ctrl+Shift+D), in which the user draws arrows, rectangles, pen strokes and highlighter strokes over the live desktop for an audience. Nothing is saved; leaving the mode clears every drawing. A Capture taken during it includes the drawings. Its drawings are not Annotations and never reach the Library.
