@@ -138,7 +138,7 @@ pub fn refresh_tray_label(app: &AppHandle, accelerator: &str) {
         if let Err(e) = item.set_text(tray_menu::pointer_highlight_label(accelerator)) {
             diag::log(&format!("pointer highlight: could not update the tray label: {e}"));
         }
-    }
+    };
 }
 
 /// Tell the tray and every window what the state is now.
