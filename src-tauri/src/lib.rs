@@ -21,6 +21,7 @@ mod print_screen;
 mod print_screen_key;
 mod raw_input;
 mod settings;
+mod system_cursor;
 mod url_guard;
 mod watchdog;
 mod thumbnail;
@@ -373,6 +374,41 @@ fn set_pointer_settings(
     let now = data.pointer_settings();
     drop(data);
     pointer_highlight::apply_settings(&app, &now);
+    saved.or_else(|e| if e.kind() == std::io::ErrorKind::InvalidInput { Err(e.to_string()) } else { Ok(()) })
+}
+
+/// Whether the pointer highlight hides the system mouse arrow while it is on (`pointerHideCursor`, default true).
+#[tauri::command]
+fn get_pointer_hide_cursor(state: tauri::State<'_, AppSettings>) -> bool {
+    state.data.lock().unwrap().pointer_hide_cursor
+}
+
+/// Stores `pointerHideCursor` and applies it at once: with the highlight on, the arrow is hidden or brought back. A
+/// failed write is logged and the value stays in memory for this run.
+#[tauri::command]
+fn set_pointer_hide_cursor(app: AppHandle, state: tauri::State<'_, AppSettings>, hide: bool) {
+    let mut data = state.data.lock().unwrap();
+    if let Err(e) = settings::set_pointer_hide_cursor(&state.dir, &mut data, hide) {
+        diag::log(&format!("pointer hide cursor set to {hide}; could not save settings.json (kept in memory): {e}"));
+    }
+    drop(data);
+    pointer_highlight::refresh_cursor(&app);
+}
+
+/// Drawing mode's Highlighter opacity in percent (`drawingHighlighterOpacity`, 5 to 60, default 20).
+#[tauri::command]
+fn get_drawing_highlighter_opacity(state: tauri::State<'_, AppSettings>) -> u32 {
+    state.data.lock().unwrap().drawing_highlighter_opacity
+}
+
+/// Stores Drawing mode's Highlighter opacity; a value outside 5 to 60 is refused. It is read when Drawing mode starts.
+#[tauri::command]
+fn set_drawing_highlighter_opacity(state: tauri::State<'_, AppSettings>, percent: u32) -> Result<(), String> {
+    let mut data = state.data.lock().unwrap();
+    let saved = settings::set_drawing_highlighter_opacity(&state.dir, &mut data, percent);
+    if let Err(e) = &saved {
+        diag::log(&format!("Drawing mode Highlighter opacity set to {percent}; could not save settings.json (kept in memory): {e}"));
+    }
     saved.or_else(|e| if e.kind() == std::io::ErrorKind::InvalidInput { Err(e.to_string()) } else { Ok(()) })
 }
 
@@ -1304,6 +1340,10 @@ pub fn run() {
             get_pointer_settings,
             set_pointer_settings,
             set_pointer_highlight,
+            get_pointer_hide_cursor,
+            set_pointer_hide_cursor,
+            get_drawing_highlighter_opacity,
+            set_drawing_highlighter_opacity,
             pointer_highlight::get_pointer_highlight,
             pointer_highlight::pointer_highlight_view,
             get_print_screen_notice,
@@ -1378,6 +1418,8 @@ pub fn run() {
             demo_shortcuts.set(DRAWING_MODE_SLOT, &loaded.drawing_mode_hotkey);
             app.manage(demo_shortcuts);
             app.manage(pointer_highlight::PointerHighlightState::new(&loaded.pointer_settings()));
+            // An earlier run killed while the pointer highlight hid the mouse arrow may have left it hidden.
+            pointer_highlight::restore_cursor_on_startup();
             // A taken hotkey must not stop the app from starting; Settings shows the conflict warning.
             let _ = hotkey::ShortcutRegistry::register(&registry(app.handle()), &loaded.hotkey);
             // The demo-tool hotkeys the same way (ticket 49): a taken one is shown in Settings > Demo tools.
@@ -1458,12 +1500,15 @@ pub fn run() {
         })
         .build(tauri::generate_context!())
         .expect("error while building Screenshot Annotation")
-        .run(|_app, event| {
+        .run(|app, event| match event {
             // Closing a window must not quit the app; only the tray's Exit does (app.exit(0)).
-            if let RunEvent::ExitRequested { api, code, .. } = event {
+            RunEvent::ExitRequested { api, code, .. } => {
                 if code.is_none() {
                     api.prevent_exit();
                 }
             }
+            // The app is going: bring the mouse arrow back if the pointer highlight had hidden it.
+            RunEvent::Exit => pointer_highlight::restore_cursor_on_exit(app),
+            _ => {}
         });
 }

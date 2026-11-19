@@ -80,10 +80,27 @@ describe("Drawing mode overlay", () => {
     expect(canvas.dataset.tool).toBe("highlight");
     painted.length = 0;
     drag(canvas, [10, 10], [110, 10]);
-    expect(painted).toContain("globalAlpha=0.8");
+    expect(painted).toContain("globalAlpha=0.2");
     key("A");
     expect(canvas.dataset.tool).toBe("arrow");
     expect(count(canvas)).toBe(3);
+  });
+
+  it("the Highlighter uses the Drawing mode opacity setting and the editor's colour and thickness, never the editor's opacity", async () => {
+    bridge = createFakeBridge({
+      storage: memory({ highlight: { stroke: { color: "#ff00ff", width: 12 }, opacity: { value: 0.8 } } }),
+    });
+    await bridge.setDrawingHighlighterOpacity(45);
+    render(<DrawingOverlay bridge={bridge} monitor={0} />);
+    await act(async () => {});
+    const canvas = screen.getByTestId("drawing-canvas");
+    key("h");
+    painted.length = 0;
+    drag(canvas, [10, 10], [110, 10]);
+    expect(painted).toContain("globalAlpha=0.45");
+    expect(painted).not.toContain("globalAlpha=0.8");
+    expect(painted).toContain("lineWidth=12");
+    expect(painted).toContain("strokeStyle=#ff00ff");
   });
 
   it("a click without a drag draws nothing", async () => {

@@ -84,3 +84,29 @@ test("the dot window draws the stored look at once and shows the ripple for a cl
   await page.evaluate(() => (window as unknown as { __fakeBridge: Fake }).__fakeBridge.clickPointer());
   await expect(page.locator("[data-ripple]")).toHaveCount(0);
 });
+
+test("hiding the system mouse arrow is on by default, can be turned off, and survives reopening Settings", async ({ page }) => {
+  await page.goto("/#settings");
+  const hide = page.getByRole("checkbox", { name: "Hide the Windows mouse arrow while the dot is on" });
+  await expect(hide).toBeChecked();
+  await hide.uncheck();
+  expect(await page.evaluate(`window.__fakeBridge.pointerHideCursor`)).toBe(false);
+  await page.reload();
+  await expect(hide).not.toBeChecked();
+  await hide.check();
+  expect(await page.evaluate(`window.__fakeBridge.pointerHideCursor`)).toBe(true);
+});
+
+test("Drawing mode's Highlighter opacity is a percent from 5 to 60 (20 by default) set in Demo tools", async ({ page }) => {
+  await page.goto("/#settings");
+  const box = page.getByRole("spinbutton", { name: "Highlighter opacity in Drawing mode (%)" });
+  await expect(box).toHaveValue("20");
+  await box.fill("35");
+  await box.press("Enter");
+  expect(await page.evaluate(`window.__fakeBridge.drawingHighlighterOpacity`)).toBe(35);
+  await box.fill("90");
+  await box.press("Enter");
+  await expect(box).toHaveValue("35");
+  await page.reload();
+  await expect(box).toHaveValue("35");
+});

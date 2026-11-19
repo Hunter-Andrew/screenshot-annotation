@@ -99,9 +99,9 @@ describe("drawing from a gesture", () => {
     expect((pen as { points: unknown[] }).points).toHaveLength(3);
   });
 
-  it("the highlighter carries its opacity", () => {
+  it("the highlighter carries Drawing mode's opacity (20 percent by default, not the editor's 80)", () => {
     const h = drawingFromGesture("highlight", "h", [{ x: 0, y: 0 }, { x: 80, y: 0 }], styles, screen);
-    expect(h).toMatchObject({ type: "highlight", opacity: { value: 0.8 } });
+    expect(h).toMatchObject({ type: "highlight", opacity: { value: 0.2 } });
   });
 
   it("uses the style it is given", () => {

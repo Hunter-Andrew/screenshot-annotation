@@ -21,6 +21,7 @@ use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, PhysicalSize, Webview
 use crate::geometry::{self, MonitorBounds};
 use crate::pointer::{self, Apply, Sample, Tracker};
 use crate::settings::PointerSettings;
+use crate::system_cursor::{self, Action as CursorAction, Hider};
 use crate::{capture, diag, tray_menu};
 
 pub const LABEL: &str = "pointer-highlight";
@@ -77,6 +78,9 @@ pub struct PointerHighlightState {
     ripple: AtomicBool,
     /// The tray's checked item, to keep its check mark in step with the real state.
     tray_item: Mutex<Option<CheckMenuItem<Wry>>>,
+    /// Whether this app has hidden the system mouse arrow (see `system_cursor.rs`). Held across the Windows calls,
+    /// so a switch and a changed setting cannot interleave.
+    cursor: Mutex<Hider>,
 }
 
 impl PointerHighlightState {
@@ -87,6 +91,7 @@ impl PointerHighlightState {
             view: Mutex::new(PointerView::new(settings)),
             ripple: AtomicBool::new(settings.ripple),
             tray_item: Mutex::new(None),
+            cursor: Mutex::new(Hider::default()),
         }
     }
 
@@ -153,6 +158,58 @@ pub fn refresh_tray_label(app: &AppHandle, accelerator: &str) {
     }
 }
 
+/// Do what `action` says to the system cursors and log the outcome.
+fn run_cursor_action(action: CursorAction) {
+    let result = match action {
+        CursorAction::Hide => system_cursor::hide(),
+        CursorAction::Restore => system_cursor::restore(),
+        CursorAction::Nothing => return,
+    };
+    match result {
+        Ok(()) => diag::log(&format!("pointer highlight: system cursor {action:?}")),
+        Err(e) => diag::log(&format!("pointer highlight: system cursor {action:?} failed: {e}")),
+    }
+}
+
+/// Hide or restore the system mouse arrow so it matches whether the highlight is `on` and the `pointerHideCursor`
+/// setting. Called with the new state by `switch`, and by `refresh_cursor` when the setting changes.
+fn sync_cursor(app: &AppHandle, on: bool) {
+    let app_settings = app.state::<crate::AppSettings>();
+    let hide_setting = app_settings.data.lock().unwrap_or_else(|p| p.into_inner()).pointer_hide_cursor;
+    let state = app.state::<PointerHighlightState>();
+    let mut hider = state.cursor.lock().unwrap_or_else(|p| p.into_inner());
+    let action = hider.sync(on, hide_setting);
+    run_cursor_action(action);
+}
+
+/// The `pointerHideCursor` setting changed: hide or restore the arrow at once. Returns at once; the work is on a
+/// thread that takes `transition` like a switch, so it cannot cross a switch-off and hide the arrow after it.
+pub fn refresh_cursor(app: &AppHandle) {
+    let app = app.clone();
+    std::thread::spawn(move || {
+        let state = app.state::<PointerHighlightState>();
+        let _one_at_a_time = state.transition.lock().unwrap_or_else(|p| p.into_inner());
+        let on = state.is_on();
+        sync_cursor(&app, on);
+    });
+}
+
+/// At every start: ask Windows to reload the user's real cursors, in case an earlier run was killed while the arrow
+/// was hidden (the replacement lasts for the Windows session, not for the process).
+pub fn restore_cursor_on_startup() {
+    run_cursor_action(system_cursor::on_startup());
+}
+
+/// The app is exiting (the tray's Exit): bring the arrow back if this app hid it.
+pub fn restore_cursor_on_exit(app: &AppHandle) {
+    let Some(state) = app.try_state::<PointerHighlightState>() else {
+        return;
+    };
+    let mut hider = state.cursor.lock().unwrap_or_else(|p| p.into_inner());
+    let action = hider.on_exit();
+    run_cursor_action(action);
+}
+
 /// Tell the tray and every window what the state is now.
 fn publish(app: &AppHandle, on: bool) {
     let state = app.state::<PointerHighlightState>();
@@ -185,6 +242,7 @@ fn switch(app: &AppHandle, want: Option<bool>) {
             Ok(running) => {
                 *state.running.lock().unwrap_or_else(|p| p.into_inner()) = Some(running);
                 diag::log("pointer highlight: on");
+                sync_cursor(app, true);
                 publish(app, true);
             }
             Err(e) => {
@@ -200,6 +258,7 @@ fn switch(app: &AppHandle, want: Option<bool>) {
             let _ = running.thread.join();
         }
         diag::log("pointer highlight: off");
+        sync_cursor(app, false);
         publish(app, false);
     }
 }

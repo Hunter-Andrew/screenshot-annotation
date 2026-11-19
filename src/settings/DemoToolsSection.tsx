@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { DemoAction, PlatformBridge, SetDemoHotkeyResult } from "../platform/bridge";
 import { comboFromKeyEvent, formatCombo } from "./hotkey";
+import { DrawingHighlighterSetting } from "./DrawingHighlighterSetting";
 import { PointerHighlightSettings } from "./PointerHighlightSettings";
 
 const ROWS: { action: DemoAction; label: string; other: string }[] = [
@@ -105,6 +106,7 @@ export function DemoToolsSection({ bridge }: { bridge: PlatformBridge }) {
         );
       })}
       <PointerHighlightSettings bridge={bridge} />
+      <DrawingHighlighterSetting bridge={bridge} />
     </section>
   );
 }

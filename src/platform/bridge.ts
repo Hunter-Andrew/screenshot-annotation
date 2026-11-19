@@ -352,6 +352,12 @@ export interface PlatformBridge {
   getPointerSettings(): Promise<PointerSettings>;
   /** Store a new look and show it at once on a visible dot. A failed write is logged and kept in memory for this run. */
   setPointerSettings(settings: PointerSettings): Promise<void>;
+  /** Whether the pointer highlight hides the system mouse arrow while it is on (default true; applied live). Windows only. */
+  getPointerHideCursor(): Promise<boolean>;
+  setPointerHideCursor(hide: boolean): Promise<void>;
+  /** Drawing mode's Highlighter opacity in percent (5 to 60, default 20); read when the mode starts. */
+  getDrawingHighlighterOpacity(): Promise<number>;
+  setDrawingHighlighterOpacity(percent: number): Promise<void>;
   /** Whether the pointer highlight is on now. Never stored: it is off at every start. */
   getPointerHighlight(): Promise<boolean>;
   /** Switch the pointer highlight on or off (the editor's button, ticket 51). The hotkey and the tray item do the same. */

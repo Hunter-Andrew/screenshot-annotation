@@ -41,6 +41,18 @@ describe("Settings > Demo tools > Pointer highlight look", () => {
     await waitFor(() => expect(bridge.pointerSettings.color).toBe("#12ab34"));
   });
 
+  it("hides the Windows mouse arrow by default, and the checkbox turns that off and on", async () => {
+    const bridge = await open();
+    const box = screen.getByRole("checkbox", { name: "Hide the Windows mouse arrow while the dot is on" });
+    await waitFor(() => expect(box).toBeEnabled());
+    expect(box).toBeChecked();
+    expect(bridge.pointerHideCursor).toBe(true);
+    await userEvent.click(box);
+    await waitFor(() => expect(bridge.pointerHideCursor).toBe(false));
+    await userEvent.click(box);
+    await waitFor(() => expect(bridge.pointerHideCursor).toBe(true));
+  });
+
   it("stores the size", async () => {
     const bridge = await open();
     await userEvent.click(screen.getByRole("radio", { name: "Large" }));

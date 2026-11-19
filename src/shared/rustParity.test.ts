@@ -10,6 +10,7 @@ import { CAPTURE_DELAYS } from "../platform/bridge";
 import { CANVAS_MARGIN, CHECKERBOARD_THEMES, CROP_MARGIN, DEFAULT_DARK_BACKGROUND, DEFAULT_IMAGE_SETTINGS, OUTSIDE_DARKNESS } from "./imageSettings";
 import { COUNTDOWN_HASH, DRAWING_HASH_PREFIX, DRAWING_TOOLBAR_HASH, DRAWING_TOOLBAR_SIZE, OVERLAY_HASH_PREFIX, POINTER_HIGHLIGHT_HASH, RELEASES_URL, SETTINGS_HASH } from "./constants";
 import { DEFAULT_POINTER_SETTINGS, POINTER_SIZES } from "../platform/bridge";
+import { DRAWING_HIGHLIGHTER_OPACITY } from "../drawing/drawingStyles";
 import { POINTER_WINDOW_SIZE } from "../pointer/pointerStyle";
 import { DRAWING_TOOLS } from "../drawing/drawingState";
 
@@ -204,6 +205,27 @@ describe("TS/Rust shared constants", () => {
     expect(text("DEFAULT_POINTER_COLOR")).toBe(DEFAULT_POINTER_SETTINGS.color);
     expect(rust("settings.rs")).toMatch(/pointer_ripple: true,/);
     expect(DEFAULT_POINTER_SETTINGS.ripple).toBe(true);
+  });
+
+  it("settings.rs has the same Drawing mode Highlighter opacity range as Settings > Demo tools, and hides the arrow by default", () => {
+    const range = rust("settings.rs").match(/pub const DRAWING_HIGHLIGHTER_OPACITY: Range = Range \{ min: (\d+), max: (\d+), default: (\d+) \};/);
+    expect(range?.slice(1).map(Number)).toEqual([DRAWING_HIGHLIGHTER_OPACITY.min, DRAWING_HIGHLIGHTER_OPACITY.max, DRAWING_HIGHLIGHTER_OPACITY.default]);
+    expect(rust("settings.rs")).toMatch(/pointer_hide_cursor: true,/);
+  });
+
+  it("the hide-cursor and Highlighter-opacity commands exist on both sides with matching argument names", () => {
+    const tauriBridge = readFileSync(resolve(__dirname, "../platform/tauriBridge.ts"), "utf8");
+    const lib = rust("lib.rs");
+    for (const [command, call, signature] of [
+      ["get_pointer_hide_cursor", 'invoke<boolean>("get_pointer_hide_cursor")', /fn get_pointer_hide_cursor\(/],
+      ["set_pointer_hide_cursor", 'invoke<void>("set_pointer_hide_cursor", { hide })', /fn set_pointer_hide_cursor\([^)]*\bhide: bool/],
+      ["get_drawing_highlighter_opacity", 'invoke<number>("get_drawing_highlighter_opacity")', /fn get_drawing_highlighter_opacity\(/],
+      ["set_drawing_highlighter_opacity", 'invoke<void>("set_drawing_highlighter_opacity", { percent })', /fn set_drawing_highlighter_opacity\([^)]*\bpercent: u32/],
+    ] as const) {
+      expect(tauriBridge).toContain(call);
+      expect(lib).toMatch(signature);
+      expect(lib).toContain(`            ${command},`);
+    }
   });
 
   it("the pointer highlight events Rust emits are the ones the Tauri bridge listens for", () => {

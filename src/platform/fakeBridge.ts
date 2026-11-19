@@ -1,6 +1,7 @@
 import { encodeRgbaPng, readSize } from "../core/png";
 import { CANVAS_MARGIN, CROP_MARGIN, DEFAULT_IMAGE_SETTINGS, type ImageSettings, inRange, isDarkBackground, OUTSIDE_DARKNESS, sanitizeImageSettings } from "../shared/imageSettings";
 import { DEFAULT_TOOL, type DrawingTool } from "../drawing/drawingState";
+import { drawingHighlighterOpacityPercent } from "../drawing/drawingStyles";
 import type { DrawingEdit } from "../drawing/toolbarState";
 import { formatStamp } from "../shared/stamp";
 import { demoHotkeyRefusal } from "../settings/hotkey";
@@ -112,6 +113,9 @@ export interface FakeBridge extends PlatformBridge {
   failNextOverlayFrame(message: string): void;
   /** The registered capture hotkey (accelerator). */
   readonly hotkey: string;
+  /** Whether the pointer highlight hides the system arrow (true for a fresh fake) and Drawing mode's Highlighter opacity in percent (20 for a fresh fake). */
+  readonly pointerHideCursor: boolean;
+  readonly drawingHighlighterOpacity: number;
   /** The stored pointer highlight look (`fake.pointerSettings` in the fake storage; red, Medium, ripple on for a fresh fake). */
   readonly pointerSettings: PointerSettings;
   /** Whether the pointer highlight is on. Not stored: a fresh fake (a reload) has it off, like the real app at start. */
@@ -225,6 +229,14 @@ export function createFakeBridge(
       };
     } catch {
       return DEFAULT_POINTER_SETTINGS;
+    }
+  };
+  const readHideCursor = (): boolean => store.getItem("fake.pointerHideCursor") !== "false";
+  const readHighlighterOpacity = (): number => {
+    try {
+      return drawingHighlighterOpacityPercent(JSON.parse(store.getItem("fake.drawingHighlighterOpacity") ?? "null"));
+    } catch {
+      return drawingHighlighterOpacityPercent(undefined);
     }
   };
   const pointerView = (): PointerView => ({ ...readPointerSettings(), ...pointerDot });
@@ -461,6 +473,20 @@ export function createFakeBridge(
       store.setItem("fake.pointerSettings", JSON.stringify(settings));
       const view = pointerView();
       pointerViewHandlers.forEach((handler) => handler(view));
+    },
+    get pointerHideCursor() {
+      return readHideCursor();
+    },
+    get drawingHighlighterOpacity() {
+      return readHighlighterOpacity();
+    },
+    getPointerHideCursor: async () => readHideCursor(),
+    setPointerHideCursor: async (hide) => {
+      store.setItem("fake.pointerHideCursor", JSON.stringify(hide));
+    },
+    getDrawingHighlighterOpacity: async () => readHighlighterOpacity(),
+    setDrawingHighlighterOpacity: async (percent) => {
+      store.setItem("fake.drawingHighlighterOpacity", JSON.stringify(drawingHighlighterOpacityPercent(percent)));
     },
     getPointerHighlight: async () => pointerOn,
     setPointerHighlight: async (on) => {

@@ -56,14 +56,27 @@ test("each tool draws with the editor's saved style for it", async ({ page }) =>
   await page.keyboard.press("p");
   await drag(page, [100, 400], [400, 400]);
   expect(await pixel(page, 250, 400)).toEqual([255, 0, 255, 255]);
-  // Highlighter: yellow, translucent (alpha is the stored 50%).
+  // Highlighter: the editor's yellow, translucent at Drawing mode's own 20% (not the editor's stored 50%).
   await page.keyboard.press("h");
   await drag(page, [100, 500], [400, 500]);
   const [r, g, b, a] = await pixel(page, 250, 500);
   expect([r, g, b]).toEqual([255, 255, 0]);
-  expect(a).toBeGreaterThan(110);
-  expect(a).toBeLessThan(145);
+  expect(a).toBeGreaterThan(40);
+  expect(a).toBeLessThan(62);
   expect(await count(page)).toBe(4);
+});
+
+test("the Highlighter's opacity is the Drawing mode setting, read when the mode starts", async ({ page }) => {
+  await page.evaluate(() => localStorage.setItem("fake.drawingHighlighterOpacity", "40"));
+  await page.reload();
+  await expect(canvas(page)).toBeVisible();
+  await page.keyboard.press("h");
+  await drag(page, [100, 500], [400, 500]);
+  const [r, g, b, a] = await pixel(page, 250, 500);
+  expect([r, g, b]).toEqual([255, 255, 0]);
+  // 40% of 255 is 102; the editor's stored 50% (128) is not used.
+  expect(a).toBeGreaterThan(90);
+  expect(a).toBeLessThan(115);
 });
 
 test("Ctrl+Z undoes and Ctrl+Y redoes", async ({ page }) => {

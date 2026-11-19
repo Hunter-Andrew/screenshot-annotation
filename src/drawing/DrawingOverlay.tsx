@@ -41,8 +41,16 @@ export function DrawingOverlay({ bridge, monitor }: { bridge: PlatformBridge; mo
   // The editor's saved styles, read once when the mode starts. Unreadable settings leave the defaults.
   useEffect(() => {
     let alive = true;
+    // The Highlighter's opacity is its own setting (the editor's multiplies, a transparent overlay cannot).
+    const opacity = bridge.getDrawingHighlighterOpacity().catch((e) => {
+      void bridge.logOverlay(`drawing ${monitor}: getDrawingHighlighterOpacity failed: ${e}`);
+      return undefined;
+    });
     bridge.getToolStyles().then(
-      (raw) => alive && setStyles(readDrawingStyles(raw)),
+      async (raw) => {
+        const percent = await opacity;
+        if (alive) setStyles(readDrawingStyles(raw, percent));
+      },
       (e) => void bridge.logOverlay(`drawing ${monitor}: getToolStyles failed: ${e}`),
     );
     return () => {

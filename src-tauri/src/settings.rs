@@ -11,6 +11,11 @@
 //!   "medium") and `pointerRipple` (true by default): how the pointer highlight looks (ticket 50). Change them in
 //!   Settings > Demo tools. Anything else is read as the default. Whether the highlight is on is never stored:
 //!   it is off at every start.
+//! - `pointerHideCursor` (true by default): while the pointer highlight is on, the Windows mouse arrow is hidden so
+//!   only the dot shows. Set it to false (or untick it in Settings > Demo tools) to keep the arrow.
+//! - `drawingHighlighterOpacity` (percent, 5 to 60, default 20): how solid Drawing mode's Highlighter is. Drawing
+//!   mode takes the Highlighter's colour and thickness from the editor but not its opacity. Out-of-range numbers
+//!   are brought into range; anything that is not a whole number is 20.
 //! - `printScreenNoticeDismissed`: true means "you answered the one-time Print Screen notice" (clicked
 //!   either of its two buttons). It only stops that notice from showing again. It does NOT mean Print
 //!   Screen works or that the Windows setting is off; the warning under the hotkey field reads that live
@@ -82,6 +87,12 @@ pub struct Settings {
     /// Whether a left click shows the ripple (default true).
     #[serde(deserialize_with = "bool_or_true")]
     pub pointer_ripple: bool,
+    /// Whether the pointer highlight hides the system mouse arrow while it is on (default true).
+    #[serde(deserialize_with = "bool_or_true")]
+    pub pointer_hide_cursor: bool,
+    /// Drawing mode's Highlighter opacity in percent (`DRAWING_HIGHLIGHTER_OPACITY`).
+    #[serde(deserialize_with = "drawing_highlighter_opacity_or_default")]
+    pub drawing_highlighter_opacity: u32,
     /// The one-time Print Screen / Snipping Tool notice was answered.
     pub print_screen_notice_dismissed: bool,
     /// Show the magnifier in the capture overlay (default true).
@@ -174,6 +185,8 @@ impl DecimalRange {
 }
 
 pub const CANVAS_MARGIN: Range = Range { min: 0, max: 200, default: 16 };
+/// Drawing mode's Highlighter opacity in percent; `DRAWING_HIGHLIGHTER_OPACITY` in src/drawing/drawingStyles.ts must match.
+pub const DRAWING_HIGHLIGHTER_OPACITY: Range = Range { min: 5, max: 60, default: 20 };
 pub const CROP_MARGIN: Range = Range { min: 0, max: 400, default: 150 };
 pub const DEFAULT_DARK_BACKGROUND: &str = "#191919";
 
@@ -239,6 +252,10 @@ fn tenths_in<'de, D: serde::Deserializer<'de>>(d: D, range: DecimalRange) -> Res
 
 fn canvas_margin_or_default<'de, D: serde::Deserializer<'de>>(d: D) -> Result<u32, D::Error> {
     number_in(d, CANVAS_MARGIN)
+}
+
+fn drawing_highlighter_opacity_or_default<'de, D: serde::Deserializer<'de>>(d: D) -> Result<u32, D::Error> {
+    number_in(d, DRAWING_HIGHLIGHTER_OPACITY)
 }
 
 fn crop_margin_or_default<'de, D: serde::Deserializer<'de>>(d: D) -> Result<u32, D::Error> {
@@ -344,6 +361,8 @@ impl Default for Settings {
             pointer_color: DEFAULT_POINTER_COLOR.into(),
             pointer_size: DEFAULT_POINTER_SIZE.into(),
             pointer_ripple: true,
+            pointer_hide_cursor: true,
+            drawing_highlighter_opacity: DRAWING_HIGHLIGHTER_OPACITY.default,
             print_screen_notice_dismissed: false,
             magnifier: true,
             tool_styles: serde_json::Map::new(),
@@ -526,6 +545,22 @@ pub fn set_pointer(dir: &Path, settings: &mut Settings, new: &PointerSettings) -
     settings.pointer_color = new.color.to_ascii_lowercase();
     settings.pointer_size = new.size.clone();
     settings.pointer_ripple = new.ripple;
+    save(dir, settings)
+}
+
+/// Sets whether the pointer highlight hides the system mouse arrow and then tries to save (in-memory value kept
+/// when the write fails, like `set_magnifier`).
+pub fn set_pointer_hide_cursor(dir: &Path, settings: &mut Settings, hide: bool) -> io::Result<()> {
+    settings.pointer_hide_cursor = hide;
+    save(dir, settings)
+}
+
+/// Sets Drawing mode's Highlighter opacity in percent; a value outside `DRAWING_HIGHLIGHTER_OPACITY` changes nothing.
+pub fn set_drawing_highlighter_opacity(dir: &Path, settings: &mut Settings, percent: u32) -> io::Result<()> {
+    if !DRAWING_HIGHLIGHTER_OPACITY.contains(percent) {
+        return Err(out_of_range("Drawing mode Highlighter opacity", percent, DRAWING_HIGHLIGHTER_OPACITY));
+    }
+    settings.drawing_highlighter_opacity = percent;
     save(dir, settings)
 }
 
@@ -1133,5 +1168,61 @@ mod tests {
     fn the_pointer_settings_reach_the_page_in_camel_case() {
         let json = serde_json::to_value(Settings::default().pointer_settings()).unwrap();
         assert_eq!(json, serde_json::json!({ "color": "#e02424", "size": "medium", "ripple": true }));
+    }
+
+    #[test]
+    fn the_new_demo_settings_default_to_hiding_the_arrow_and_a_20_percent_highlighter() {
+        let s = load(&temp_dir("demo-new-fresh"));
+        assert!(s.pointer_hide_cursor);
+        assert_eq!(s.drawing_highlighter_opacity, 20);
+        // A file from before these settings existed.
+        let dir = temp_dir("demo-new-old-file");
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(dir.join(FILE_NAME), br#"{"hotkey":"alt+x"}"#).unwrap();
+        let old = load(&dir);
+        assert!(old.pointer_hide_cursor);
+        assert_eq!(old.drawing_highlighter_opacity, 20);
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn the_new_demo_settings_round_trip_through_the_file() {
+        let dir = temp_dir("demo-new-round-trip");
+        let mut s = Settings::default();
+        set_pointer_hide_cursor(&dir, &mut s, false).unwrap();
+        set_drawing_highlighter_opacity(&dir, &mut s, 45).unwrap();
+        let back = load(&dir);
+        assert!(!back.pointer_hide_cursor);
+        assert_eq!(back.drawing_highlighter_opacity, 45);
+        let json = fs::read_to_string(dir.join(FILE_NAME)).unwrap();
+        assert!(json.contains("\"pointerHideCursor\"") && json.contains("\"drawingHighlighterOpacity\""), "{json}");
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn a_highlighter_opacity_outside_5_to_60_is_refused_and_a_stored_one_is_brought_into_range() {
+        let dir = temp_dir("demo-new-range");
+        let mut s = Settings::default();
+        for bad in [0, 4, 61, 100] {
+            assert!(set_drawing_highlighter_opacity(&dir, &mut s, bad).is_err(), "{bad}");
+        }
+        assert_eq!(s.drawing_highlighter_opacity, 20);
+        fs::create_dir_all(&dir).unwrap();
+        for (stored, want) in [
+            (r#"{"drawingHighlighterOpacity":1}"#, 5),
+            (r#"{"drawingHighlighterOpacity":99}"#, 60),
+            (r#"{"drawingHighlighterOpacity":35}"#, 35),
+            (r#"{"drawingHighlighterOpacity":"30"}"#, 20),
+            (r#"{"drawingHighlighterOpacity":null}"#, 20),
+            (r#"{"drawingHighlighterOpacity":12.5}"#, 20),
+        ] {
+            fs::write(dir.join(FILE_NAME), stored).unwrap();
+            assert_eq!(load(&dir).drawing_highlighter_opacity, want, "{stored}");
+        }
+        fs::write(dir.join(FILE_NAME), br#"{"pointerHideCursor":"yes"}"#).unwrap();
+        assert!(load(&dir).pointer_hide_cursor);
+        fs::write(dir.join(FILE_NAME), br#"{"pointerHideCursor":false}"#).unwrap();
+        assert!(!load(&dir).pointer_hide_cursor);
+        fs::remove_dir_all(&dir).unwrap();
     }
 }

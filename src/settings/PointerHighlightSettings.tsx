@@ -12,6 +12,7 @@ const SIZE_LABELS: Record<PointerSize, string> = { small: "Small", medium: "Medi
 export function PointerHighlightSettings({ bridge }: { bridge: PlatformBridge }) {
   const [look, setLook] = useState<PointerSettings | null>(null);
   const [on, setOn] = useState(false);
+  const [hideCursor, setHideCursor] = useState<boolean | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -29,6 +30,10 @@ export function PointerHighlightSettings({ bridge }: { bridge: PlatformBridge })
     bridge.getPointerHighlight().then(
       (value) => alive && !heardEvent && setOn(value),
       (e) => void bridge.logSettings(`getPointerHighlight failed: ${e}`),
+    );
+    bridge.getPointerHideCursor().then(
+      (value) => alive && setHideCursor(value),
+      (e) => void bridge.logSettings(`getPointerHideCursor failed: ${e}`),
     );
     bridge.getPointerSettings().then(
       (value) => alive && setLook((now) => now ?? value),
@@ -84,6 +89,21 @@ export function PointerHighlightSettings({ bridge }: { bridge: PlatformBridge })
         />{" "}
         Show a ripple when I left-click
       </label>
+      <br />
+      <label>
+        <input
+          type="checkbox"
+          disabled={hideCursor === null}
+          checked={hideCursor === true}
+          onChange={(event) => {
+            const hide = event.target.checked;
+            setHideCursor(hide);
+            bridge.setPointerHideCursor(hide).catch((e) => void bridge.logSettings(`setPointerHideCursor failed: ${e}`));
+          }}
+        />{" "}
+        Hide the Windows mouse arrow while the dot is on
+      </label>
+      <p className="muted">Only the dot shows. The arrow comes back when the highlight is switched off or the app exits (and at the next start if the app was killed).</p>
     </div>
   );
 }
