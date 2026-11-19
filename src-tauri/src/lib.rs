@@ -44,8 +44,8 @@ const EDITOR_LABEL: &str = "editor";
 const CAPTURE_READY_EVENT: &str = "capture-ready";
 /// Event telling every window that the sticky tool styles were reset.
 const TOOL_STYLES_RESET_EVENT: &str = "tool-styles-reset";
-/// The short settle after hiding a window (the editor, the countdown badge) before the screen is read. A hidden
-/// editor waits longer: `delay::wait_after_hiding_editor`.
+/// The short settle after a window (the minimized editor, the countdown badge) steps out of the way, before the
+/// screen is read; see `delay::wait_after_minimizing_editor`.
 const HIDE_SETTLE: Duration = Duration::from_millis(150);
 
 /// The settings file's folder and its in-memory copy (see `settings.rs`).
@@ -948,6 +948,13 @@ fn remember_editor_state(win: &tauri::WebviewWindow) {
 pub(crate) fn hide_editor(win: &tauri::WebviewWindow) {
     remember_editor_state(win);
     let _ = win.hide();
+}
+
+/// Minimize the editor for a capture (instead of hiding it, so it is out of the picture at once), remembering
+/// whether it was maximized. `show_editor` brings it back, in the state it was in.
+pub(crate) fn minimize_editor(win: &tauri::WebviewWindow) {
+    remember_editor_state(win);
+    let _ = win.minimize();
 }
 
 /// The user closed the editor: hide it to the tray instead (the app keeps running so the hotkey

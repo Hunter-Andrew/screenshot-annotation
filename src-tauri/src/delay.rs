@@ -12,14 +12,15 @@ pub const BADGE_SIZE: u32 = 72;
 /// How far the badge sits from the pointer, in physical pixels, so it never covers what is pointed at.
 pub const POINTER_GAP: i32 = 24;
 
-/// Extra wait after the editor is hidden for a capture started from it (the Capture button), on top of the
-/// short settle `HIDE_SETTLE` every hide gets: Windows fades the window out, and a screen read taken during the
-/// fade would still show part of the editor. One place, so the wait can be tuned (and tested) in one go.
-pub const EDITOR_FADE_EXTRA: Duration = Duration::from_millis(500);
-
-/// How long to wait after hiding the editor before the screen is read: the settle plus `EDITOR_FADE_EXTRA`.
-pub fn wait_after_hiding_editor(settle: Duration) -> Duration {
-    settle + EDITOR_FADE_EXTRA
+/// How long to wait after the editor was minimized for a capture started from it (the Capture button or the
+/// hotkey with the editor open) before the screen is read: just the short settle `HIDE_SETTLE` that every window
+/// that steps out of the way gets, so Windows has taken the window off the screen. There is no extra wait on top:
+/// minimizing is the quickest way to get the editor out of the picture, and the capture should feel instant. The
+/// risk is that the minimize animation is still on screen when the frame is grabbed; it can only be checked on
+/// Windows (release checklist, "The editor is out of the picture"). With the editor not open there is nothing to
+/// wait for: no wait at all. One place, so the wait can be tuned (and tested) in one go.
+pub fn wait_after_minimizing_editor(editor_was_open: bool, settle: Duration) -> Duration {
+    if editor_was_open { settle } else { Duration::ZERO }
 }
 
 /// The delay for a number of seconds the page asked for; `None` for anything not in `CHOICES`
@@ -123,9 +124,14 @@ mod tests {
     }
 
     #[test]
-    fn hiding_the_editor_waits_the_150_ms_settle_plus_500_ms_before_the_screen_is_read() {
-        assert_eq!(EDITOR_FADE_EXTRA, Duration::from_millis(500));
-        assert_eq!(wait_after_hiding_editor(Duration::from_millis(150)), Duration::from_millis(650));
+    fn minimizing_the_editor_waits_only_the_150_ms_settle_before_the_screen_is_read() {
+        // No 500 ms fade wait any more: capture is immediate apart from the short settle.
+        assert_eq!(wait_after_minimizing_editor(true, Duration::from_millis(150)), Duration::from_millis(150));
+    }
+
+    #[test]
+    fn with_no_editor_open_the_screen_is_read_at_once() {
+        assert_eq!(wait_after_minimizing_editor(false, Duration::from_millis(150)), Duration::ZERO);
     }
 
     #[test]

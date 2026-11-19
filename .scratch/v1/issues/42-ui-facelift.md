@@ -21,7 +21,7 @@ Spec: `.scratch/snagit-clone/spec.md`. Planned for M5 (v0.6.0).
 
 1. **Palette: option 3** in `.scratch/v1/prototypes/m5-pointer-and-palette.html`: **purple leads, green is the second accent.**
    - Main accent (selected tool, Copy as the primary button, canvas selection handles and border, focus ring): purple. Light theme `#520DF2` (Andrew's pick) with white text; dark theme `#6d32f5` with white text.
-   - Second accent (Style panel section headers, toggles, Library Strip and grid selection): green. Light theme `#15803d`; dark theme fills `#22c55e`, text `#4ade80`.
+   - Second accent (Style panel section headers, toggles, Library Strip and grid selection): green **`#25E8B7`** in both themes (Andrew, 2026-11-19, replacing `#15803d` / `#22c55e` / `#4ade80`). It is very light (1.6:1 on white), so it is only ever a fill carrying dark text (`#0b1f1a`, e.g. a toggle that is on) or a decorative mark (the underline under section headers). Green text and borders on light surfaces use darker shades of the same hue so WCAG AA still holds: text `#046a50`, borders/outlines `#08856a`; in the dark theme all three are `#25E8B7`. Section headers (Style panel `h3`, Settings `h2`) therefore show the dark-green text plus a `#25E8B7` underline.
    - The old blue `#2f5bea` goes everywhere, including `src/canvas/shapes/lineShape.ts` and `boxShapes.ts`.
 2. **Every colour pair meets WCAG AA**; keyboard focus stays clearly visible.
 3. **Both themes** get the palette; the app keeps following the system theme (no theme picker).

@@ -1,5 +1,8 @@
 /* The app's own colours, defined once (ticket 42). Purple leads (selected tool, Copy, focus ring, canvas selection);
-   green is the second accent (Style panel headers, toggles, Library selection). The Annotation palette (ColorField)
+   green (#25E8B7, Andrew 2026-11-19) is the second accent (Style panel headers, toggles, Library selection). #25E8B7
+   is very light: it is a FILL (with dark --accent2-fg text) and a decorative mark, never text or a lone indicator on a
+   light surface. There, --accent2-edge (borders, outlines, 3:1) and --accent2-text (text, 4.5:1) are darker shades of
+   the same hue; in the dark theme all three are #25E8B7. The Annotation palette (ColorField)
    is the user's content and is not part of this. Both themes follow the system theme. Every pair is checked
    against WCAG AA in theme.test.ts, so change a value there and here together. The canvas selection colour lives in
    src/canvas/selectionColor.ts and must stay equal to the light --accent. */
@@ -15,10 +18,11 @@
   --accent-text: #520df2;
   --focus: #520df2;
   --pressed: #ece6fe;
-  --accent2: #15803d;
-  --accent2-fg: #ffffff;
-  --accent2-text: #15803d;
-  --pressed2: #e8f7ee;
+  --accent2: #25e8b7;
+  --accent2-fg: #0b1f1a;
+  --accent2-edge: #08856a;
+  --accent2-text: #046a50;
+  --pressed2: #e3fbf4;
   --danger: #c81e1e;
   --warn: #8a5200;
   --toast-bg: #1b1e27;
@@ -39,10 +43,11 @@
     --accent-text: #b39bff;
     --focus: #a78bfa;
     --pressed: #2d2358;
-    --accent2: #22c55e;
-    --accent2-fg: #04210f;
-    --accent2-text: #4ade80;
-    --pressed2: #173a27;
+    --accent2: #25e8b7;
+    --accent2-fg: #0b1f1a;
+    --accent2-edge: #25e8b7;
+    --accent2-text: #25e8b7;
+    --pressed2: #12392f;
     --danger: #f87171;
     --warn: #fbbf24;
     color-scheme: dark;

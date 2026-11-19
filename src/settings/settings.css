@@ -12,6 +12,9 @@ html:has(.settings) body {
 }
 .settings h2 {
   color: var(--accent2-text);
+  /* Darker text shade for contrast; the bright #25E8B7 is the underline (see theme.css). */
+  text-decoration: underline 2px solid var(--accent2);
+  text-underline-offset: 3px;
 }
 .settings button {
   font: inherit;

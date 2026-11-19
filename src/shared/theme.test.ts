@@ -47,7 +47,8 @@ const PAIRS: [string, string, number][] = [
   ["toast-accent", "toast-bg", 3],
   ["focus", "chrome", 3],
   ["focus", "bg", 3],
-  ["accent2", "chrome", 3],
+  ["accent2-edge", "chrome", 3],
+  ["accent2-edge", "pressed2", 3],
 ];
 
 describe.each(Object.entries(themes))("palette, %s theme", (_name, t) => {
@@ -61,10 +62,11 @@ describe.each(Object.entries(themes))("palette, %s theme", (_name, t) => {
 describe("the chosen palette (ticket 42, option 3)", () => {
   it("is purple-led with green second", () => {
     expect(themes.light.accent).toBe("#520df2");
-    expect(themes.light["accent2-text"]).toBe("#15803d");
+    expect(themes.light.accent2).toBe("#25e8b7");
+    expect(themes.light["accent2-text"]).toBe("#046a50");
     expect(themes.dark.accent).toBe("#6d32f5");
-    expect(themes.dark.accent2).toBe("#22c55e");
-    expect(themes.dark["accent2-text"]).toBe("#4ade80");
+    expect(themes.dark.accent2).toBe("#25e8b7");
+    expect(themes.dark["accent2-text"]).toBe("#25e8b7");
   });
 });
 
