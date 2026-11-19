@@ -99,6 +99,26 @@
 .tools .tool[aria-pressed="true"] .tool-icon {
   color: var(--accent-text);
 }
+/* The global pointer toggle: at the bottom of the column, pressed like a selected tool but not one. */
+.tools .pointer-toggle {
+  margin-top: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  text-align: left;
+}
+.tools .pointer-toggle .tool-icon {
+  color: #e02424;
+}
+.tools .pointer-toggle .tool-label {
+  flex: 1;
+}
+.tools .pointer-toggle[aria-pressed="true"] {
+  background: var(--pressed);
+  border-color: var(--accent);
+  color: var(--fg);
+  font-weight: 600;
+}
 .tools kbd {
   font: 12px ui-monospace, monospace;
   color: var(--muted);
