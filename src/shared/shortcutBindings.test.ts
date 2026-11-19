@@ -52,39 +52,39 @@ describe("specFromKeyEvent", () => {
 describe("validateBinding", () => {
   it("accepts a free bare key and a free Ctrl combination", () => {
     expect(validateBinding("overlay.magnifier", "N", {})).toEqual({ ok: true });
-    expect(validateBinding("tool.ellipse", "Ctrl+K", {})).toEqual({ ok: true });
+    expect(validateBinding("tool.select", "Ctrl+K", {})).toEqual({ ok: true });
   });
   it("refuses a modifier-only spec", () => {
-    const r = validateBinding("tool.ellipse", "Ctrl+Shift", {});
+    const r = validateBinding("tool.select", "Ctrl+Shift", {});
     expect(r.ok).toBe(false);
     expect(r.ok === false && r.message).toMatch(/modifier/i);
   });
   it("refuses Windows-key and Print Screen specs", () => {
-    expect(validateBinding("tool.ellipse", "Win+K", {}).ok).toBe(false);
-    expect(validateBinding("tool.ellipse", "Meta+K", {}).ok).toBe(false);
-    const ps = validateBinding("tool.ellipse", "PrintScreen", {});
+    expect(validateBinding("tool.select", "Win+K", {}).ok).toBe(false);
+    expect(validateBinding("tool.select", "Meta+K", {}).ok).toBe(false);
+    const ps = validateBinding("tool.select", "PrintScreen", {});
     expect(ps.ok === false && ps.message).toMatch(/Print Screen/);
   });
   it("refuses every fixed key, and says it is fixed", () => {
     for (const fixed of ["Escape", "Ctrl+Z", "Ctrl+Y", "Ctrl+C", "Ctrl+V", "Ctrl+X", "Ctrl+A", "Delete", "Backspace", "Enter", "Tab", "ArrowLeft", "ArrowUp"]) {
-      const r = validateBinding("tool.ellipse", fixed, {});
+      const r = validateBinding("tool.select", fixed, {});
       expect(r.ok, fixed).toBe(false);
       expect(r.ok === false && r.message, fixed).toMatch(/fixed|reserved/i);
     }
   });
   it("refuses a key another action in the same context uses, naming that action", () => {
-    const r = validateBinding("tool.ellipse", "L", {});
+    const r = validateBinding("tool.select", "L", {});
     expect(r.ok).toBe(false);
     expect(r.ok === false && r.message).toContain("Line");
   });
   it("sees a clash with another action's override, not only its default", () => {
-    const r = validateBinding("tool.ellipse", "K", { "tool.line": "K" });
-    expect(r.ok === false && r.message).toContain("Line");
-    // The line tool gave up L, so Ellipse may take it.
-    expect(validateBinding("tool.ellipse", "L", { "tool.line": "K" })).toEqual({ ok: true });
+    const r = validateBinding("tool.select", "K", { "view.fit": "K" });
+    expect(r.ok === false && r.message).toContain("Fit to window");
+    // Fit to window gave up Ctrl+0, so Select may take it.
+    expect(validateBinding("tool.select", "Ctrl+0", { "view.fit": "K" })).toEqual({ ok: true });
   });
   it("allows the same key in the other context (M in the editor is fine)", () => {
-    expect(validateBinding("tool.ellipse", "M", {})).toEqual({ ok: true });
+    expect(validateBinding("tool.select", "M", {})).toEqual({ ok: true });
     expect(validateBinding("overlay.magnifier", "A", {})).toEqual({ ok: true });
   });
   it("refuses an action that may not be remapped, and an unknown id", () => {
@@ -92,7 +92,7 @@ describe("validateBinding", () => {
     expect(validateBinding("nope.nothing", "K", {}).ok).toBe(false);
   });
   it("lets an action keep its own current key", () => {
-    expect(validateBinding("tool.ellipse", "E", {})).toEqual({ ok: true });
+    expect(validateBinding("tool.select", "V", {})).toEqual({ ok: true });
   });
 });
 
@@ -106,23 +106,23 @@ describe("resolveBindings", () => {
     expect(actionForKeyEvent(key("m"), b)).toBeNull();
   });
   it("ignores unknown ids, non-strings, fixed actions, other-context-irrelevant entries", () => {
-    const b = resolveBindings("editor", { "nope.x": "K", "tool.ellipse": 5, "editor.undo": "K", "overlay.magnifier": "K" });
-    expect(b["tool.ellipse"]).toBe("E");
+    const b = resolveBindings("editor", { "nope.x": "K", "tool.select": 5, "editor.undo": "K", "overlay.magnifier": "K" });
+    expect(b["tool.select"]).toBe("V");
     expect(b["editor.undo"]).toBe("Ctrl+Z");
     expect(Object.values(b)).not.toContain("K");
   });
   it("falls back to the default for an invalid key (modifier-only, Print Screen, Windows key, reserved)", () => {
-    const b = resolveBindings("editor", { "tool.ellipse": "Ctrl", "tool.line": "PrintScreen", "tool.text": "Win+T", "tool.callout": "Enter" });
-    expect([b["tool.ellipse"], b["tool.line"], b["tool.text"], b["tool.callout"]]).toEqual(["E", "L", "T", "O"]);
+    const b = resolveBindings("editor", { "tool.select": "Ctrl", "view.fit": "PrintScreen", "view.zoomIn": "Win+T", "editor.discard": "Enter" });
+    expect([b["tool.select"], b["view.fit"], b["view.zoomIn"], b["editor.discard"]]).toEqual(["V", "Ctrl+0", "Ctrl+=", "Ctrl+Delete"]);
   });
   it("never lets a hand-edited clash through: the later action keeps its default", () => {
-    const b = resolveBindings("editor", { "tool.line": "K", "tool.ellipse": "K" });
-    expect(b["tool.line"]).toBe("K");
-    expect(b["tool.ellipse"]).toBe("E");
+    const b = resolveBindings("editor", { "tool.select": "K", "view.fit": "K" });
+    expect(b["tool.select"]).toBe("K");
+    expect(b["view.fit"]).toBe("Ctrl+0");
   });
   it("rejects an override that lands on another action's untouched default", () => {
-    const b = resolveBindings("editor", { "tool.ellipse": "L" });
-    expect(b["tool.ellipse"]).toBe("E");
+    const b = resolveBindings("editor", { "tool.select": "L" });
+    expect(b["tool.select"]).toBe("V");
   });
   it("takes a non-object as no overrides", () => {
     expect(resolveBindings("overlay", 5 as unknown as Record<string, unknown>)["overlay.magnifier"]).toBe("M");
@@ -137,34 +137,54 @@ describe("the fixed drawing-mode tool keys (ticket 54)", () => {
     for (const [id, key] of Object.entries(FIXED_TOOLS)) expect(b[id], id).toBe(key);
   });
   it("does not keep them in the overrides worth saving", () => {
-    expect(validOverrides({ "tool.arrow": "K", "tool.pen": "J", "tool.line": "K" })).toEqual({ "tool.line": "K" });
+    expect(validOverrides({ "tool.arrow": "K", "tool.pen": "J", "tool.line": "K", "tool.crop": "J", "editor.bringForward": "Ctrl+K", "tool.select": "K" })).toEqual({ "tool.select": "K" });
   });
   it("refuses to remap them, and refuses another action taking their key", () => {
     expect(validateBinding("tool.arrow", "K", {}).ok).toBe(false);
-    const r = validateBinding("tool.ellipse", "A", {});
+    const r = validateBinding("tool.select", "A", {});
     expect(r.ok === false && r.message).toContain("Arrow");
   });
   it("does not let a stale override free a fixed key for another action", () => {
-    const b = resolveBindings("editor", { "tool.arrow": "K", "tool.ellipse": "A" });
+    const b = resolveBindings("editor", { "tool.arrow": "K", "tool.select": "A" });
     expect(b["tool.arrow"]).toBe("A");
-    expect(b["tool.ellipse"]).toBe("E");
+    expect(b["tool.select"]).toBe("V");
+  });
+});
+
+describe("the other fixed editor keys (Line, Ellipse, Text, Callout, Blur, Crop, Bring forward, Send back)", () => {
+  const FIXED: Record<string, string> = {
+    "tool.line": "L",
+    "tool.ellipse": "E",
+    "tool.text": "T",
+    "tool.callout": "O",
+    "tool.blur": "B",
+    "tool.crop": "C",
+    "editor.bringForward": "Ctrl+]",
+    "editor.sendBack": "Ctrl+[",
+  };
+  it("keeps their defaults whatever a stale saved override says, and refuses to remap them", () => {
+    const b = resolveBindings("editor", Object.fromEntries(Object.keys(FIXED).map((id) => [id, "Ctrl+K"])));
+    for (const [id, key] of Object.entries(FIXED)) {
+      expect(b[id], id).toBe(key);
+      expect(validateBinding(id, "Ctrl+K", {}).ok, id).toBe(false);
+    }
   });
 });
 
 describe("validateReset", () => {
   it("allows resetting when the default key is free", () => {
-    expect(validateReset("tool.ellipse", { "tool.ellipse": "K" })).toEqual({ ok: true });
+    expect(validateReset("tool.select", { "tool.select": "K" })).toEqual({ ok: true });
   });
   it("is refused when another action took the default key, naming it", () => {
-    const r = validateReset("tool.ellipse", { "tool.ellipse": "K", "tool.text": "E" });
+    const r = validateReset("tool.select", { "tool.select": "K", "view.fit": "V" });
     expect(r.ok).toBe(false);
-    expect(r.ok === false && r.message).toContain("Text");
+    expect(r.ok === false && r.message).toContain("Fit to window");
   });
 });
 
 describe("validOverrides", () => {
   it("keeps only valid entries that differ from the default", () => {
-    expect(validOverrides({ "overlay.magnifier": "N", "overlay.monitor": "Space", "tool.ellipse": "Ctrl", "x.y": "K" })).toEqual({ "overlay.magnifier": "N" });
+    expect(validOverrides({ "overlay.magnifier": "N", "overlay.monitor": "Space", "tool.select": "Ctrl", "x.y": "K" })).toEqual({ "overlay.magnifier": "N" });
   });
 });
 

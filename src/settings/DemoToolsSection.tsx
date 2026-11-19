@@ -13,8 +13,21 @@ type Problem =
   | { kind: "refused"; reason: Extract<SetDemoHotkeyResult, { ok: false }>["reason"]; accelerator: string }
   | { kind: "key"; reason: "needs-modifier" | "unsupported-key" };
 
-/** Settings > Demo tools: one hotkey recorder each for the laser pointer and drawing mode (ticket 49). */
+/** Settings > Demo tools: the options of the two tools (their hotkeys are on the keyboard shortcuts screen). */
 export function DemoToolsSection({ bridge }: { bridge: PlatformBridge }) {
+  return (
+    <section aria-labelledby="demo-tools-heading">
+      <h2 id="demo-tools-heading" style={{ fontSize: 15 }}>
+        Demo tools
+      </h2>
+      <LaserPointerSettings bridge={bridge} />
+      <DrawingHighlighterSetting bridge={bridge} />
+    </section>
+  );
+}
+
+/** The keyboard shortcuts screen: one hotkey recorder each for the laser pointer and drawing mode (ticket 49). */
+export function DemoHotkeys({ bridge }: { bridge: PlatformBridge }) {
   const [hotkeys, setHotkeys] = useState<Record<DemoAction, string> | null>(null);
   const [unregistered, setUnregistered] = useState<Record<DemoAction, boolean>>({
     laserPointer: false,
@@ -69,10 +82,8 @@ export function DemoToolsSection({ bridge }: { bridge: PlatformBridge }) {
   }, [recording, bridge]);
 
   return (
-    <section aria-labelledby="demo-tools-heading">
-      <h2 id="demo-tools-heading" style={{ fontSize: 15 }}>
-        Demo tools
-      </h2>
+    <div role="group" aria-label="Demo tools">
+      <h3 style={{ fontSize: 13 }}>Demo tools</h3>
       {ROWS.map(({ action, label, other }) => {
         const current = hotkeys?.[action] ?? null;
         const problem = problems[action];
@@ -80,7 +91,7 @@ export function DemoToolsSection({ bridge }: { bridge: PlatformBridge }) {
         const dead = unregistered[action] && problem === undefined && current !== null;
         return (
           <div key={action}>
-            <h3 style={{ fontSize: 13 }}>{label}</h3>
+            <h4 style={{ fontSize: 13, margin: "8px 0 4px" }}>{label}</h4>
             <button
               type="button"
               aria-label={`${label} hotkey: ${shown}`}
@@ -105,9 +116,7 @@ export function DemoToolsSection({ bridge }: { bridge: PlatformBridge }) {
           </div>
         );
       })}
-      <LaserPointerSettings bridge={bridge} />
-      <DrawingHighlighterSetting bridge={bridge} />
-    </section>
+    </div>
   );
 }
 

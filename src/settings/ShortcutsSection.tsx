@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { type ReactNode, useCallback, useState } from "react";
 import type { PlatformBridge } from "../platform/bridge";
 import { reservedKeysWithoutAction, resolveBindings, validateBinding, validateReset } from "../shared/shortcutBindings";
 import { CONTEXT_NAME, formatKeySpec, keyLabel, SHORTCUT_CONTEXTS, shortcutsIn } from "../shared/shortcutRegistry";
@@ -20,7 +20,7 @@ const ROW_STYLE = {
  * and a Reset; overrides are saved to settings.json at once (ticket 47). A refused key never changes
  * anything: the row says why, naming the clashing action.
  */
-export function ShortcutsSection({ bridge }: { bridge: PlatformBridge }) {
+export function ShortcutsSection({ bridge, extra }: { bridge: PlatformBridge; extra?: ReactNode }) {
   const [overrides, setOverrides] = useShortcutOverrides(bridge, (message) => void bridge.logSettings(message));
   const [recording, setRecording] = useState<string | null>(null);
   const [problem, setProblem] = useState<{ id: string; message: string } | null>(null);
@@ -58,6 +58,7 @@ export function ShortcutsSection({ bridge }: { bridge: PlatformBridge }) {
         <h3 style={{ fontSize: 13 }}>Capture</h3>
         <HotkeyRecorder bridge={bridge} />
       </div>
+      {extra}
       {SHORTCUT_CONTEXTS.map((context) => {
         const name = CONTEXT_NAME[context];
         const bindings = resolveBindings(context, overrides);

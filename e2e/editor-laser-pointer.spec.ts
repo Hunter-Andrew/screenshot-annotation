@@ -32,7 +32,7 @@ test("the button toggles the pointer, leaves no tool selected and ignores the ca
   await page.goto("/");
   await capture(page);
   await expect(toggle(page)).toHaveAttribute("aria-pressed", "false");
-  await expect(toggle(page)).toHaveAttribute("title", "Laser pointer (Ctrl+Shift+L)");
+  await expect(toggle(page)).toHaveAttribute("title", "Laser pointer (Alt+P)");
 
   await nav(page).getByRole("button", { name: "Rectangle (R)" }).click();
   await toggle(page).click();

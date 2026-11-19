@@ -33,7 +33,7 @@ describe("the pointer toggle in the tool column", () => {
     const buttons = screen.getByRole("navigation", { name: "Tools" }).querySelectorAll("button");
     expect(buttons[buttons.length - 1]).toBe(pointerButton());
     expect(pointerButton()).toHaveAttribute("aria-pressed", "false");
-    await waitFor(() => expect(pointerButton()).toHaveAttribute("title", "Laser pointer (Ctrl+Shift+L)"));
+    await waitFor(() => expect(pointerButton()).toHaveAttribute("title", "Laser pointer (Alt+P)"));
     expect(tool(/^Select/)).toHaveAttribute("aria-pressed", "true");
   });
 

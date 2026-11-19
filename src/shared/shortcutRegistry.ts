@@ -24,7 +24,7 @@ export interface ShortcutAction {
   context: ShortcutContext;
   /** "V", "Escape", "Space", "Ctrl+C", "Ctrl+Delete": modifiers joined with "+", then the key. */
   defaultKey: string;
-  /** False for the fixed keys of ticket 28 decision 8 (Esc, Ctrl+Z, Ctrl+Y, Ctrl+C, Delete, Backspace, ...) and the Arrow, Rectangle, Pen and Highlighter keys, fixed to match the drawing mode (ticket 41 decision 4, ticket 54): shown read-only, and a saved override is ignored. */
+  /** False for the fixed keys of ticket 28 decision 8 (Esc, Ctrl+Z, Ctrl+Y, Ctrl+C, Delete, Backspace, ...) the Arrow, Rectangle, Pen and Highlighter keys (fixed to match the drawing mode, ticket 41 decision 4, ticket 54), and the Line, Ellipse, Text, Callout, Blur, Crop, Bring forward and Send back keys: shown read-only, and a saved override is ignored. */
   remappable: boolean;
 }
 
@@ -35,15 +35,15 @@ export const SHORTCUT_REGISTRY: readonly ShortcutAction[] = [
 
   { id: "tool.select", label: "Select", context: "editor", defaultKey: "V", remappable: true },
   { id: "tool.arrow", label: "Arrow", context: "editor", defaultKey: "A", remappable: false },
-  { id: "tool.line", label: "Line", context: "editor", defaultKey: "L", remappable: true },
+  { id: "tool.line", label: "Line", context: "editor", defaultKey: "L", remappable: false },
   { id: "tool.pen", label: "Pen", context: "editor", defaultKey: "P", remappable: false },
   { id: "tool.rect", label: "Rectangle", context: "editor", defaultKey: "R", remappable: false },
-  { id: "tool.ellipse", label: "Ellipse", context: "editor", defaultKey: "E", remappable: true },
-  { id: "tool.text", label: "Text", context: "editor", defaultKey: "T", remappable: true },
-  { id: "tool.callout", label: "Callout", context: "editor", defaultKey: "O", remappable: true },
+  { id: "tool.ellipse", label: "Ellipse", context: "editor", defaultKey: "E", remappable: false },
+  { id: "tool.text", label: "Text", context: "editor", defaultKey: "T", remappable: false },
+  { id: "tool.callout", label: "Callout", context: "editor", defaultKey: "O", remappable: false },
   { id: "tool.highlight", label: "Highlighter", context: "editor", defaultKey: "H", remappable: false },
-  { id: "tool.blur", label: "Blur", context: "editor", defaultKey: "B", remappable: true },
-  { id: "tool.crop", label: "Crop", context: "editor", defaultKey: "C", remappable: true },
+  { id: "tool.blur", label: "Blur", context: "editor", defaultKey: "B", remappable: false },
+  { id: "tool.crop", label: "Crop", context: "editor", defaultKey: "C", remappable: false },
   { id: "editor.deselect", label: "Deselect and return to Select", context: "editor", defaultKey: "Escape", remappable: false },
   { id: "editor.copy", label: "Copy (when nothing is selected)", context: "editor", defaultKey: "Ctrl+C", remappable: false },
   { id: "editor.discard", label: "Discard", context: "editor", defaultKey: "Ctrl+Delete", remappable: true },
@@ -53,8 +53,8 @@ export const SHORTCUT_REGISTRY: readonly ShortcutAction[] = [
   { id: "editor.redoAlt", label: "Redo (alternative)", context: "editor", defaultKey: "Ctrl+Shift+Z", remappable: true },
   { id: "editor.undo", label: "Undo", context: "editor", defaultKey: "Ctrl+Z", remappable: false },
   { id: "editor.redo", label: "Redo", context: "editor", defaultKey: "Ctrl+Y", remappable: false },
-  { id: "editor.bringForward", label: "Bring forward", context: "editor", defaultKey: "Ctrl+]", remappable: true },
-  { id: "editor.sendBack", label: "Send back", context: "editor", defaultKey: "Ctrl+[", remappable: true },
+  { id: "editor.bringForward", label: "Bring forward", context: "editor", defaultKey: "Ctrl+]", remappable: false },
+  { id: "editor.sendBack", label: "Send back", context: "editor", defaultKey: "Ctrl+[", remappable: false },
   { id: "view.fit", label: "Fit to window", context: "editor", defaultKey: "Ctrl+0", remappable: true },
   { id: "view.actualSize", label: "Actual size (100%)", context: "editor", defaultKey: "Ctrl+1", remappable: true },
   { id: "view.zoomIn", label: "Zoom in", context: "editor", defaultKey: "Ctrl+=", remappable: true },

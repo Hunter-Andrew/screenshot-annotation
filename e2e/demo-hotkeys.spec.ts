@@ -12,10 +12,10 @@ const drawing = (page: Page, combo: string) =>
 test("each demo hotkey can be set and survives reopening Settings", async ({ page }) => {
   await page.goto("/#settings");
   await expect(page.getByRole("heading", { name: "Demo tools" })).toBeVisible();
-  await laserPointer(page, "Ctrl+Shift+L").click();
+  await laserPointer(page, "Alt+P").click();
   await page.keyboard.press("Control+Alt+p");
   await expect(laserPointer(page, "Ctrl+Alt+P")).toBeVisible();
-  await drawing(page, "Ctrl+Shift+D").click();
+  await drawing(page, "Alt+D").click();
   await page.keyboard.press("Control+Alt+o");
   await expect(drawing(page, "Ctrl+Alt+O")).toBeVisible();
   expect(await fake(page, (f) => [f.laserPointerHotkey, f.drawingModeHotkey])).toEqual(["ctrl+alt+p", "ctrl+alt+o"]);
@@ -26,16 +26,16 @@ test("each demo hotkey can be set and survives reopening Settings", async ({ pag
 
 test("the capture hotkey, the other demo hotkey and Print Screen are refused with a message", async ({ page }) => {
   await page.goto("/#settings");
-  await laserPointer(page, "Ctrl+Shift+L").click();
+  await laserPointer(page, "Alt+P").click();
   await page.keyboard.press("Control+Shift+s");
   await expect(page.getByRole("alert")).toContainText("capture hotkey");
-  await laserPointer(page, "Ctrl+Shift+L").click();
+  await laserPointer(page, "Alt+P").click();
   await page.keyboard.press("Control+Shift+d");
   await expect(page.getByRole("alert")).toContainText("Drawing mode hotkey");
-  await laserPointer(page, "Ctrl+Shift+L").click();
+  await laserPointer(page, "Alt+P").click();
   await page.evaluate(() => window.dispatchEvent(new KeyboardEvent("keyup", { code: "PrintScreen" })));
   await expect(page.getByRole("alert")).toContainText("Print Screen");
-  expect(await fake(page, (f) => f.laserPointerHotkey)).toBe("ctrl+shift+l");
+  expect(await fake(page, (f) => f.laserPointerHotkey)).toBe("alt+p");
 });
 
 test("the capture hotkey cannot take a demo combination", async ({ page }) => {
@@ -48,8 +48,8 @@ test("the capture hotkey cannot take a demo combination", async ({ page }) => {
 test("a combination another app owns shows the conflict message and keeps the old hotkey", async ({ page }) => {
   await page.goto("/#settings");
   await page.evaluate(() => (window as unknown as { __fakeBridge: Fake }).__fakeBridge.takenHotkeys.add("ctrl+alt+j"));
-  await drawing(page, "Ctrl+Shift+D").click();
+  await drawing(page, "Alt+D").click();
   await page.keyboard.press("Control+Alt+j");
   await expect(page.getByRole("alert")).toContainText("Ctrl+Alt+J is already in use by another app");
-  expect(await fake(page, (f) => f.drawingModeHotkey)).toBe("ctrl+shift+d");
+  expect(await fake(page, (f) => f.drawingModeHotkey)).toBe("alt+d");
 });

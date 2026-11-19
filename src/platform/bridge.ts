@@ -340,7 +340,7 @@ export interface PlatformBridge {
    * stays in force and the result says `conflict`.
    */
   setHotkey(accelerator: string): Promise<SetHotkeyResult>;
-  /** The laser-pointer and drawing-mode hotkeys (defaults ctrl+shift+l and ctrl+shift+d). */
+  /** The laser-pointer and drawing-mode hotkeys (defaults alt+p and alt+d). */
   getDemoHotkeys(): Promise<DemoHotkeys>;
   /**
    * Re-register one demo hotkey and save it, like `setHotkey`. Refused (nothing changes) for Print

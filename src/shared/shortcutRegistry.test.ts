@@ -18,6 +18,9 @@ const FIXED_KEYS = ["escape", "ctrl+z", "ctrl+y", "ctrl+c", "ctrl+v", "ctrl+x", 
 // Ticket 41 decision 4 / ticket 54: Arrow, Rectangle, Pen, Highlighter.
 const DRAWING_MODE_KEYS = ["A", "R", "P", "H"];
 
+// Also fixed (2026-11-19): Line, Ellipse, Text, Callout, Blur, Crop, Bring forward, Send back.
+const OTHER_FIXED_IDS = ["tool.line", "tool.ellipse", "tool.text", "tool.callout", "tool.blur", "tool.crop", "editor.bringForward", "editor.sendBack"];
+
 describe("the shortcut registry", () => {
   it("gives every action a unique id, a label and a context", () => {
     const ids = SHORTCUT_REGISTRY.map((a) => a.id);
@@ -44,10 +47,10 @@ describe("the shortcut registry", () => {
 
   it("marks every decision-8 fixed key and the four drawing-mode tool keys (ticket 54) as not remappable, and nothing else", () => {
     for (const a of SHORTCUT_REGISTRY) {
-      expect(a.remappable, a.id).toBe(!FIXED_KEYS.includes(a.defaultKey.toLowerCase()) && !DRAWING_MODE_KEYS.includes(a.defaultKey));
+      expect(a.remappable, a.id).toBe(!FIXED_KEYS.includes(a.defaultKey.toLowerCase()) && !DRAWING_MODE_KEYS.includes(a.defaultKey) && !OTHER_FIXED_IDS.includes(a.id));
     }
     const fixedIds = SHORTCUT_REGISTRY.filter((a) => !a.remappable).map((a) => a.id).sort();
-    expect(fixedIds).toEqual(["drawing.arrow", "drawing.exit", "drawing.highlight", "drawing.pen", "drawing.rect", "drawing.redo", "drawing.undo", "editor.copy", "editor.delete", "editor.deleteBackspace", "editor.deselect", "editor.redo", "editor.undo", "overlay.cancel", "tool.arrow", "tool.highlight", "tool.pen", "tool.rect"]);
+    expect(fixedIds).toEqual(["drawing.arrow", "drawing.exit", "drawing.highlight", "drawing.pen", "drawing.rect", "drawing.redo", "drawing.undo", "editor.copy", "editor.delete", "editor.deleteBackspace", "editor.deselect", "editor.redo", "editor.undo", "overlay.cancel", "tool.arrow", "tool.highlight", "tool.pen", "tool.rect", ...OTHER_FIXED_IDS].sort());
   });
 });
 

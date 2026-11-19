@@ -5,7 +5,7 @@
 //! What the fields in `settings.json` mean (plain language; the user may open this file):
 //! - `hotkey`: the capture hotkey, e.g. "ctrl+shift+s" or "PrintScreen". Change it in Settings, not here.
 //! - `laserPointerHotkey` / `drawingModeHotkey`: the global hotkeys of the two demo tools, e.g.
-//!   "ctrl+shift+l" and "ctrl+shift+d" (the defaults). Change them in Settings > Demo tools. Never Print
+//!   "alt+p" and "alt+d" (the defaults). Change them in Settings > Bind keyboard shortcuts. Never Print
 //!   Screen, the capture hotkey or each other; a value that breaks that, or is not text, becomes the default.
 //! - `laserPointerColor` (`#RRGGBB`, default `#e02424`, red), `laserPointerSize` ("small", "medium" or "large"; default
 //!   "medium") and `laserPointerRipple` (true by default): how the laser pointer looks (ticket 50). Change them in
@@ -63,8 +63,8 @@ pub const FILE_NAME: &str = "settings.json";
 /// Where an unparseable settings.json is kept (see `load`).
 pub const CORRUPT_FILE_NAME: &str = "settings.json.corrupt";
 pub const DEFAULT_HOTKEY: &str = "ctrl+shift+s";
-pub const DEFAULT_LASER_POINTER_HOTKEY: &str = "ctrl+shift+l";
-pub const DEFAULT_DRAWING_MODE_HOTKEY: &str = "ctrl+shift+d";
+pub const DEFAULT_LASER_POINTER_HOTKEY: &str = "alt+p";
+pub const DEFAULT_DRAWING_MODE_HOTKEY: &str = "alt+d";
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
@@ -606,13 +606,13 @@ mod tests {
     #[test]
     fn the_demo_hotkeys_default_for_a_fresh_install_and_for_files_from_before_they_existed() {
         let s = load(&temp_dir("demo-fresh"));
-        assert_eq!((s.laser_pointer_hotkey.as_str(), s.drawing_mode_hotkey.as_str()), ("ctrl+shift+l", "ctrl+shift+d"));
+        assert_eq!((s.laser_pointer_hotkey.as_str(), s.drawing_mode_hotkey.as_str()), ("alt+p", "alt+d"));
         let dir = temp_dir("demo-old-file");
         fs::create_dir_all(&dir).unwrap();
         fs::write(dir.join(FILE_NAME), br#"{"hotkey":"alt+x"}"#).unwrap();
         let s = load(&dir);
         assert_eq!(s.hotkey, "alt+x");
-        assert_eq!((s.laser_pointer_hotkey.as_str(), s.drawing_mode_hotkey.as_str()), ("ctrl+shift+l", "ctrl+shift+d"));
+        assert_eq!((s.laser_pointer_hotkey.as_str(), s.drawing_mode_hotkey.as_str()), ("alt+p", "alt+d"));
         fs::remove_dir_all(&dir).unwrap();
     }
 
@@ -638,11 +638,11 @@ mod tests {
         fs::write(dir.join(FILE_NAME), br#"{"hotkey":"alt+x","laserPointerHotkey":5,"drawingModeHotkey":"PrintScreen"}"#).unwrap();
         let s = load(&dir);
         assert_eq!(s.hotkey, "alt+x");
-        assert_eq!(s.laser_pointer_hotkey, "ctrl+shift+l");
-        assert_eq!(s.drawing_mode_hotkey, "ctrl+shift+d");
+        assert_eq!(s.laser_pointer_hotkey, "alt+p");
+        assert_eq!(s.drawing_mode_hotkey, "alt+d");
         fs::write(dir.join(FILE_NAME), br#"{"laserPointerHotkey":"","drawingModeHotkey":"ctrl+PrintScreen"}"#).unwrap();
         let s = load(&dir);
-        assert_eq!((s.laser_pointer_hotkey.as_str(), s.drawing_mode_hotkey.as_str()), ("ctrl+shift+l", "ctrl+shift+d"));
+        assert_eq!((s.laser_pointer_hotkey.as_str(), s.drawing_mode_hotkey.as_str()), ("alt+p", "alt+d"));
         fs::remove_dir_all(&dir).unwrap();
     }
 
@@ -652,11 +652,11 @@ mod tests {
         fs::create_dir_all(&dir).unwrap();
         fs::write(dir.join(FILE_NAME), br#"{"hotkey":"ctrl+alt+p","laserPointerHotkey":"ctrl+alt+p","drawingModeHotkey":"ctrl+alt+o"}"#).unwrap();
         let s = load(&dir);
-        assert_eq!(s.laser_pointer_hotkey, "ctrl+shift+l");
+        assert_eq!(s.laser_pointer_hotkey, "alt+p");
         assert_eq!(s.drawing_mode_hotkey, "ctrl+alt+o");
         fs::write(dir.join(FILE_NAME), br#"{"laserPointerHotkey":"ctrl+alt+o","drawingModeHotkey":"ctrl+alt+o"}"#).unwrap();
         let s = load(&dir);
-        assert_eq!(s.laser_pointer_hotkey, "ctrl+shift+l");
+        assert_eq!(s.laser_pointer_hotkey, "alt+p");
         assert_eq!(s.drawing_mode_hotkey, "ctrl+alt+o");
         fs::remove_dir_all(&dir).unwrap();
     }

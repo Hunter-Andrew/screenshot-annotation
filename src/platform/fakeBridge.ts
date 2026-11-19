@@ -199,8 +199,8 @@ export function createFakeBridge(
     setItem: (k, v) => void memory.set(k, v),
   };
   let hotkey = store.getItem("fake.hotkey") ?? "ctrl+shift+s";
-  let laserPointerHotkey = store.getItem("fake.laserPointerHotkey") ?? "ctrl+shift+l";
-  let drawingModeHotkey = store.getItem("fake.drawingModeHotkey") ?? "ctrl+shift+d";
+  let laserPointerHotkey = store.getItem("fake.laserPointerHotkey") ?? "alt+p";
+  let drawingModeHotkey = store.getItem("fake.drawingModeHotkey") ?? "alt+d";
   const takenHotkeys = new Set<string>();
   let keyboardSettingsOpened = 0;
   let snippingEnabled = options.printScreenSnippingEnabled ?? true;
