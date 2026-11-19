@@ -52,7 +52,8 @@ describe("Settings > Shortcuts", () => {
   it("lists every registry entry once, and marks fixed ones read-only", () => {
     render(<Settings bridge={createFakeBridge()} />);
     const items = within(screen.getByRole("region", { name: "Shortcuts" })).getAllByRole("listitem");
-    expect(items).toHaveLength(SHORTCUT_REGISTRY.length);
+    // The registry rows, plus the nine fixed keys that have no action of their own.
+    expect(items).toHaveLength(SHORTCUT_REGISTRY.length + 9);
     const undo = within(group("Editor")).getByRole("listitem", { name: "Undo" });
     expect(undo).toHaveTextContent("Ctrl+Z");
     expect(undo).toHaveTextContent("Fixed");
@@ -63,8 +64,18 @@ describe("Settings > Shortcuts", () => {
     render(<Settings bridge={createFakeBridge()} />);
     const editor = within(group("Editor"));
     const fixedKeys = editor.getByLabelText("Other fixed keys");
-    const shown = Array.from(fixedKeys.querySelectorAll("dt")).map((t) => t.textContent);
-    expect(shown).toEqual(["Ctrl+V", "Ctrl+X", "Ctrl+A", "Enter", "Tab", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"]);
+    const shown = Array.from(fixedKeys.querySelectorAll("li")).map((li) => [li.querySelector("span")?.textContent, li.querySelector("kbd")?.textContent, li.textContent?.includes("Fixed")]);
+    expect(shown).toEqual([
+      ["Paste", "Ctrl+V", true],
+      ["Cut", "Ctrl+X", true],
+      ["Select all", "Ctrl+A", true],
+      ["New line in text", "Enter", true],
+      ["Move between controls", "Tab", true],
+      ["Move the cursor up", "ArrowUp", true],
+      ["Move the cursor down", "ArrowDown", true],
+      ["Move the cursor left", "ArrowLeft", true],
+      ["Move the cursor right", "ArrowRight", true],
+    ]);
     expect(within(fixedKeys as HTMLElement).queryByRole("button")).toBeNull();
   });
 

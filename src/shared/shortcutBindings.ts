@@ -37,13 +37,26 @@ const WINDOWS_NAMES = new Set(["win", "windows", "meta", "super", "cmd", "os"]);
 const RESERVED_SPECS = ["Escape", "Ctrl+Z", "Ctrl+Y", "Ctrl+C", "Ctrl+V", "Ctrl+X", "Ctrl+A", "Delete", "Backspace", "Enter", "Tab", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"];
 const RESERVED = new Set(RESERVED_SPECS.map(normalizeKeySpec));
 
+/** What each reserved key does, in the words Settings shows beside it (only keys with no registry row need one). */
+const RESERVED_LABELS: Readonly<Record<string, string>> = {
+  "Ctrl+V": "Paste",
+  "Ctrl+X": "Cut",
+  "Ctrl+A": "Select all",
+  Enter: "New line in text",
+  Tab: "Move between controls",
+  ArrowUp: "Move the cursor up",
+  ArrowDown: "Move the cursor down",
+  ArrowLeft: "Move the cursor left",
+  ArrowRight: "Move the cursor right",
+};
+
 /**
- * The reserved keys that no registry row shows (paste, cut, select all, Enter, Tab, the arrows):
- * Settings lists them read-only so the whole fixed set of decision 8 is visible.
+ * The reserved keys that no registry row shows (paste, cut, select all, Enter, Tab, the arrows), each with
+ * what it does: Settings lists them read-only so the whole fixed set of decision 8 is visible.
  */
-export function reservedKeysWithoutAction(): string[] {
+export function reservedKeysWithoutAction(): { spec: string; label: string }[] {
   const shown = new Set(SHORTCUT_REGISTRY.map((a) => normalizeKeySpec(a.defaultKey)));
-  return RESERVED_SPECS.filter((spec) => !shown.has(normalizeKeySpec(spec)));
+  return RESERVED_SPECS.filter((spec) => !shown.has(normalizeKeySpec(spec))).map((spec) => ({ spec, label: RESERVED_LABELS[spec] ?? spec }));
 }
 
 function actionById(id: string): ShortcutAction | undefined {
