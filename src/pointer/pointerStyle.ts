@@ -21,7 +21,7 @@ export interface Glow {
 }
 
 /**
- * The size table (ticket 40 decision 5): Medium is the prototype's laser dot (option C: a 14 px core, an inner glow of
+ * The size table (ticket 40 decision 5): Medium is the prototype's dot (option C: a 14 px core, an inner glow of
  * 10 px blur and 4 px spread at 70% and an outer glow of 24 px and 10 px at 30%); Small and Large scale both layers in
  * step with the core (inner about 70%, outer about 30% opacity). The Large outer glow is held back a little so every
  * glow stays inside the 96 px window. Tune on the Windows PC.

@@ -34,9 +34,11 @@ fn item(id: &str, label: &str) -> Entry {
 /// Id of the checked "Pointer highlight" item.
 pub const POINTER_HIGHLIGHT_ID: &str = "pointer-highlight";
 
-/// The label of the pointer highlight item: its name and its hotkey, e.g. "Pointer highlight (Ctrl+Shift+L)".
-/// `accelerator` is the stored form ("ctrl+shift+l"); mirrors `formatCombo` in `src/settings/hotkey.ts`.
-pub fn pointer_highlight_label(accelerator: &str) -> String {
+/// A hotkey the way Settings shows it, e.g. "Ctrl+Shift+L" (mirrors `formatCombo` in `src/settings/hotkey.ts`).
+/// `accelerator` is the stored form ("ctrl+shift+l"). Modifier names are matched without regard to case and
+/// through their aliases; "ArrowUp" is "Up", "PrintScreen" is "Print Screen", a single character is upper case,
+/// any other key keeps its spelling.
+pub fn format_accelerator(accelerator: &str) -> String {
     let shown: Vec<String> = accelerator
         .split('+')
         .map(|part| match part.to_ascii_lowercase().as_str() {
@@ -45,37 +47,25 @@ pub fn pointer_highlight_label(accelerator: &str) -> String {
             "alt" | "option" => "Alt".to_string(),
             "super" | "meta" | "cmd" | "command" | "win" => "Win".to_string(),
             "printscreen" => "Print Screen".to_string(),
-            other if other.starts_with("arrow") => part[5..].to_string(),
-            other if other.chars().count() == 1 => other.to_uppercase(),
+            lower if lower.starts_with("arrow") && lower.len() > 5 => part[5..].to_string(),
+            lower if lower.chars().count() == 1 => lower.to_uppercase(),
             _ => part.to_string(),
         })
         .collect();
-    format!("Pointer highlight ({})", shown.join("+"))
+    shown.join("+")
+}
+
+/// The label of the pointer highlight item: its name and its hotkey, e.g. "Pointer highlight (Ctrl+Shift+L)".
+pub fn pointer_highlight_label(accelerator: &str) -> String {
+    format!("Pointer highlight ({})", format_accelerator(accelerator))
 }
 
 /// The id of the "Draw on screen" item (`lib.rs` keeps a handle to it to refresh its label).
 pub const DRAW_ID: &str = "draw";
 
-/// One part of a hotkey the way Settings shows it: "ctrl" is "Ctrl", "super" is "Win", "ArrowUp" is "Up",
-/// a single letter is upper case (mirrors `formatCombo` in `src/settings/hotkey.ts`).
-fn display_part(part: &str) -> String {
-    match part {
-        "ctrl" => "Ctrl".into(),
-        "alt" => "Alt".into(),
-        "shift" => "Shift".into(),
-        "super" => "Win".into(),
-        _ => match part.strip_prefix("Arrow") {
-            Some(rest) => rest.into(),
-            None if part.chars().count() == 1 => part.to_uppercase(),
-            None => part.to_string(),
-        },
-    }
-}
-
 /// The label of the "Draw on screen" item: the Drawing mode hotkey (an accelerator such as "ctrl+shift+d") shown in brackets.
 pub fn draw_label(accelerator: &str) -> String {
-    let combo: Vec<String> = accelerator.split('+').map(display_part).collect();
-    format!("Draw on screen ({})", combo.join("+"))
+    format!("Draw on screen ({})", format_accelerator(accelerator))
 }
 
 /// The menu, top to bottom. `delays` are the seconds offered by the delay timer; `pointer_hotkey` is the
@@ -227,6 +217,18 @@ mod tests {
         };
         assert_eq!(checked(false), Some(false));
         assert_eq!(checked(true), Some(true));
+    }
+
+    #[test]
+    fn both_labels_show_a_hotkey_the_same_way_whatever_its_case_or_alias() {
+        for accelerator in ["CTRL+Shift+l", "control+SHIFT+L", "CommandOrControl+shift+l", "ctrl+shift+l"] {
+            assert_eq!(format_accelerator(accelerator), "Ctrl+Shift+L", "{accelerator}");
+            assert_eq!(pointer_highlight_label(accelerator), "Pointer highlight (Ctrl+Shift+L)");
+            assert_eq!(draw_label(accelerator), "Draw on screen (Ctrl+Shift+L)");
+        }
+        assert_eq!(format_accelerator("Alt+super+arrowup"), "Alt+Win+up");
+        assert_eq!(format_accelerator("ctrl+PrintScreen"), "Ctrl+Print Screen");
+        assert_eq!(format_accelerator("ctrl+Arrow"), "Ctrl+Arrow");
     }
 
     #[test]

@@ -1,4 +1,4 @@
-/* The pointer highlight window (ticket 50): a laser dot and its click ripple on a transparent page. */
+/* The pointer highlight window (ticket 50): the dot and its click ripple on a transparent page. */
 .pointer-dot,
 .pointer-ripple {
   position: fixed;

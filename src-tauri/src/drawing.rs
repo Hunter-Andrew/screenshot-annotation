@@ -261,6 +261,35 @@ pub async fn set_drawing_click_through(app: AppHandle, on: bool) {
         }
     }
     diag::log(&format!("drawing mode: overlays are {}", if on { "click-through (Use apps)" } else { "taking the mouse" }));
+    if !on {
+        // After "Use apps" the keyboard is in the app that was used: bring it back to an overlay, so the keys
+        // (A, R, P, H, Ctrl+Z, Esc) work without a first click, as they do when the mode starts.
+        focus_overlay(&app);
+    }
+}
+
+/// Give keyboard focus to the drawing overlay on the monitor under the pointer, or the first overlay when that
+/// one cannot be told. Mirrors how `start` focuses an overlay.
+fn focus_overlay(app: &AppHandle) {
+    let layout: Vec<MonitorBounds> = app
+        .available_monitors()
+        .unwrap_or_default()
+        .iter()
+        .map(|m| MonitorBounds { x: m.position().x, y: m.position().y, width: m.size().width, height: m.size().height })
+        .collect();
+    let windows = app.webview_windows();
+    let under = capture::cursor_position().ok().and_then(|(x, y)| geometry::monitor_at(&layout, x, y));
+    let target = under
+        .and_then(|i| windows.get(&drawing_plan::label(i)))
+        .or_else(|| (0..layout.len()).find_map(|i| windows.get(&drawing_plan::label(i))));
+    match target {
+        Some(window) => {
+            if let Err(e) = window.set_focus() {
+                diag::log(&format!("drawing mode: could not give an overlay the keyboard: {e}"));
+            }
+        }
+        None => diag::log("drawing mode: no overlay to give the keyboard to"),
+    }
 }
 
 /// The toolbar collapses to a small pill or expands again: resize its window (CSS pixels, so the monitor it is

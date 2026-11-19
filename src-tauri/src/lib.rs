@@ -98,22 +98,26 @@ impl hotkey::ShortcutRegistry for PluginRegistry<'_> {
     }
 }
 
-/// Same for the drawing-mode hotkey (ticket 52 listens).
-const DRAWING_MODE_HOTKEY_EVENT: &str = "drawing-mode-hotkey";
-
-/// The two demo-tool hotkeys, parsed, so the global-shortcut handler can tell which one fired without
+/// The three global hotkeys the plugin handler tells apart, parsed, so it can tell which one fired without
 /// taking the settings lock (a command holds that lock while it registers, and the handler runs on the
-/// event loop). Index 0 is the pointer highlight, 1 is drawing mode. Held only for a copy, never while registering.
+/// event loop). Slots: `POINTER_HIGHLIGHT_SLOT`, `DRAWING_MODE_SLOT` and `CAPTURE_SLOT`. A slot is updated
+/// after its new hotkey is registered and saved, so a press of a hotkey that is registered but not yet in
+/// its slot matches nothing and the handler ignores it (it must never fall through to a capture). Held only
+/// for a copy, never while registering.
 #[derive(Default)]
-struct DemoShortcuts(Mutex<[Option<Shortcut>; 2]>);
+struct DemoShortcuts(Mutex<[Option<Shortcut>; 3]>);
+
+const POINTER_HIGHLIGHT_SLOT: usize = 0;
+const DRAWING_MODE_SLOT: usize = 1;
+const CAPTURE_SLOT: usize = 2;
 
 impl DemoShortcuts {
     fn set(&self, index: usize, accelerator: &str) {
-        self.0.lock().unwrap()[index] = accelerator.parse::<Shortcut>().ok();
+        self.0.lock().unwrap_or_else(|p| p.into_inner())[index] = accelerator.parse::<Shortcut>().ok();
     }
-    /// Which demo hotkey `shortcut` is: 0 pointer highlight, 1 drawing mode.
+    /// Which slot `shortcut` is in, if any.
     fn which(&self, shortcut: &Shortcut) -> Option<usize> {
-        let held = *self.0.lock().unwrap();
+        let held = *self.0.lock().unwrap_or_else(|p| p.into_inner());
         held.iter().position(|s| s.as_ref() == Some(shortcut))
     }
 }
@@ -238,7 +242,12 @@ fn get_hotkey(app: AppHandle, state: tauri::State<'_, AppSettings>) -> HotkeySta
 /// Re-registers the capture hotkey and saves it. Errors: "conflict" (another app owns it; the old
 /// hotkey stays), "invalid", "failed" (could not save; the old hotkey stays).
 #[tauri::command]
-fn set_hotkey(app: AppHandle, state: tauri::State<'_, AppSettings>, accelerator: String) -> Result<(), String> {
+fn set_hotkey(
+    app: AppHandle,
+    state: tauri::State<'_, AppSettings>,
+    demo: tauri::State<'_, DemoShortcuts>,
+    accelerator: String,
+) -> Result<(), String> {
     let mut data = state.data.lock().unwrap();
     let old = data.hotkey.clone();
     diag::log(&format!("set_hotkey: requested {accelerator} (current {old})"));
@@ -254,6 +263,7 @@ fn set_hotkey(app: AppHandle, state: tauri::State<'_, AppSettings>, accelerator:
     match outcome {
         Ok(()) => {
             diag::log(&format!("set_hotkey: {accelerator} is now the capture hotkey (saved)"));
+            demo.set(CAPTURE_SLOT, &accelerator);
             data.hotkey = accelerator;
             Ok(())
         }
@@ -326,7 +336,7 @@ fn set_demo_hotkey(
             } else {
                 data.drawing_mode_hotkey = accelerator.clone();
             }
-            demo.set(if pointer { 0 } else { 1 }, &accelerator);
+            demo.set(if pointer { POINTER_HIGHLIGHT_SLOT } else { DRAWING_MODE_SLOT }, &accelerator);
             if pointer {
                 pointer_highlight::refresh_tray_label(&app, &accelerator);
             } else {
@@ -1340,20 +1350,20 @@ pub fn run() {
                         // Esc is registered only while a delay countdown runs, and only cancels it.
                         if *shortcut == countdown::escape_shortcut() {
                             countdown::cancel(app);
-                        } else if let Some(which) = app.try_state::<DemoShortcuts>().and_then(|d| d.which(shortcut)) {
-                            // The demo-tool hotkeys (ticket 49). The pointer highlight (ticket 50) flips on a worker
-                            // thread; drawing mode (ticket 52) acts on the event.
-                            if which == 0 {
-                                diag::log("hotkey event: pointer highlight hotkey pressed");
-                                pointer_highlight::request(app, None);
-                            } else {
-                                diag::log("hotkey event: drawing mode hotkey pressed");
-                                let _ = app.emit(DRAWING_MODE_HOTKEY_EVENT, ());
-                                // Drawing mode (ticket 52) starts or ends here.
-                                drawing::toggle(app.clone(), "hotkey");
-                            }
                         } else {
-                            capture_async(app.clone(), "hotkey");
+                            match app.try_state::<DemoShortcuts>().and_then(|d| d.which(shortcut)) {
+                                Some(POINTER_HIGHLIGHT_SLOT) => {
+                                    diag::log("hotkey event: pointer highlight hotkey pressed");
+                                    pointer_highlight::request(app, None);
+                                }
+                                Some(DRAWING_MODE_SLOT) => {
+                                    diag::log("hotkey event: drawing mode hotkey pressed");
+                                    drawing::toggle(app.clone(), "hotkey");
+                                }
+                                Some(CAPTURE_SLOT) => capture_async(app.clone(), "hotkey"),
+                                // Registered a moment ago and not yet in its slot (a hotkey being changed): never a capture.
+                                _ => diag::log("hotkey event: not a known hotkey (being changed?), ignored"),
+                            }
                         }
                     })
                     .build(),
@@ -1362,14 +1372,16 @@ pub fn run() {
             diag::init(&dir);
             diag::log(&format!("started, version {}", app.package_info().version));
             let loaded = settings::load(&dir);
+            // The handler tells the hotkeys apart by these slots: fill and manage them before registering any.
+            let demo_shortcuts = DemoShortcuts::default();
+            demo_shortcuts.set(CAPTURE_SLOT, &loaded.hotkey);
+            demo_shortcuts.set(POINTER_HIGHLIGHT_SLOT, &loaded.pointer_highlight_hotkey);
+            demo_shortcuts.set(DRAWING_MODE_SLOT, &loaded.drawing_mode_hotkey);
+            app.manage(demo_shortcuts);
+            app.manage(pointer_highlight::PointerHighlightState::new(&loaded.pointer_settings()));
             // A taken hotkey must not stop the app from starting; Settings shows the conflict warning.
             let _ = hotkey::ShortcutRegistry::register(&registry(app.handle()), &loaded.hotkey);
             // The demo-tool hotkeys the same way (ticket 49): a taken one is shown in Settings > Demo tools.
-            let demo_shortcuts = DemoShortcuts::default();
-            demo_shortcuts.set(0, &loaded.pointer_highlight_hotkey);
-            demo_shortcuts.set(1, &loaded.drawing_mode_hotkey);
-            app.manage(demo_shortcuts);
-            app.manage(pointer_highlight::PointerHighlightState::new(&loaded.pointer_settings()));
             let _ = hotkey::ShortcutRegistry::register(&registry(app.handle()), &loaded.pointer_highlight_hotkey);
             let _ = hotkey::ShortcutRegistry::register(&registry(app.handle()), &loaded.drawing_mode_hotkey);
             let reading = print_screen::read();

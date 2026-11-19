@@ -14,7 +14,7 @@ A Windows desktop app for capturing and annotating screenshots, in the style of 
 | M3 · Library | v0.4 | Released | Library Strip, full-window grid, reopen and edit, delete with Undo, the folder as the source of truth |
 | M4 · Complete | v0.5 | Released | Callout, Highlighter, Blur, Crop and canvas expansion, paste images into the canvas, delay timer, startup and polish |
 | M5 · Shortcuts, polish and facelift | v0.6 | Released | Settings lists and remaps all keyboard shortcuts; style panel polish; colour facelift |
-| M6 · Desktop demo tools | v1.0 | Built; awaiting the release checklist | Desktop pointer highlight and on-screen annotation (drawing mode), with two global hotkeys |
+| M6 · Desktop demo tools | v1.0 | Built; awaiting the release checklist | Desktop pointer highlight and Drawing mode, with two global hotkeys |
 
 ## Workflow
 

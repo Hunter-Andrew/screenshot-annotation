@@ -6,7 +6,7 @@ import { dotStyle, POINTER_WINDOW_SIZE, RIPPLE, rippleStyle } from "./pointerSty
 const FRESH: PointerView = { ...DEFAULT_POINTER_SETTINGS, dotX: POINTER_WINDOW_SIZE / 2, dotY: POINTER_WINDOW_SIZE / 2 };
 
 /**
- * The pointer highlight: the laser dot in its own transparent, click-through window that the platform moves with
+ * The pointer highlight: the red dot in its own transparent, click-through window that the platform moves with
  * the mouse pointer (ticket 50). The platform also says where in the window the dot's centre is (the window is held
  * back at a monitor's edge), when the look changes, and when a left click begins (a ripple ring grows from the dot).
  */

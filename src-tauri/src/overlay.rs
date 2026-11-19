@@ -176,12 +176,15 @@ fn fail(app: &AppHandle, message: &str) {
     prewarm_in_background(app);
 }
 
-/// Native handles of the overlay windows, so window enumeration can never offer them as targets.
+/// Native handles of the app's own click-through windows (capture overlays, Drawing mode's overlays and toolbar,
+/// the pointer highlight's dot), so window enumeration can never offer them as targets.
 #[cfg(windows)]
 fn overlay_handles(app: &AppHandle) -> Vec<isize> {
     app.webview_windows()
         .into_iter()
-        .filter(|(name, _)| name.starts_with(LABEL_PREFIX) || crate::drawing_plan::is_window(name))
+        .filter(|(name, _)| {
+            name.starts_with(LABEL_PREFIX) || crate::drawing_plan::is_window(name) || name == crate::pointer_highlight::LABEL
+        })
         .filter_map(|(_, window)| window.hwnd().ok().map(|h| h.0 as isize))
         .collect()
 }

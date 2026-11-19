@@ -1,4 +1,4 @@
-//! The pointer highlight (ticket 50, decisions in ticket 40): a red "laser dot" that follows the mouse
+//! The pointer highlight (ticket 50, decisions in ticket 40): a red dot that follows the mouse
 //! pointer across the whole desktop, switched on and off by its hotkey and by the checked tray item. It is
 //! one small transparent, click-through, non-focusable, always-on-top window (built like the delay timer's
 //! badge in `countdown.rs`) that a polling thread moves every ~16 ms. No hooks (ADR 0009): the pointer comes
@@ -72,6 +72,9 @@ pub struct PointerHighlightState {
     /// One switch-on or switch-off at a time (creating the window takes a moment).
     transition: Mutex<()>,
     view: Mutex<PointerView>,
+    /// Whether the click ripple is on, read on every tick by the follower thread (a copy of `view.ripple`, so a
+    /// tick does not lock and clone the whole view).
+    ripple: AtomicBool,
     /// The tray's checked item, to keep its check mark in step with the real state.
     tray_item: Mutex<Option<CheckMenuItem<Wry>>>,
 }
@@ -82,6 +85,7 @@ impl PointerHighlightState {
             running: Mutex::new(None),
             transition: Mutex::new(()),
             view: Mutex::new(PointerView::new(settings)),
+            ripple: AtomicBool::new(settings.ripple),
             tray_item: Mutex::new(None),
         }
     }
@@ -92,6 +96,12 @@ impl PointerHighlightState {
 
     fn is_on(&self) -> bool {
         self.running.lock().unwrap_or_else(|p| p.into_inner()).is_some()
+    }
+
+    /// The tray item, cloned out of its lock. The guard is a temporary of this function, gone when it returns, so the caller never holds the lock while it calls the menu API (that call waits for the main
+    /// thread, which may be in `set_tray_item` or a command that wants this lock).
+    fn tray_item(&self) -> Option<CheckMenuItem<Wry>> {
+        self.tray_item.lock().unwrap_or_else(|p| p.into_inner()).clone()
     }
 
     fn view(&self) -> PointerView {
@@ -128,23 +138,27 @@ pub fn apply_settings(app: &AppHandle, settings: &PointerSettings) {
         view.ripple = settings.ripple;
         view.clone()
     };
+    state.ripple.store(settings.ripple, Ordering::SeqCst);
     let _ = app.emit(VIEW_EVENT, view);
 }
 
 /// The hotkey changed in Settings: the tray item shows the new one.
 pub fn refresh_tray_label(app: &AppHandle, accelerator: &str) {
     let state = app.state::<PointerHighlightState>();
-    if let Some(item) = state.tray_item.lock().unwrap_or_else(|p| p.into_inner()).as_ref() {
+    // The lock is not held across the menu call: it dispatches to the main thread and waits.
+    if let Some(item) = state.tray_item() {
         if let Err(e) = item.set_text(tray_menu::pointer_highlight_label(accelerator)) {
             diag::log(&format!("pointer highlight: could not update the tray label: {e}"));
         }
-    };
+    }
 }
 
 /// Tell the tray and every window what the state is now.
 fn publish(app: &AppHandle, on: bool) {
     let state = app.state::<PointerHighlightState>();
-    if let Some(item) = state.tray_item.lock().unwrap_or_else(|p| p.into_inner()).as_ref() {
+    // The lock is not held across the menu call: it dispatches to the main thread and waits, and
+    // `set_demo_hotkey` (a sync command, so on the main thread) takes the same lock.
+    if let Some(item) = state.tray_item() {
         if let Err(e) = item.set_checked(on) {
             diag::log(&format!("pointer highlight: could not set the tray check mark: {e}"));
         }
@@ -156,6 +170,9 @@ fn publish(app: &AppHandle, on: bool) {
 /// mark is still put right: a click flips it natively before this runs).
 fn switch(app: &AppHandle, want: Option<bool>) {
     let state = app.state::<PointerHighlightState>();
+    // `transition` is held across `thread.join()` below. That cannot deadlock: only worker threads (`request`)
+    // take it, never the main thread, and the follower thread never takes it, `running` or `tray_item`; it only
+    // asks the main thread to move or destroy the dot window, which the main thread can always answer.
     let _one_at_a_time = state.transition.lock().unwrap_or_else(|p| p.into_inner());
     let on_now = state.is_on();
     let on = want.unwrap_or(!on_now);
@@ -232,7 +249,7 @@ pub(crate) fn exclude_from_capture(window: &tauri::WebviewWindow, what: &str) {
     };
     // Tauri's HWND may come from another version of the `windows` crate: go through the raw value.
     let hwnd = HWND(handle.0 as isize as *mut _);
-    // SAFETY: `hwnd` is the live dot window created above.
+    // SAFETY: `hwnd` is the live window `window` refers to (the dot or the drawing toolbar), held by the caller.
     if let Err(e) = unsafe { SetWindowDisplayAffinity(hwnd, WDA_EXCLUDEFROMCAPTURE) } {
         diag::log(&format!("{what}: SetWindowDisplayAffinity failed ({e}); the window can show in captures"));
     }
@@ -241,27 +258,19 @@ pub(crate) fn exclude_from_capture(window: &tauri::WebviewWindow, what: &str) {
 #[cfg(not(windows))]
 pub(crate) fn exclude_from_capture(_window: &tauri::WebviewWindow, _what: &str) {}
 
-/// Whether the primary mouse button is down now (the left one, or the right one when the buttons are swapped
-/// in Windows). Polled, never hooked (ADR 0009).
+/// Whether the physical left mouse button is down now (ticket 40 decision 7: left click only, so with the
+/// buttons swapped in Windows the ripple follows the physical left button, not the primary one). Polled,
+/// never hooked (ADR 0009).
 #[cfg(windows)]
-fn primary_button_down() -> bool {
-    use windows::Win32::UI::Input::KeyboardAndMouse::{GetAsyncKeyState, VK_LBUTTON, VK_RBUTTON};
-    use windows::Win32::UI::WindowsAndMessaging::{GetSystemMetrics, SM_SWAPBUTTON};
+fn left_button_down() -> bool {
+    use windows::Win32::UI::Input::KeyboardAndMouse::{GetAsyncKeyState, VK_LBUTTON};
 
-    // SAFETY: neither call has preconditions. GetAsyncKeyState names the physical buttons, so a swapped
-    // mouse's primary button is VK_RBUTTON.
-    let key = unsafe {
-        if GetSystemMetrics(SM_SWAPBUTTON) != 0 {
-            VK_RBUTTON
-        } else {
-            VK_LBUTTON
-        }
-    };
-    unsafe { GetAsyncKeyState(i32::from(key.0)) < 0 }
+    // SAFETY: GetAsyncKeyState has no preconditions; it names the physical buttons.
+    unsafe { GetAsyncKeyState(i32::from(VK_LBUTTON.0)) < 0 }
 }
 
 #[cfg(not(windows))]
-fn primary_button_down() -> bool {
+fn left_button_down() -> bool {
     false
 }
 
@@ -283,7 +292,7 @@ fn read_sample(monitors: &[(MonitorBounds, f64)]) -> Option<Sample> {
     let bounds: Vec<MonitorBounds> = monitors.iter().map(|(b, _)| *b).collect();
     let index = geometry::monitor_at(&bounds, cursor.0, cursor.1)?;
     let (b, scale) = &monitors[index];
-    Some(Sample { cursor, left_down: primary_button_down(), monitor: (b.x, b.y, b.width, b.height), scale: *scale })
+    Some(Sample { cursor, left_down: left_button_down(), monitor: (b.x, b.y, b.width, b.height), scale: *scale })
 }
 
 /// The polling thread: until `stop`, move the dot to the pointer; then close the window.
@@ -299,7 +308,7 @@ fn follow(app: &AppHandle, window: tauri::WebviewWindow, stop: &AtomicBool) {
             monitors_read = Instant::now();
         }
         if let Some(sample) = read_sample(&monitors) {
-            let ripple_on = state.view().ripple;
+            let ripple_on = state.ripple.load(Ordering::SeqCst);
             let frame = tracker.next(&sample, ripple_on);
             for change in &frame.apply {
                 // Position first, then size: the size is applied at the scale of the monitor moved to.

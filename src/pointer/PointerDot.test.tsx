@@ -8,7 +8,7 @@ afterEach(() => vi.useRealTimers());
 const rings = () => document.querySelectorAll("[data-ripple]");
 
 describe("Pointer highlight dot window", () => {
-  it("draws the red Medium laser dot in the middle of its window on a fresh install", async () => {
+  it("draws the red Medium dot in the middle of its window on a fresh install", async () => {
     render(<PointerDot bridge={createFakeBridge()} />);
     const dot = await screen.findByRole("img", { name: "Pointer highlight" });
     expect(dot).toHaveStyle({ width: "14px", height: "14px", background: "#e02424", left: "48px", top: "48px" });

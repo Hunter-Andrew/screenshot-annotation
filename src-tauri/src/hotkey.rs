@@ -59,8 +59,38 @@ pub fn uses_print_screen(accelerator: &str) -> bool {
     accelerator.rsplit('+').next().is_some_and(|key| key.trim().eq_ignore_ascii_case("PrintScreen"))
 }
 
+/// An accelerator reduced to what the OS sees: its modifiers (named `ctrl`, `alt`, `shift`, `super`, in that
+/// order, each once) and its key in lower case. Case, spacing, the order of the modifiers and the aliases
+/// (`control`, `commandorcontrol`, `cmdorctrl` for ctrl; `option` for alt; `meta`, `cmd`, `command`, `win` for
+/// super) do not matter. The key is the last part that is not a modifier name.
+fn normalize_accelerator(accelerator: &str) -> (Vec<&'static str>, String) {
+    const ORDER: [&str; 4] = ["ctrl", "alt", "shift", "super"];
+    let mut mods: Vec<&'static str> = Vec::new();
+    let mut key = String::new();
+    for part in accelerator.split('+') {
+        let part = part.trim().to_ascii_lowercase();
+        let modifier = match part.as_str() {
+            "ctrl" | "control" | "commandorcontrol" | "cmdorctrl" => Some("ctrl"),
+            "alt" | "option" => Some("alt"),
+            "shift" => Some("shift"),
+            "super" | "meta" | "cmd" | "command" | "win" => Some("super"),
+            _ => None,
+        };
+        match modifier {
+            Some(m) => {
+                if !mods.contains(&m) {
+                    mods.push(m);
+                }
+            }
+            None => key = part,
+        }
+    }
+    mods.sort_by_key(|m| ORDER.iter().position(|x| x == m));
+    (mods, key)
+}
+
 fn same_accelerator(a: &str, b: &str) -> bool {
-    a.trim().eq_ignore_ascii_case(b.trim())
+    normalize_accelerator(a) == normalize_accelerator(b)
 }
 
 /// Why a demo-tool hotkey (pointer highlight, drawing mode; ticket 49) may not be `new`, as the wire code
@@ -228,6 +258,25 @@ mod tests {
     fn the_capture_hotkey_and_the_other_demo_hotkey_are_refused_for_a_demo_hotkey() {
         assert_eq!(demo_refusal("ctrl+shift+s", "ctrl+shift+s", "ctrl+shift+d"), Some("capture-hotkey"));
         assert_eq!(demo_refusal("CTRL+SHIFT+D", "ctrl+shift+s", "ctrl+shift+d"), Some("other-demo"));
+    }
+
+    #[test]
+    fn a_differently_spelled_equivalent_combination_is_the_same_hotkey() {
+        assert_eq!(demo_refusal("Shift+Control+S", "ctrl+shift+s", "ctrl+shift+d"), Some("capture-hotkey"));
+        assert_eq!(demo_refusal("CommandOrControl+shift+D", "ctrl+shift+s", "ctrl+shift+d"), Some("other-demo"));
+        assert_eq!(demo_refusal("shift+ctrl+d", "ctrl+shift+s", "Ctrl+Shift+D"), Some("other-demo"));
+        assert!(clashes_with_demo("shift+ctrl+L", "ctrl+shift+l", "ctrl+shift+d"));
+        assert!(clashes_with_demo("Win+Alt+d", "ctrl+shift+l", "alt+super+D"));
+        assert!(same_accelerator(" ctrl + shift + s ", "ctrl+shift+s"));
+    }
+
+    #[test]
+    fn different_combinations_are_not_the_same_hotkey() {
+        assert!(!same_accelerator("ctrl+shift+s", "ctrl+s"));
+        assert!(!same_accelerator("ctrl+shift+s", "ctrl+shift+d"));
+        assert!(!same_accelerator("ctrl+shift+s", "ctrl+alt+s"));
+        assert!(!same_accelerator("ctrl+s", "s"));
+        assert_eq!(demo_refusal("ctrl+alt+k", "ctrl+shift+s", "ctrl+shift+d"), None);
     }
 
     #[test]
