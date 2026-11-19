@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { shortcutsIn } from "../shared/shortcutRegistry";
 import { drawingKeyAction } from "./drawingKeys";
 
 const key = (k: string, mods: Partial<{ ctrlKey: boolean; altKey: boolean; metaKey: boolean; shiftKey: boolean }> = {}) => ({
@@ -41,5 +42,22 @@ describe("the fixed keys of Drawing mode", () => {
   it("every other key does nothing", () => {
     for (const k of ["b", "Enter", "Delete", " ", "1", "F5", "Tab"]) expect(drawingKeyAction(key(k))).toBeNull();
     expect(drawingKeyAction(key("Escape", { ctrlKey: true }))).toBeNull();
+  });
+});
+
+describe("the keys Settings lists for Drawing mode (shortcut registry)", () => {
+  it("are exactly the keys the overlay acts on", () => {
+    const parse = (spec: string) => {
+      const parts = spec.split("+");
+      return key(parts[parts.length - 1]!, { ctrlKey: parts.includes("Ctrl") });
+    };
+    const action = (id: string) => drawingKeyAction(parse(shortcutsIn("drawing").find((a) => a.id === id)!.defaultKey));
+    expect(action("drawing.arrow")).toEqual({ kind: "tool", tool: "arrow" });
+    expect(action("drawing.rect")).toEqual({ kind: "tool", tool: "rect" });
+    expect(action("drawing.pen")).toEqual({ kind: "tool", tool: "pen" });
+    expect(action("drawing.highlight")).toEqual({ kind: "tool", tool: "highlight" });
+    expect(action("drawing.undo")).toEqual({ kind: "undo" });
+    expect(action("drawing.redo")).toEqual({ kind: "redo" });
+    expect(action("drawing.exit")).toEqual({ kind: "exit" });
   });
 });

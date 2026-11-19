@@ -10,7 +10,7 @@ const key = (k: string, mods: { ctrl?: boolean; shift?: boolean; alt?: boolean }
   metaKey: false,
 });
 
-const CONTEXTS: ShortcutContext[] = ["overlay", "editor"];
+const CONTEXTS: ShortcutContext[] = ["overlay", "editor", "drawing"];
 
 // Ticket 28 decision 8, written out independently of the registry.
 const FIXED_KEYS = ["escape", "ctrl+z", "ctrl+y", "ctrl+c", "ctrl+v", "ctrl+x", "ctrl+a", "delete", "backspace", "enter", "tab", "arrowup", "arrowdown", "arrowleft", "arrowright"];
@@ -47,7 +47,15 @@ describe("the shortcut registry", () => {
       expect(a.remappable, a.id).toBe(!FIXED_KEYS.includes(a.defaultKey.toLowerCase()) && !DRAWING_MODE_KEYS.includes(a.defaultKey));
     }
     const fixedIds = SHORTCUT_REGISTRY.filter((a) => !a.remappable).map((a) => a.id).sort();
-    expect(fixedIds).toEqual(["editor.copy", "editor.delete", "editor.deleteBackspace", "editor.deselect", "editor.redo", "editor.undo", "overlay.cancel", "tool.arrow", "tool.highlight", "tool.pen", "tool.rect"]);
+    expect(fixedIds).toEqual(["drawing.arrow", "drawing.exit", "drawing.highlight", "drawing.pen", "drawing.rect", "drawing.redo", "drawing.undo", "editor.copy", "editor.delete", "editor.deleteBackspace", "editor.deselect", "editor.redo", "editor.undo", "overlay.cancel", "tool.arrow", "tool.highlight", "tool.pen", "tool.rect"]);
+  });
+});
+
+describe("the Drawing mode rows (ticket 53)", () => {
+  it("are A, R, P, H, Ctrl+Z, Ctrl+Y and Esc, all fixed", () => {
+    expect(shortcutsIn("drawing").map((a) => [a.defaultKey, a.remappable])).toEqual([
+      ["A", false], ["R", false], ["P", false], ["H", false], ["Ctrl+Z", false], ["Ctrl+Y", false], ["Escape", false],
+    ]);
   });
 });
 

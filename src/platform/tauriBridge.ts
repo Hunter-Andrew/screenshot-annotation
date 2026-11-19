@@ -1,5 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
-import { listen } from "@tauri-apps/api/event";
+import { emit, listen } from "@tauri-apps/api/event";
+import { DEFAULT_TOOL, DRAWING_TOOLS, type DrawingTool } from "../drawing/drawingState";
+import type { DrawingEdit } from "../drawing/toolbarState";
 import { sanitizeImageSettings } from "../shared/imageSettings";
 import { formatStamp } from "../shared/stamp";
 import { watchLibrary } from "./libraryWatch";
@@ -15,6 +17,9 @@ import type {
   OverlayRect,
   PlatformBridge,
 } from "./bridge";
+
+/** The platform's remembered Drawing mode tool, or Arrow when it says something else. */
+const asDrawingTool = (name: string): DrawingTool => (DRAWING_TOOLS.includes(name as DrawingTool) ? (name as DrawingTool) : DEFAULT_TOOL);
 
 /**
  * Decode the `take_capture` body (see `pack_capture` in src-tauri/src/lib.rs): u32 LE width,
@@ -167,6 +172,18 @@ export function createTauriBridge(): PlatformBridge {
     overlayReady: (monitor) => invoke<void>("overlay_ready", { monitor }),
     finishOverlay: (outcome) => invoke<void>("overlay_finish", { outcome }),
     exitDrawingMode: () => invoke<void>("drawing_exit"),
+    getDrawingTool: async () => asDrawingTool(await invoke<string>("get_drawing_tool")),
+    setDrawingTool: (tool) => invoke<void>("set_drawing_tool", { tool }),
+    onDrawingTool: (handler) =>
+      listen<string>("drawing-tool", (event) => {
+        if (DRAWING_TOOLS.includes(event.payload as DrawingTool)) handler(event.payload as DrawingTool);
+      }),
+    setDrawingClickThrough: (on) => invoke<void>("set_drawing_click_through", { on }),
+    resizeDrawingToolbar: (width, height) => invoke<void>("resize_drawing_toolbar", { width, height }),
+    sendDrawingEdit: (edit) => emit("drawing-edit", edit),
+    onDrawingEdit: (handler) => listen<DrawingEdit>("drawing-edit", (event) => handler(event.payload)),
+    undoDrawing: (monitor) => emit("drawing-undo", monitor),
+    onDrawingUndo: (handler) => listen<number>("drawing-undo", (event) => handler(event.payload)),
     logOverlay: async (message, fatal = false) => {
       try {
         await invoke<void>("overlay_log", { message, fatal });

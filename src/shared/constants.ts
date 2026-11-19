@@ -19,3 +19,8 @@ export const COUNTDOWN_HASH = "#countdown";
 export const POINTER_HIGHLIGHT_HASH = "#pointer-highlight";
 /** Route of a Drawing mode overlay window: `#drawing/<monitor index>`; `src-tauri/src/drawing.rs` must open the same prefix (see rustParity.test.ts). */
 export const DRAWING_HASH_PREFIX = "#drawing/";
+/** Route of the Drawing mode toolbar window; `src-tauri/src/drawing.rs` must open the same hash (see rustParity.test.ts). */
+export const DRAWING_TOOLBAR_HASH = "#drawing-toolbar";
+/** The toolbar window's size in CSS pixels, expanded and collapsed; `src-tauri/src/drawing_plan.rs` must use the same numbers (see rustParity.test.ts). */
+export const DRAWING_TOOLBAR_SIZE = { width: 356, height: 48 } as const;
+export const DRAWING_TOOLBAR_COLLAPSED_SIZE = { width: 72, height: 48 } as const;

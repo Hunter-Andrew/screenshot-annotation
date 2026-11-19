@@ -181,7 +181,7 @@ fn fail(app: &AppHandle, message: &str) {
 fn overlay_handles(app: &AppHandle) -> Vec<isize> {
     app.webview_windows()
         .into_iter()
-        .filter(|(name, _)| name.starts_with(LABEL_PREFIX) || crate::drawing_plan::is_label(name))
+        .filter(|(name, _)| name.starts_with(LABEL_PREFIX) || crate::drawing_plan::is_window(name))
         .filter_map(|(_, window)| window.hwnd().ok().map(|h| h.0 as isize))
         .collect()
 }

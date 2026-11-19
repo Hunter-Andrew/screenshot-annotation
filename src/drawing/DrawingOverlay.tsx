@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type PointerEvent } from "react";
 import type { Point } from "../core/annotations";
 import type { PlatformBridge } from "../platform/bridge";
-import { clear, commit, drawingFromGesture, initialDrawingState, redo, selectTool, undo, type DrawingState } from "./drawingState";
+import { clear, commit, drawingFromGesture, initialDrawingState, redo, selectTool, undo, type DrawingState, type DrawingTool } from "./drawingState";
 import { drawingKeyAction } from "./drawingKeys";
 import { readDrawingStyles, type DrawingStyles } from "./drawingStyles";
 import { paintDrawing } from "./paint";
@@ -57,6 +57,53 @@ export function DrawingOverlay({ bridge, monitor }: { bridge: PlatformBridge; mo
     return () => window.removeEventListener("resize", onResize);
   }, []);
 
+  // The toolbar (its own window) and the other overlays share one tool: the platform remembers it for the session.
+  const logFailure = (what: string) => (e: unknown) => void bridge.logOverlay(`drawing ${monitor}: ${what} failed: ${e}`);
+  const undoRequest = useRef<() => void>(() => {});
+  useEffect(() => {
+    let alive = true;
+    let heardEvent = false;
+    const offs: (() => void)[] = [];
+    const keep = (subscription: Promise<() => void>) =>
+      void subscription.then(
+        (off) => (alive ? offs.push(off) : off()),
+        (e) => void bridge.logOverlay(`drawing ${monitor}: subscribing failed: ${e}`),
+      );
+    keep(
+      bridge.onDrawingTool((tool) => {
+        heardEvent = true;
+        if (alive) setState((s) => selectTool(s, tool));
+      }),
+    );
+    keep(bridge.onDrawingUndo((target) => alive && target === monitor && undoRequest.current()));
+    bridge.getDrawingTool().then(
+      (tool) => alive && !heardEvent && setState((s) => selectTool(s, tool)),
+      logFailure("getDrawingTool"),
+    );
+    return () => {
+      alive = false;
+      offs.forEach((off) => off());
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `logFailure` only closes over `bridge` and `monitor`.
+  }, [bridge, monitor]);
+
+  const report = (edit: "commit" | "undo" | "redo") => bridge.sendDrawingEdit({ monitor, edit }).catch(logFailure("sendDrawingEdit"));
+  const undoLast = () => {
+    if (state.drawings.length === 0) return;
+    setState(undo);
+    void report("undo");
+  };
+  const redoLast = () => {
+    if (state.undone.length === 0) return;
+    setState(redo);
+    void report("redo");
+  };
+  undoRequest.current = undoLast;
+  const chooseTool = (tool: DrawingTool) => {
+    setState((s) => selectTool(s, tool));
+    bridge.setDrawingTool(tool).catch(logFailure("setDrawingTool"));
+  };
+
   const leave = () => {
     setGesture(null);
     setState(clear);
@@ -68,9 +115,9 @@ export function DrawingOverlay({ bridge, monitor }: { bridge: PlatformBridge; mo
       const action = drawingKeyAction(event);
       if (!action) return;
       event.preventDefault();
-      if (action.kind === "tool") setState((s) => selectTool(s, action.tool));
-      else if (action.kind === "undo") setState(undo);
-      else if (action.kind === "redo") setState(redo);
+      if (action.kind === "tool") chooseTool(action.tool);
+      else if (action.kind === "undo") undoLast();
+      else if (action.kind === "redo") redoLast();
       else leave();
     };
     window.addEventListener("keydown", onKeyDown);
@@ -112,7 +159,10 @@ export function DrawingOverlay({ bridge, monitor }: { bridge: PlatformBridge; mo
     if (!gesture) return;
     const drawing = drawingFromGesture(state.tool, `drawing-${monitor}-${nextId.current++}`, [...gesture, at(event)], styles, size);
     setGesture(null);
-    if (drawing) setState((s) => commit(s, drawing));
+    if (drawing) {
+      setState((s) => commit(s, drawing));
+      void report("commit");
+    }
   };
 
   return (

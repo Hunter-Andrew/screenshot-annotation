@@ -10,10 +10,10 @@
 // a tool means adding its row here and nothing else.
 
 /** Where a shortcut is active. A binding clashes only with another in its own context (ticket 28, decision 3). The editor context includes the grid. */
-export type ShortcutContext = "overlay" | "editor";
+export type ShortcutContext = "overlay" | "editor" | "drawing";
 
 /** Every context, in display order, with the name Settings and refusal messages call it. */
-export const CONTEXT_NAME: Readonly<Record<ShortcutContext, string>> = { overlay: "Capture overlay", editor: "Editor" };
+export const CONTEXT_NAME: Readonly<Record<ShortcutContext, string>> = { overlay: "Capture overlay", editor: "Editor", drawing: "Drawing mode" };
 export const SHORTCUT_CONTEXTS = Object.keys(CONTEXT_NAME) as readonly ShortcutContext[];
 
 export interface ShortcutAction {
@@ -59,6 +59,16 @@ export const SHORTCUT_REGISTRY: readonly ShortcutAction[] = [
   { id: "view.actualSize", label: "Actual size (100%)", context: "editor", defaultKey: "Ctrl+1", remappable: true },
   { id: "view.zoomIn", label: "Zoom in", context: "editor", defaultKey: "Ctrl+=", remappable: true },
   { id: "view.zoomOut", label: "Zoom out", context: "editor", defaultKey: "Ctrl+-", remappable: true },
+
+  // Drawing mode (ticket 41 decision 4, ticket 53): fixed, in-window keys of the drawing overlay, listed read-only in
+  // Settings. src/drawing/drawingKeys.ts reads the keys; a test keeps it and this table in step.
+  { id: "drawing.arrow", label: "Arrow", context: "drawing", defaultKey: "A", remappable: false },
+  { id: "drawing.rect", label: "Rectangle", context: "drawing", defaultKey: "R", remappable: false },
+  { id: "drawing.pen", label: "Pen", context: "drawing", defaultKey: "P", remappable: false },
+  { id: "drawing.highlight", label: "Highlighter", context: "drawing", defaultKey: "H", remappable: false },
+  { id: "drawing.undo", label: "Undo the last drawing", context: "drawing", defaultKey: "Ctrl+Z", remappable: false },
+  { id: "drawing.redo", label: "Redo", context: "drawing", defaultKey: "Ctrl+Y", remappable: false },
+  { id: "drawing.exit", label: "Leave Drawing mode and clear the drawings", context: "drawing", defaultKey: "Escape", remappable: false },
 ];
 
 export function shortcutsIn(context: ShortcutContext): readonly ShortcutAction[] {

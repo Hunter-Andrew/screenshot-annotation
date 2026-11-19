@@ -10,10 +10,10 @@ function group(name: string) {
 }
 
 describe("Settings > Shortcuts", () => {
-  it("groups shortcuts Capture / Capture overlay / Editor in that order", () => {
+  it("groups shortcuts Capture / Capture overlay / Editor / Drawing mode in that order", () => {
     render(<Settings bridge={createFakeBridge()} />);
     const names = within(screen.getByRole("region", { name: "Shortcuts" })).getAllByRole("group").map((g) => g.getAttribute("aria-label"));
-    expect(names).toEqual(["Capture", "Capture overlay", "Editor"]);
+    expect(names).toEqual(["Capture", "Capture overlay", "Editor", "Drawing mode"]);
   });
 
   it("lists Space and M under Capture overlay with their bindings", () => {
@@ -35,6 +35,18 @@ describe("Settings > Shortcuts", () => {
       expect(within(group("Editor")).getByRole("listitem", { name })).toHaveTextContent("Fixed");
       expect(screen.queryByRole("button", { name: `Change shortcut for ${name}` })).toBeNull();
     }
+  });
+
+  it("lists the Drawing mode keys read-only: A, R, P, H, Ctrl+Z, Ctrl+Y, Esc, with no change or reset control", () => {
+    render(<Settings bridge={createFakeBridge()} />);
+    const drawing = within(group("Drawing mode"));
+    const rows = drawing.getAllByRole("listitem");
+    expect(rows.map((r) => r.querySelector("kbd")?.textContent)).toEqual(["A", "R", "P", "H", "Ctrl+Z", "Ctrl+Y", "Esc"]);
+    for (const row of rows) {
+      expect(row).toHaveTextContent("Fixed");
+      expect(within(row).queryByRole("button")).toBeNull();
+    }
+    expect(drawing.getByRole("listitem", { name: "Arrow" })).toHaveTextContent("A");
   });
 
   it("lists every registry entry once, and marks fixed ones read-only", () => {

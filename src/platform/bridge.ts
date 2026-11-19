@@ -6,6 +6,8 @@
  */
 
 import type { Background } from "../core/annotation";
+import type { DrawingTool } from "../drawing/drawingState";
+import type { DrawingEdit } from "../drawing/toolbarState";
 import type { CheckerboardTheme, ImageSettings } from "../shared/imageSettings";
 
 /** A Capture handed to the editor: a plain PNG of one monitor at native resolution. */
@@ -255,6 +257,25 @@ export interface PlatformBridge {
    * item do from the platform's side, so this is only for the page's own Esc.
    */
   exitDrawingMode(): Promise<void>;
+  /**
+   * Drawing mode's tool (ticket 53). The platform keeps the last one chosen for the app session, so a
+   * window that opens asks for it (Arrow before any was chosen).
+   */
+  getDrawingTool(): Promise<DrawingTool>;
+  /** Choose the tool from the toolbar or a key of an overlay: remembered, and delivered to every drawing window via `onDrawingTool`. */
+  setDrawingTool(tool: DrawingTool): Promise<void>;
+  /** The tool changed (anywhere), including the change this window asked for. */
+  onDrawingTool(handler: (tool: DrawingTool) => void): Promise<() => void>;
+  /** The toolbar's "Use apps": the overlays let the mouse through to the apps below (true), or take it back (false). The drawings stay visible either way. */
+  setDrawingClickThrough(on: boolean): Promise<void>;
+  /** The toolbar window asks to be this big, in CSS pixels (it grows and shrinks when it collapses and expands). */
+  resizeDrawingToolbar(width: number, height: number): Promise<void>;
+  /** An overlay tells the toolbar it drew, undid or redid a drawing (so Undo knows what it can take back). */
+  sendDrawingEdit(edit: DrawingEdit): Promise<void>;
+  onDrawingEdit(handler: (edit: DrawingEdit) => void): Promise<() => void>;
+  /** The toolbar's Undo button: the overlay of that monitor undoes its last drawing. */
+  undoDrawing(monitor: number): Promise<void>;
+  onDrawingUndo(handler: (monitor: number) => void): Promise<() => void>;
   /**
    * Whether the capture overlay shows its magnifier: a stored setting (default true on a fresh
    * install) that each overlay reads when it starts and the Settings window can change too.

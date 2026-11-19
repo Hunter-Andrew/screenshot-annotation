@@ -208,7 +208,7 @@ fn open_window(app: &AppHandle) -> tauri::Result<tauri::WebviewWindow> {
 
 fn start(app: &AppHandle) -> Result<Running, String> {
     let window = open_window(app).map_err(|e| e.to_string())?;
-    exclude_from_capture(&window);
+    exclude_from_capture(&window, "pointer highlight");
     let stop = Arc::new(AtomicBool::new(false));
     let thread = {
         let app = app.clone();
@@ -219,26 +219,27 @@ fn start(app: &AppHandle) -> Result<Running, String> {
 }
 
 /// Hide the dot and the ripple from screenshots and screen recordings (Windows 10 version 2004 and later; on an
-/// older Windows the call fails and the dot is simply in the picture).
+/// older Windows the call fails and the dot is simply in the picture). Also used by Drawing mode's toolbar
+/// (`drawing.rs`); `what` names the window in the log lines.
 #[cfg(windows)]
-fn exclude_from_capture(window: &tauri::WebviewWindow) {
+pub(crate) fn exclude_from_capture(window: &tauri::WebviewWindow, what: &str) {
     use windows::Win32::Foundation::HWND;
     use windows::Win32::UI::WindowsAndMessaging::{SetWindowDisplayAffinity, WDA_EXCLUDEFROMCAPTURE};
 
     let Ok(handle) = window.hwnd() else {
-        diag::log("pointer highlight: no window handle, the dot is not hidden from captures");
+        diag::log(&format!("{what}: no window handle, the window is not hidden from captures"));
         return;
     };
     // Tauri's HWND may come from another version of the `windows` crate: go through the raw value.
     let hwnd = HWND(handle.0 as isize as *mut _);
     // SAFETY: `hwnd` is the live dot window created above.
     if let Err(e) = unsafe { SetWindowDisplayAffinity(hwnd, WDA_EXCLUDEFROMCAPTURE) } {
-        diag::log(&format!("pointer highlight: SetWindowDisplayAffinity failed ({e}); the dot can show in captures"));
+        diag::log(&format!("{what}: SetWindowDisplayAffinity failed ({e}); the window can show in captures"));
     }
 }
 
 #[cfg(not(windows))]
-fn exclude_from_capture(_window: &tauri::WebviewWindow) {}
+pub(crate) fn exclude_from_capture(_window: &tauri::WebviewWindow, _what: &str) {}
 
 /// Whether the primary mouse button is down now (the left one, or the right one when the buttons are swapped
 /// in Windows). Polled, never hooked (ADR 0009).

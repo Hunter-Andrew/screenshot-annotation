@@ -143,3 +143,55 @@ describe("Drawing mode overlay", () => {
     expect(document.documentElement.style.backgroundColor).toBe("transparent");
   });
 });
+
+describe("Drawing mode overlay and its toolbar (ticket 53)", () => {
+  it("starts on the tool the platform remembers from earlier in the session", async () => {
+    bridge = createFakeBridge({ storage: memory() });
+    await bridge.setDrawingTool("pen");
+    render(<DrawingOverlay bridge={bridge} monitor={0} />);
+    await act(async () => {});
+    expect(screen.getByTestId("drawing-canvas").dataset.tool).toBe("pen");
+  });
+
+  it("follows a tool chosen on the toolbar or on another overlay", async () => {
+    const canvas = await show();
+    act(() => bridge.pretendDrawingTool("highlight"));
+    expect(canvas.dataset.tool).toBe("highlight");
+  });
+
+  it("tells the platform which tool a key chose, so the toolbar and the other overlays follow", async () => {
+    const canvas = await show();
+    key("r");
+    expect(canvas.dataset.tool).toBe("rect");
+    expect(bridge.drawingTool).toBe("rect");
+  });
+
+  it("reports each drawing, undo and redo with its monitor, and nothing for an undo with nothing to undo", async () => {
+    bridge = createFakeBridge({ storage: memory() });
+    const edits: unknown[] = [];
+    await bridge.onDrawingEdit((e) => edits.push(e));
+    render(<DrawingOverlay bridge={bridge} monitor={3} />);
+    await act(async () => {});
+    const canvas = screen.getByTestId("drawing-canvas");
+    key("z", { ctrlKey: true });
+    drag(canvas, [10, 10], [200, 100]);
+    key("z", { ctrlKey: true });
+    key("y", { ctrlKey: true });
+    key("y", { ctrlKey: true });
+    await waitFor(() => expect(edits).toEqual([
+      { monitor: 3, edit: "commit" },
+      { monitor: 3, edit: "undo" },
+      { monitor: 3, edit: "redo" },
+    ]));
+  });
+
+  it("undoes its last drawing when the toolbar asks for this monitor, and ignores a request for another", async () => {
+    const canvas = await show();
+    drag(canvas, [10, 10], [200, 100]);
+    await act(async () => bridge.undoDrawing(1));
+    expect(count(canvas)).toBe(1);
+    await act(async () => bridge.undoDrawing(0));
+    expect(count(canvas)).toBe(0);
+  });
+});
+

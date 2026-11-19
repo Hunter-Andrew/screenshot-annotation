@@ -1,5 +1,7 @@
 import { encodeRgbaPng, readSize } from "../core/png";
 import { CANVAS_MARGIN, CROP_MARGIN, DEFAULT_IMAGE_SETTINGS, type ImageSettings, inRange, isDarkBackground, OUTSIDE_DARKNESS, sanitizeImageSettings } from "../shared/imageSettings";
+import { DEFAULT_TOOL, type DrawingTool } from "../drawing/drawingState";
+import type { DrawingEdit } from "../drawing/toolbarState";
 import { formatStamp } from "../shared/stamp";
 import { demoHotkeyRefusal } from "../settings/hotkey";
 import {
@@ -93,6 +95,19 @@ export interface FakeBridge extends PlatformBridge {
   readonly overlayLogs: { message: string; fatal: boolean }[];
   /** How many times a drawing overlay asked to leave Drawing mode (Esc). */
   readonly drawingExits: number;
+  /** The Drawing mode tool the platform remembers (Arrow in a fresh fake: the fake forgets it on a reload, like the app at start). */
+  readonly drawingTool: DrawingTool;
+  /** Whether the toolbar's "Use apps" last made the overlays click-through, and every change in order. */
+  readonly drawingClickThrough: boolean;
+  readonly drawingClickThroughCalls: boolean[];
+  /** The last size the toolbar asked for, in CSS pixels, and null before it asked. */
+  readonly drawingToolbarSize: { width: number; height: number } | null;
+  /** The monitors the toolbar's Undo button asked to undo, in order. */
+  readonly drawingUndos: number[];
+  /** Pretend an overlay on `monitor` drew, undid or redid a drawing. */
+  pretendDrawingEdit(edit: DrawingEdit): void;
+  /** Pretend a key on an overlay chose a tool. */
+  pretendDrawingTool(tool: DrawingTool): void;
   /** Make the next `overlayFrame` call reject with this message. */
   failNextOverlayFrame(message: string): void;
   /** The registered capture hotkey (accelerator). */
@@ -223,6 +238,24 @@ export function createFakeBridge(
   let libraryFolderOpened = 0;
   let toolStylesResets = 0;
   let drawingExits = 0;
+  let drawingTool: DrawingTool = DEFAULT_TOOL;
+  let drawingClickThrough = false;
+  const drawingClickThroughCalls: boolean[] = [];
+  let drawingToolbarSize: { width: number; height: number } | null = null;
+  const drawingUndos: number[] = [];
+  const drawingToolHandlers = new Set<(tool: DrawingTool) => void>();
+  const drawingEditHandlers = new Set<(edit: DrawingEdit) => void>();
+  const drawingUndoHandlers = new Set<(monitor: number) => void>();
+  const subscribe = <T,>(handlers: Set<(value: T) => void>, handler: (value: T) => void) => {
+    handlers.add(handler);
+    return async () => {
+      handlers.delete(handler);
+    };
+  };
+  const publishDrawingTool = (tool: DrawingTool) => {
+    drawingTool = tool;
+    drawingToolHandlers.forEach((handler) => handler(tool));
+  };
   const toolStylesResetHandlers = new Set<() => void>();
   const magnifierHandlers = new Set<(enabled: boolean) => void>();
   const shortcutHandlers = new Set<(overrides: Record<string, unknown>) => void>();
@@ -701,6 +734,40 @@ export function createFakeBridge(
     exitDrawingMode: async () => {
       drawingExits++;
     },
+    get drawingTool() {
+      return drawingTool;
+    },
+    get drawingClickThrough() {
+      return drawingClickThrough;
+    },
+    get drawingClickThroughCalls() {
+      return drawingClickThroughCalls;
+    },
+    get drawingToolbarSize() {
+      return drawingToolbarSize;
+    },
+    get drawingUndos() {
+      return drawingUndos;
+    },
+    pretendDrawingEdit: (edit) => drawingEditHandlers.forEach((handler) => handler(edit)),
+    pretendDrawingTool: publishDrawingTool,
+    getDrawingTool: async () => drawingTool,
+    setDrawingTool: async (tool) => publishDrawingTool(tool),
+    onDrawingTool: async (handler) => subscribe(drawingToolHandlers, handler),
+    setDrawingClickThrough: async (on) => {
+      drawingClickThrough = on;
+      drawingClickThroughCalls.push(on);
+    },
+    resizeDrawingToolbar: async (width, height) => {
+      drawingToolbarSize = { width, height };
+    },
+    sendDrawingEdit: async (edit) => drawingEditHandlers.forEach((handler) => handler(edit)),
+    onDrawingEdit: async (handler) => subscribe(drawingEditHandlers, handler),
+    undoDrawing: async (monitor) => {
+      drawingUndos.push(monitor);
+      drawingUndoHandlers.forEach((handler) => handler(monitor));
+    },
+    onDrawingUndo: async (handler) => subscribe(drawingUndoHandlers, handler),
     get magnifier() {
       return store.getItem("fake.magnifier") !== "0";
     },

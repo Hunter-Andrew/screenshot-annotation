@@ -8,9 +8,10 @@ import { describe, expect, it } from "vitest";
 import { BACKGROUNDS } from "../core/area";
 import { CAPTURE_DELAYS } from "../platform/bridge";
 import { CANVAS_MARGIN, CHECKERBOARD_THEMES, CROP_MARGIN, DEFAULT_DARK_BACKGROUND, DEFAULT_IMAGE_SETTINGS, OUTSIDE_DARKNESS } from "./imageSettings";
-import { COUNTDOWN_HASH, DRAWING_HASH_PREFIX, OVERLAY_HASH_PREFIX, POINTER_HIGHLIGHT_HASH, RELEASES_URL, SETTINGS_HASH } from "./constants";
+import { COUNTDOWN_HASH, DRAWING_HASH_PREFIX, DRAWING_TOOLBAR_HASH, DRAWING_TOOLBAR_SIZE, OVERLAY_HASH_PREFIX, POINTER_HIGHLIGHT_HASH, RELEASES_URL, SETTINGS_HASH } from "./constants";
 import { DEFAULT_POINTER_SETTINGS, POINTER_SIZES } from "../platform/bridge";
 import { POINTER_WINDOW_SIZE } from "../pointer/pointerStyle";
+import { DRAWING_TOOLS } from "../drawing/drawingState";
 
 const rust = (file: string) => readFileSync(resolve(__dirname, "../../src-tauri/src", file), "utf8");
 
@@ -221,5 +222,39 @@ describe("TS/Rust shared constants", () => {
     expect(lib).toMatch(/fn set_pointer_settings\([^)]*\bpointer: settings::PointerSettings/);
     expect(tauriBridge).toContain('invoke<void>("set_pointer_highlight", { on })');
     expect(lib).toMatch(/fn set_pointer_highlight\(app: AppHandle, on: bool\)/);
+  });
+
+  it("drawing.rs opens the Drawing mode toolbar at the hash App.tsx routes on, and the capability glob covers its label", () => {
+    const match = rust("drawing.rs").match(/WebviewUrl::App\("index\.html([^"]*)"\.into\(\)\)/);
+    expect(match?.[1]).toBe(DRAWING_TOOLBAR_HASH);
+    const label = rust("drawing_plan.rs").match(/pub const TOOLBAR_LABEL: &str = "([^"]+)";/)?.[1];
+    const prefix = rust("drawing_plan.rs").match(/pub const LABEL_PREFIX: &str = "([^"]+)";/)?.[1];
+    expect(label?.startsWith(prefix ?? "?")).toBe(true);
+    const capability = JSON.parse(readFileSync(resolve(__dirname, "../../src-tauri/capabilities/default.json"), "utf8"));
+    expect(capability.windows).toContain(`${prefix}*`);
+    expect(capability.permissions).toContain("core:window:allow-start-dragging");
+  });
+
+  it("drawing_plan.rs sizes the toolbar window like the page lays it out, and knows the same four tools", () => {
+    const plan = rust("drawing_plan.rs");
+    expect(Number(plan.match(/pub const TOOLBAR_WIDTH: u32 = (\d+);/)?.[1])).toBe(DRAWING_TOOLBAR_SIZE.width);
+    expect(Number(plan.match(/pub const TOOLBAR_HEIGHT: u32 = (\d+);/)?.[1])).toBe(DRAWING_TOOLBAR_SIZE.height);
+    const tools = plan.match(/pub const TOOLS: \[&str; \d+\] = \[([^\]]*)\];/)?.[1].split(",").map((v) => v.trim().replace(/"/g, ""));
+    expect(tools).toEqual([...DRAWING_TOOLS]);
+    expect(plan).toContain(`pub const DEFAULT_TOOL: &str = "${DRAWING_TOOLS[0]}";`);
+  });
+
+  it("the Drawing mode toolbar commands and the tool event exist on both sides", () => {
+    const tauriBridge = readFileSync(resolve(__dirname, "../platform/tauriBridge.ts"), "utf8");
+    const lib = rust("lib.rs");
+    const drawing = rust("drawing.rs");
+    for (const command of ["get_drawing_tool", "set_drawing_tool", "set_drawing_click_through", "resize_drawing_toolbar"]) {
+      expect(tauriBridge).toContain(`invoke<`);
+      expect(tauriBridge).toContain(`"${command}"`);
+      expect(drawing).toMatch(new RegExp(`pub async fn ${command}\\(`));
+      expect(lib).toContain(`drawing::${command},`);
+    }
+    expect(drawing).toContain('pub const TOOL_EVENT: &str = "drawing-tool";');
+    expect(tauriBridge).toContain('listen<string>("drawing-tool"');
   });
 });
