@@ -478,8 +478,18 @@ export function createFabricCanvas(host: HTMLElement, { events, imageUrl, layout
   /** The canvas element covers the workspace; scene coordinates stay Capture pixels. */
   const applyView = () => {
     const { workspace } = layout;
-    canvas.setDimensions({ width: workspace.width * scale, height: workspace.height * scale });
-    canvas.setViewportTransform([scale, 0, 0, scale, -workspace.x * scale, -workspace.y * scale]);
+    // The canvas is a whole number of DEVICE pixels, so the browser shows its pixels 1:1. A fractional size (the zoom
+    // is, e.g., 72%) would be stretched by up to a pixel after it was drawn, which softens the whole picture. The
+    // scene is drawn at the scale that fills those pixels exactly (off by less than a pixel across the canvas).
+    const dpr = window.devicePixelRatio || 1;
+    const deviceW = Math.max(1, Math.round(workspace.width * scale * dpr));
+    const deviceH = Math.max(1, Math.round(workspace.height * scale * dpr));
+    const [cssW, cssH] = [deviceW / dpr, deviceH / dpr];
+    const [sx, sy] = [cssW / workspace.width, cssH / workspace.height];
+    canvas.setDimensions({ width: cssW, height: cssH });
+    // The Capture's corner also lands on a whole device pixel: a fractional offset would blur every edge.
+    const [tx, ty] = [Math.round(-workspace.x * sx * dpr) / dpr, Math.round(-workspace.y * sy * dpr) / dpr];
+    canvas.setViewportTransform([sx, 0, 0, sy, tx, ty]);
     // The handles' screen positions come from the viewport: refresh them (the frame's hit boxes especially).
     for (const object of canvas.getObjects()) object.setCoords();
     canvas.requestRenderAll();

@@ -64,15 +64,15 @@ describe("return to Select after drawing", () => {
     expect(option()).not.toBeChecked();
   });
 
-  it("by default a Rectangle (like the other shapes and Text) returns to Select with the new one selected", async () => {
+  it("by default a Rectangle (like the other shapes) keeps drawing, with nothing selected", async () => {
     const { kit } = await openWithCapture(createFakeBridge());
     await userEvent.keyboard("r");
-    expect(option()).toBeChecked();
+    expect(option()).not.toBeChecked();
 
     await act(async () => kit.latest.draw(rect("r1")));
 
-    expect(toolButton(/^Select/)).toHaveAttribute("aria-pressed", "true");
-    expect(kit.latest.selected).toBe("r1");
+    expect(toolButton(/^Rectangle/)).toHaveAttribute("aria-pressed", "true");
+    expect(kit.latest.selected).toBeNull();
   });
 
   it("the checkbox is at the top of the Style panel, for a drawing tool only, and is about the tool not the selection", async () => {
@@ -83,19 +83,20 @@ describe("return to Select after drawing", () => {
     const panel = screen.getByRole("complementary", { name: "Style" });
     expect(panel.querySelector("input[type=checkbox]")).toBe(option()); // the first control in the panel
 
+    await userEvent.click(option()!); // the Rectangle now returns to Select
     await act(async () => kit.latest.draw(rect("r1"))); // now Select, with the rectangle selected
     expect(screen.getByRole("region", { name: "Stroke" })).toBeVisible();
     expect(option()).toBeNull();
   });
 
-  it("turning it off for the Rectangle keeps the tool; turning it on for the Pen switches back", async () => {
+  it("turning it on for the Rectangle or the Pen switches back to Select after one use", async () => {
     const { kit } = await openWithCapture(createFakeBridge());
 
     await userEvent.keyboard("r");
     await userEvent.click(option()!);
     await act(async () => kit.latest.draw(rect("r1")));
-    expect(toolButton(/^Rectangle/)).toHaveAttribute("aria-pressed", "true");
-    expect(kit.latest.selected).toBeNull();
+    expect(toolButton(/^Select/)).toHaveAttribute("aria-pressed", "true");
+    expect(kit.latest.selected).toBe("r1");
 
     await userEvent.keyboard("p");
     expect(option()).not.toBeChecked(); // each tool has its own
@@ -124,18 +125,18 @@ describe("the choice is sticky", () => {
     await userEvent.keyboard("p");
     await userEvent.click(option()!); // Pen: now returns to Select
     await userEvent.keyboard("r");
-    await userEvent.click(option()!); // Rectangle: now stays
+    await userEvent.click(option()!); // Rectangle: now returns too
     await settle();
-    expect(bridge.toolStyles).toMatchObject({ toolBehavior: { pen: true, rect: false } });
+    expect(bridge.toolStyles).toMatchObject({ toolBehavior: { pen: true, rect: true } });
     first.view.unmount();
 
     const second = await openWithCapture(bridge);
     await userEvent.keyboard("p");
     expect(option()).toBeChecked();
     await userEvent.keyboard("r");
-    expect(option()).not.toBeChecked();
+    expect(option()).toBeChecked();
     await act(async () => second.kit.latest.draw(rect("r9")));
-    expect(toolButton(/^Rectangle/)).toHaveAttribute("aria-pressed", "true");
+    expect(toolButton(/^Select/)).toHaveAttribute("aria-pressed", "true");
   });
 
   it("an old settings file without it falls back to the defaults; garbage values and unknown keys are tolerated and written back untouched", async () => {
@@ -154,7 +155,7 @@ describe("the choice is sticky", () => {
     expect(bridge.toolStyles).toMatchObject({
       rect: { stroke: { color: "#2563eb", width: 8 } },
       futureTool: { x: 1 },
-      toolBehavior: { text: false, rect: false },
+      toolBehavior: { text: false, rect: true },
     });
   });
 });

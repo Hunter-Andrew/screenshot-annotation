@@ -44,7 +44,7 @@ describe("Reset tool styles reaches a loaded editor", () => {
 
   it("forgets the 'return to Select' choices too", async () => {
     const bridge = createFakeBridge();
-    await bridge.setToolStyles({ toolBehavior: { pen: true, rect: false } });
+    await bridge.setToolStyles({ toolBehavior: { pen: true, text: false } });
     await openWithCapture(bridge);
     await userEvent.keyboard("p");
     const option = () => screen.getByRole("checkbox", { name: "Return to Select after drawing" });
@@ -53,8 +53,8 @@ describe("Reset tool styles reaches a loaded editor", () => {
     await act(async () => bridge.resetToolStyles());
 
     await waitFor(() => expect(option()).not.toBeChecked()); // the Pen default: stays
-    await userEvent.keyboard("r");
-    expect(option()).toBeChecked(); // the Rectangle default: returns
+    await userEvent.keyboard("t");
+    expect(option()).toBeChecked(); // the Text default: returns
   });
 
   it("does not write the old styles back afterwards, and later changes are stored fresh", async () => {

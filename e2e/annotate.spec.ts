@@ -1,4 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
+import { shapesReturnToSelect } from "./legacyStyles";
 import { decodePixels, hasChunk } from "../src/core/testing";
 
 // Real Chromium with the real Fabric canvas and the fake platform bridge. The model is read back the
@@ -75,6 +76,10 @@ async function expectSaved(page: Page, check: (arrows: Arrow[]) => boolean, mess
 
 // A small window and a Capture bigger than its well: shown scaled down, so the pointer mapping is
 // exercised too, yet small enough for the fake Library (browser storage) to keep across the reload.
+test.beforeEach(async ({ page }) => {
+  await shapesReturnToSelect(page);
+});
+
 test.describe("an Arrow's life", () => {
   test.use({ viewport: { width: 760, height: 520 } });
 

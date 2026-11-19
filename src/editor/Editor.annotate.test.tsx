@@ -155,7 +155,7 @@ describe("tools and shortcut keys", () => {
 });
 
 describe("drawing an Arrow", () => {
-  it("adds it to the image, selects it and goes back to Select, and the Library PNG gets it after 1 s", async () => {
+  it("adds it to the image, stays on the Arrow tool with nothing selected, and the Library PNG gets it after 1 s", async () => {
     const bridge = createFakeBridge();
     const kit = await openEditor(bridge);
     await capture(bridge);
@@ -164,8 +164,8 @@ describe("drawing an Arrow", () => {
     await userDraws(kit);
 
     expect(kit.latest.model?.annotations).toEqual([ARROW]);
-    expect(kit.latest.selected).toBe("a1");
-    expect(kit.latest.tool).toBe("select");
+    expect(kit.latest.selected).toBeNull();
+    expect(kit.latest.tool).toBe("arrow");
     expect(savedModel(bridge).annotations).toEqual([]); // not yet: auto-save is debounced
     await autosave();
     expect(savedModel(bridge).annotations).toEqual([ARROW]);

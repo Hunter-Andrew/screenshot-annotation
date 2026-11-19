@@ -1,4 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
+import { shapesReturnToSelect } from "./legacyStyles";
 import { legacyMargins } from "./sameCropMargin";
 
 legacyMargins(test);
@@ -78,6 +79,10 @@ const zoomLevel = (page: Page) => page.getByLabel("Zoom level").textContent();
 
 // Big enough for a 300 x 200 Capture to be at 100% with its whole dark margin on screen.
 test.use({ viewport: { width: 1000, height: 700 } });
+
+test.beforeEach(async ({ page }) => {
+  await shapesReturnToSelect(page);
+});
 
 test.describe("an Annotation past the Capture's edge", () => {
   test("drawing a rectangle out into the margin grows the image; Copy is bigger, white outside the Capture, and one Undo takes it all back", async ({ page }) => {

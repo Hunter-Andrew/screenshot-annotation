@@ -31,6 +31,9 @@ export class Backdrop extends FabricImage {
       ctx.fillRect(this.area.x - this.width / 2, this.area.y - this.height / 2, this.area.width, this.area.height);
       ctx.restore();
     }
+    // Shrinking the Capture to the zoom: ask for the high-quality filter (it averages source pixels) instead of the default.
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
     super._render(ctx);
   }
 }

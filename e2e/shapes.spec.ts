@@ -1,4 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
+import { shapesReturnToSelect } from "./legacyStyles";
 import { decodePixels } from "../src/core/testing";
 
 // Line, Rectangle and Ellipse in real Chromium with the real Fabric canvas and the fake platform
@@ -97,6 +98,10 @@ async function copiedPixels(page: Page, index: number): Promise<Pixels> {
   const png = Uint8Array.from(await page.evaluate((i) => Array.from((window as unknown as InPage).__fakeBridge.copiedImages[i]!), index));
   return decodePixels(png);
 }
+
+test.beforeEach(async ({ page }) => {
+  await shapesReturnToSelect(page);
+});
 
 test.describe("Rectangle, Ellipse and Line", () => {
   test.use({ viewport: { width: 760, height: 520 } });

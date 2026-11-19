@@ -55,7 +55,7 @@ const option = (page: Page) => page.getByRole("checkbox", { name: "Return to Sel
 
 test.use({ viewport: { width: 760, height: 520 } });
 
-test("the Pen keeps drawing, a Rectangle returns to Select; each is switchable and remembered across a reload", async ({ page }) => {
+test("the Pen and the Rectangle keep drawing; each is switchable and remembered across a reload", async ({ page }) => {
   await page.goto("/");
   await capture(page, 600, 400);
   const at = await mapper(page, 600);
@@ -70,24 +70,23 @@ test("the Pen keeps drawing, a Rectangle returns to Select; each is switchable a
   await expectSaved(page, ["pen", "pen"]);
   await expect(tool(page, /^Pen \(P\)/)).toHaveAttribute("aria-pressed", "true");
 
-  // Rectangle: back to Select after one.
+  // Rectangle: stays too, like every shape but Text and Callout.
   await page.keyboard.press("r");
-  await expect(option(page)).toBeChecked();
+  await expect(option(page)).not.toBeChecked();
   await drag(page, at(320, 60), at(440, 140));
   await expectSaved(page, ["pen", "pen", "rect"]);
-  await expect(tool(page, /^Select/)).toHaveAttribute("aria-pressed", "true");
-  await expect(option(page)).toHaveCount(0); // about the tool: not offered for the selected rectangle
+  await expect(tool(page, /^Rectangle/)).toHaveAttribute("aria-pressed", "true");
 
-  // Flip both: the Rectangle now stays, the Pen now returns.
-  await page.keyboard.press("r");
-  await option(page).uncheck();
+  // Flip both: the Rectangle now returns to Select, and so does the Pen.
+  await option(page).check();
   await page.keyboard.press("p");
   await option(page).check();
   await page.keyboard.press("r");
-  await expect(option(page)).not.toBeChecked();
+  await expect(option(page)).toBeChecked();
   await drag(page, at(320, 200), at(440, 280));
   await expectSaved(page, ["pen", "pen", "rect", "rect"]);
-  await expect(tool(page, /^Rectangle/)).toHaveAttribute("aria-pressed", "true");
+  await expect(tool(page, /^Select/)).toHaveAttribute("aria-pressed", "true");
+  await expect(option(page)).toHaveCount(0); // about the tool: not offered for the selected rectangle
   await page.keyboard.press("p");
   await expect(option(page)).toBeChecked();
   await drag(page, at(60, 300), at(260, 360));
@@ -107,9 +106,9 @@ test("the Pen keeps drawing, a Rectangle returns to Select; each is switchable a
   await page.keyboard.press("p");
   await expect(option(page)).toBeChecked();
   await page.keyboard.press("r");
-  await expect(option(page)).not.toBeChecked();
-  await page.keyboard.press("a"); // untouched tool: its default
   await expect(option(page)).toBeChecked();
+  await page.keyboard.press("a"); // untouched tool: its default
+  await expect(option(page)).not.toBeChecked();
 });
 
 test("every tool button shows an icon, its name and its key, and keeps its accessible name", async ({ page }) => {
