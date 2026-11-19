@@ -17,7 +17,7 @@
 
 **Blocked by:** nothing (M4 shipped as v0.5.0); M5 (v0.6.0) first.
 
-**Status:** ready-for-agent (grilled 2026-11-19; build through tickets 49-55)
+**Status:** resolved
 
 Spec: `.scratch/snagit-clone/spec.md`. Planned for M6 (v1.0.0, moved from M5 on 2026-11-18); requested by Andrew on 2026-11-17.
 
@@ -46,3 +46,7 @@ Build through tickets 49 (hotkeys), 50 (pointer highlight), 51 (editor toggle), 
 10. **Full-screen apps:** works over borderless and maximized windows (PowerPoint slideshows, screen-share windows). Exclusive full-screen games are unsupported in v1.0.
 11. **Independent of ticket 41's drawing mode:** the dot keeps following the mouse while drawing mode is on.
 12. **Editor button (absorbs ticket 39):** a toggle at the bottom of the tool column, not a tool. It shows pressed while the pointer is on and uses the hotkey in its tooltip. While the global pointer is on, **no editor tool is selected (Select included) or usable**, and clicks on the canvas do nothing. Choosing a tool, by click or key, turns the pointer off. Turning the pointer off, by button or hotkey, **selects the Select tool** (it does not restore the previous tool).
+
+## Answer
+
+Implemented in M6 on integration branch `claude/pensive-davinci-z10bb6`; reviewed with `code-review` and fixes applied. Awaiting the Windows manual checklist (`docs/release-checklist.md`, "For v1.0.0 (M6)") before any v1.0.0 tag; not released.

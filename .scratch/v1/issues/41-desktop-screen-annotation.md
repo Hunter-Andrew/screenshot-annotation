@@ -17,7 +17,7 @@
 
 **Blocked by:** nothing (M4 shipped as v0.5.0); M5 (v0.6.0) first.
 
-**Status:** ready-for-agent (grilled 2026-11-19; build through tickets 49-55)
+**Status:** resolved
 
 Spec: `.scratch/snagit-clone/spec.md`. Planned for M6 (v1.0.0, moved from M5 on 2026-11-18); requested by Andrew on 2026-11-17.
 
@@ -35,3 +35,7 @@ Build through tickets 49 (hotkeys), 52 (drawing overlays), 53 (toolbar), 54 (fix
 8. **Captures:** a capture started during drawing mode **includes the drawings** (the overlay is not excluded); the toolbar is excluded. After the capture, drawing mode ends and the drawings clear.
 9. **Pointer highlight (ticket 40)** may stay on while drawing mode is on.
 10. **Full-screen apps:** works over borderless and maximized windows; exclusive full-screen games are unsupported in v1.0.
+
+## Answer
+
+Implemented in M6 on integration branch `claude/pensive-davinci-z10bb6`; reviewed with `code-review` and fixes applied. Awaiting the Windows manual checklist (`docs/release-checklist.md`, "For v1.0.0 (M6)") before any v1.0.0 tag; not released.

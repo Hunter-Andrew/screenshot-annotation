@@ -4,7 +4,7 @@
 
 **Blocked by:** 49.
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 Spec: `.scratch/snagit-clone/spec.md`. Decisions: ticket 41. Planned for M6 (v1.0.0).
 
@@ -18,3 +18,7 @@ Spec: `.scratch/snagit-clone/spec.md`. Decisions: ticket 41. Planned for M6 (v1.
 - [ ] Unit tests (written first): the drawing-state model (tools, undo/redo, clear), reading editor styles with fallbacks, the key map
 - [ ] E2E with the fake bridge: draw each tool, undo, redo, Esc clears
 - [ ] Release checklist (M6), Windows only: overlays on both monitors of different DPI, a drawing lands where the pointer is, no click reaches the app below while drawing, a capture includes the drawings
+
+## Answer
+
+Implemented in M6 on integration branch `claude/pensive-davinci-z10bb6`; reviewed with `code-review` and fixes applied. Awaiting the Windows manual checklist (`docs/release-checklist.md`, "For v1.0.0 (M6)") before any v1.0.0 tag; not released.

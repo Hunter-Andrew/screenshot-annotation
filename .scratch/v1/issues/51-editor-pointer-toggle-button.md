@@ -4,7 +4,7 @@
 
 **Blocked by:** 50.
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 Spec: `.scratch/snagit-clone/spec.md`. Decisions: ticket 40 decision 12 (replaces ticket 39). Planned for M6 (v1.0.0).
 
@@ -15,3 +15,7 @@ Spec: `.scratch/snagit-clone/spec.md`. Decisions: ticket 40 decision 12 (replace
 - [ ] Picking any tool (click or key) turns the pointer off and selects that tool
 - [ ] Unit tests (written first) for the editor state rules; E2E with the fake bridge for each transition
 - [ ] The editor opens, closes and undoes exactly as before; existing locators keep working
+
+## Answer
+
+Implemented in M6 on integration branch `claude/pensive-davinci-z10bb6`; reviewed with `code-review` and fixes applied. Awaiting the Windows manual checklist (`docs/release-checklist.md`, "For v1.0.0 (M6)") before any v1.0.0 tag; not released.

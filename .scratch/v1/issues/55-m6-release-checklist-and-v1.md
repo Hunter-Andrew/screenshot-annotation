@@ -6,7 +6,7 @@ Items to cover: both hotkeys register, rebind and refuse clashes, and survive a 
 
 **Blocked by:** 49, 50, 51, 52, 53, 54.
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 Spec: `.scratch/snagit-clone/spec.md`. Planned for M6 (v1.0.0).
 
@@ -14,3 +14,7 @@ Spec: `.scratch/snagit-clone/spec.md`. Planned for M6 (v1.0.0).
 
 - [ ] Every item above is in the checklist with its milestone, and a Quick check section for v1.0.0 exists
 - [ ] README reflects M6
+
+## Answer
+
+Implemented in M6 on integration branch `claude/pensive-davinci-z10bb6`; reviewed with `code-review` and fixes applied. Awaiting the Windows manual checklist (`docs/release-checklist.md`, "For v1.0.0 (M6)") before any v1.0.0 tag; not released.

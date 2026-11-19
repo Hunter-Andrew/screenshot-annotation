@@ -4,7 +4,7 @@
 
 **Blocked by:** 52.
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 Spec: `.scratch/snagit-clone/spec.md`. Decisions: ticket 41. Planned for M6 (v1.0.0).
 
@@ -16,3 +16,7 @@ Spec: `.scratch/snagit-clone/spec.md`. Decisions: ticket 41. Planned for M6 (v1.
 - [ ] Settings shows the drawing-mode keys as read-only rows; no horizontal scroll
 - [ ] Unit tests (written first) for the toolbar state; E2E with the fake bridge for each button
 - [ ] Release checklist (M6), Windows only: dragging across monitors, Use apps with a real app, the pill absent from a capture
+
+## Answer
+
+Implemented in M6 on integration branch `claude/pensive-davinci-z10bb6`; reviewed with `code-review` and fixes applied. Awaiting the Windows manual checklist (`docs/release-checklist.md`, "For v1.0.0 (M6)") before any v1.0.0 tag; not released.
