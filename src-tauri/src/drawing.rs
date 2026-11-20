@@ -92,7 +92,7 @@ fn place_window(app: &AppHandle, index: usize, bounds: &MonitorBounds) -> Result
 fn mark_layered(window: &tauri::WebviewWindow) {
     use windows::Win32::Foundation::{COLORREF, HWND};
     use windows::Win32::UI::WindowsAndMessaging::{
-        GetWindowLongPtrW, SetLayeredWindowAttributes, SetWindowLongPtrW, GWL_EXSTYLE, LWA_ALPHA, WS_EX_LAYERED,
+        GetLayeredWindowAttributes, GetWindowLongPtrW, SetLayeredWindowAttributes, SetWindowLongPtrW, GWL_EXSTYLE, LWA_ALPHA, WS_EX_LAYERED,
     };
 
     let name = window.label().to_string();
@@ -111,7 +111,14 @@ fn mark_layered(window: &tauri::WebviewWindow) {
             diag::log(&format!("drawing mode: {name}: SetLayeredWindowAttributes failed ({e})"));
         }
         let after = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
-        diag::log(&format!("drawing mode: {name}: extended style {before:#x} -> {after:#x} (layered)"));
+        // What Windows holds now (the values Chromium reads when it decides whether this window covers a browser).
+        let (mut alpha, mut flags) = (0u8, Default::default());
+        let read = GetLayeredWindowAttributes(hwnd, None, Some(&mut alpha), Some(&mut flags));
+        diag::log(&format!(
+            "drawing mode: {name}: extended style {before:#x} -> {after:#x} (layered), alpha {alpha} flags {:#x} (read ok: {})",
+            flags.0,
+            read.is_ok()
+        ));
     }
 }
 
