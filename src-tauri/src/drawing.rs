@@ -82,6 +82,41 @@ fn place_window(app: &AppHandle, index: usize, bounds: &MonitorBounds) -> Result
     Ok(window)
 }
 
+/// Mark an overlay as a layered window (fully opaque layer, so the page's own transparency still shows through)
+/// without making it click-through. Chrome and other browsers skip painting video they think is covered by a
+/// window; a plain transparent topmost window counts as covering, while a layered one does not. That is the
+/// suspected cause of a video going black under Drawing mode (it came back with "Use apps", which makes the
+/// overlays layered and click-through). The log lines show the window style before and after, to check on Windows.
+#[cfg(windows)]
+fn mark_layered(window: &tauri::WebviewWindow) {
+    use windows::Win32::Foundation::{COLORREF, HWND};
+    use windows::Win32::UI::WindowsAndMessaging::{
+        GetWindowLongPtrW, SetLayeredWindowAttributes, SetWindowLongPtrW, GWL_EXSTYLE, LWA_ALPHA, WS_EX_LAYERED,
+    };
+
+    let name = window.label().to_string();
+    let Ok(handle) = window.hwnd() else {
+        diag::log(&format!("drawing mode: {name}: no window handle, not marked layered"));
+        return;
+    };
+    // Tauri's HWND may come from another version of the `windows` crate: go through the raw value.
+    let hwnd = HWND(handle.0 as isize as *mut _);
+    // SAFETY: `hwnd` is the live overlay `window` refers to, held by the caller.
+    unsafe {
+        let before = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
+        SetWindowLongPtrW(hwnd, GWL_EXSTYLE, before | WS_EX_LAYERED.0 as isize);
+        // A layered window paints nothing until its attributes are set: alpha 255 leaves the page as it is.
+        if let Err(e) = SetLayeredWindowAttributes(hwnd, COLORREF(0), 255, LWA_ALPHA) {
+            diag::log(&format!("drawing mode: {name}: SetLayeredWindowAttributes failed ({e})"));
+        }
+        let after = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
+        diag::log(&format!("drawing mode: {name}: extended style {before:#x} -> {after:#x} (layered)"));
+    }
+}
+
+#[cfg(not(windows))]
+fn mark_layered(_window: &tauri::WebviewWindow) {}
+
 /// Create an overlay on every monitor, show them, and give keyboard focus to the one under the mouse
 /// pointer (the in-window keys only work while an overlay has focus; a click on another monitor's
 /// overlay focuses that one).
@@ -123,6 +158,7 @@ fn start(app: &AppHandle) {
         .and_then(|(x, y)| geometry::monitor_at(&layout, x, y))
         .unwrap_or(0);
     for (index, window) in windows.iter().enumerate() {
+        mark_layered(window);
         let _ = window.show();
         if index == under_cursor {
             let _ = window.set_focus();
@@ -237,6 +273,14 @@ pub async fn set_drawing_click_through(app: AppHandle, on: bool) {
         if drawing_plan::is_label(&name) {
             if let Err(e) = window.set_ignore_cursor_events(on) {
                 diag::log(&format!("drawing mode: {name}: could not set click-through to {on}: {e}"));
+            }
+        }
+    }
+    if !on {
+        // Taking the mouse back rebuilds the windows' styles: the layered mark has to go on again.
+        for (name, window) in app.webview_windows() {
+            if drawing_plan::is_label(&name) {
+                mark_layered(&window);
             }
         }
     }
