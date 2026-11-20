@@ -82,11 +82,12 @@ fn place_window(app: &AppHandle, index: usize, bounds: &MonitorBounds) -> Result
     Ok(window)
 }
 
-/// Mark an overlay as a layered window (fully opaque layer, so the page's own transparency still shows through)
-/// without making it click-through. Chrome and other browsers skip painting video they think is covered by a
-/// window; a plain transparent topmost window counts as covering, while a layered one does not. That is the
-/// suspected cause of a video going black under Drawing mode (it came back with "Use apps", which makes the
-/// overlays layered and click-through). The log lines show the window style before and after, to check on Windows.
+/// Make an overlay count as "not covering" the windows beneath it. Chrome and Edge work out which of their windows
+/// are hidden behind others and stop painting video in those (about a second after it happens); a topmost
+/// full-monitor window hid every browser video under Drawing mode (the laser pointer and "Use apps", whose windows
+/// are click-through, were fine). Chromium ignores a layered window whose opacity is below 255, so the overlay is
+/// layered at 254 of 255: 0.4% see-through, not visible, but no longer counted as a cover. The log lines show the
+/// window style before and after, to check on Windows.
 #[cfg(windows)]
 fn mark_layered(window: &tauri::WebviewWindow) {
     use windows::Win32::Foundation::{COLORREF, HWND};
@@ -105,8 +106,8 @@ fn mark_layered(window: &tauri::WebviewWindow) {
     unsafe {
         let before = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
         SetWindowLongPtrW(hwnd, GWL_EXSTYLE, before | WS_EX_LAYERED.0 as isize);
-        // A layered window paints nothing until its attributes are set: alpha 255 leaves the page as it is.
-        if let Err(e) = SetLayeredWindowAttributes(hwnd, COLORREF(0), 255, LWA_ALPHA) {
+        // A layered window paints nothing until its attributes are set. 254, not 255: 255 still counts as a cover.
+        if let Err(e) = SetLayeredWindowAttributes(hwnd, COLORREF(0), 254, LWA_ALPHA) {
             diag::log(&format!("drawing mode: {name}: SetLayeredWindowAttributes failed ({e})"));
         }
         let after = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
