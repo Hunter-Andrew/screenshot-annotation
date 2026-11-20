@@ -48,8 +48,13 @@ export interface CanvasEvents {
    * the eraser's radius. The editor cuts the Pen strokes it touched, as one edit. While dragging the canvas only previews.
    */
   onErase(path: Point[], radius: number): void;
-  /** The selection changed (null: nothing selected). */
-  onSelect(id: string | null): void;
+  /**
+   * Several selected Annotations were moved together (a multi-selection dragged): each one's new geometry and what it
+   * now covers. The editor applies them as ONE edit.
+   */
+  onUpdateMany(updates: readonly { id: string; patch: Partial<Annotation>; bounds?: Crop }[]): void;
+  /** The selection changed: the ids of every selected Annotation (empty: nothing selected). */
+  onSelect(ids: readonly string[]): void;
   /**
    * A Crop gesture finished (the Crop tool): the new visible area in whole pixels, which may reach past the
    * Capture. `how` is "handle" for a drag of one of the eight handles, otherwise a fresh rectangle was drawn.
@@ -78,8 +83,8 @@ export interface AnnotationCanvas {
   setTool(tool: string): void;
   /** The style new Annotations are drawn in. */
   setDrawStyle(style: Style): void;
-  /** Select an Annotation by id, or clear the selection with null. */
-  select(id: string | null): void;
+  /** Select these Annotations (one id: that Annotation; several: a multi-selection that moves together), or none with []. */
+  select(ids: readonly string[]): void;
   /** Show the canvas at `scale` (1 = Capture pixels): sets its on-screen size and zoom. */
   setScale(scale: number): void;
   /** The visible area, its margin and the background changed (a Crop, an expansion, auto-grow, Undo...). */

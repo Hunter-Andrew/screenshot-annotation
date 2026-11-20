@@ -5,10 +5,10 @@ import { highlightKind } from "./highlight";
 describe("Highlighter", () => {
   const style = highlightKind.defaultStyle;
 
-  it("starts as bright yellow at 80% (it multiplies, so it stays see-through) and uses Stroke and Opacity", () => {
+  it("starts as bright yellow at 60% (it multiplies, so it stays see-through) and uses Stroke and Opacity", () => {
     expect(highlightKind.groups).toEqual(["stroke", "opacity"]);
-    expect(style.stroke).toEqual({ color: "#ffff00", width: 20 });
-    expect(style.opacity!.value).toBe(0.8); // the preset nearest the old 100% default
+    expect(style.stroke).toEqual({ color: "#ffff00", width: 18 });
+    expect(style.opacity!.value).toBe(0.6);
     expect(highlightKind.shortcutAction).toBe("tool.highlight");
   });
 

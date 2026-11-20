@@ -44,3 +44,43 @@ html:has(.settings) body {
   outline: 2px solid var(--focus);
   outline-offset: 2px;
 }
+/* ColorField (the editor's colour control, reused for the laser pointer colour in Demo tools): the editor's rules are scoped to .editor. */
+.settings .swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 8px 0;
+}
+.settings .swatch {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+}
+.settings .swatch[aria-pressed="true"] {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.settings .custom-color {
+  width: 28px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid var(--line);
+  background: none;
+}
+.settings .swatches .hex-input {
+  width: 76px;
+  height: 24px;
+  padding: 0 6px;
+  box-sizing: border-box;
+  font: 12px ui-monospace, Consolas, monospace;
+}
+.settings .swatches .hex-input.invalid {
+  border-color: var(--danger);
+  outline: 1px solid var(--danger);
+}
+.settings .hex-error {
+  font-size: 12px;
+  color: var(--danger);
+}

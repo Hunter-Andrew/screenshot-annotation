@@ -1,4 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
+import { shapesReturnToSelect } from "./legacyStyles";
 
 // Ticket 13 on the real Fabric canvas: undo/redo (also across a page reload, which stands in for a
 // restart: the fake platform keeps the Library and the history files in localStorage), delete and
@@ -77,6 +78,10 @@ async function drawTwo(page: Page) {
   await expect.poll(async () => (await saved(page)).length, { timeout: 6000, intervals: [200] }).toBe(2);
   return { view, ids: await savedIds(page) };
 }
+
+test.beforeEach(async ({ page }) => {
+  await shapesReturnToSelect(page);
+});
 
 test("undo and redo survive a reload, twice over", async ({ page }) => {
   await page.goto("/");

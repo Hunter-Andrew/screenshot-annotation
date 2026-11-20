@@ -1,4 +1,4 @@
-; NSIS installer hooks for Screenshot Annotation (tauri.conf.json: bundle.windows.nsis.installerHooks).
+; NSIS installer hooks for Sigil (Screenshot Annotation) (tauri.conf.json: bundle.windows.nsis.installerHooks).
 ; Tauri's template calls these macros; see docs/release-checklist.md for how to verify them by hand.
 ;
 ; Data safety (ADR 0004, 0006): these hooks delete no file or folder (the one registry value they remove is
@@ -43,5 +43,5 @@
 ; uninstaller), and the relaunched app writes the value again if the setting is still on. The key
 ; itself and every other value in it are never touched.
 !macro NSIS_HOOK_POSTUNINSTALL
-  DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "Screenshot Annotation"
+  DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "Sigil (Screenshot Annotation)"
 !macroend

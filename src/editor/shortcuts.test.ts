@@ -158,10 +158,10 @@ describe("keys while typing in a text field or the text box", () => {
 
   it("AltGr (reported as Ctrl+Alt) types a character: it never triggers a shortcut in a text field", () => {
     const altGr = { ...key("k", { ctrl: true, alt: true }), getModifierState: (m: string) => m === "AltGraph" };
-    expect(allowedWhileTyping("tool.arrow", altGr)).toBe(false);
+    expect(allowedWhileTyping("tool.select", altGr)).toBe(false);
     expect(allowedWhileTyping("view.zoomIn", altGr)).toBe(false);
     // The same Ctrl+Alt press without AltGraph is a real shortcut chord.
-    expect(allowedWhileTyping("tool.arrow", { ...key("k", { ctrl: true, alt: true }), getModifierState: () => false })).toBe(true);
+    expect(allowedWhileTyping("tool.select", { ...key("k", { ctrl: true, alt: true }), getModifierState: () => false })).toBe(true);
   });
 
   it("nothing acts when no action matched", () => {
@@ -170,15 +170,15 @@ describe("keys while typing in a text field or the text box", () => {
 });
 
 describe("remapped keys while typing (ticket 48)", () => {
-  const bindings = { ...defaultBindings(), "tool.arrow": "Ctrl+K", "tool.line": "Alt+L", "tool.rect": "Shift+R" };
+  const bindings = { ...defaultBindings(), "tool.select": "Ctrl+K", "view.fit": "Alt+L", "editor.discard": "Shift+O" };
 
   it("Ctrl and Alt combinations stay active, Shift-only keys are suspended", () => {
     const ctrlK = key("k", { ctrl: true });
     expect(allowedWhileTyping(actionForKeyEvent(ctrlK, bindings), ctrlK)).toBe(true);
     const altL = key("l", { alt: true });
     expect(allowedWhileTyping(actionForKeyEvent(altL, bindings), altL)).toBe(true);
-    const shiftR = key("r", { shift: true });
-    expect(actionForKeyEvent(shiftR, bindings)).toBe("tool.rect");
-    expect(allowedWhileTyping("tool.rect", shiftR)).toBe(false);
+    const shiftO = key("o", { shift: true });
+    expect(actionForKeyEvent(shiftO, bindings)).toBe("editor.discard");
+    expect(allowedWhileTyping("editor.discard", shiftO)).toBe(false);
   });
 });

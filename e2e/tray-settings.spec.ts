@@ -14,13 +14,12 @@ type Fake = {
 const fake = <T,>(page: Page, read: (f: Fake) => T) =>
   page.evaluate(`(${read.toString()})(window.__fakeBridge)`) as Promise<T>;
 
-test("the editor's top bar starts the delay timer with 3, 5 or 10 seconds", async ({ page }) => {
+test("the editor's top bar has a single 3 second delay timer button", async ({ page }) => {
   await page.goto("/");
   const group = page.getByRole("group", { name: "Capture after a delay" });
-  await expect(group.getByRole("button")).toHaveText(["3s", "5s", "10s"]);
-  await group.getByRole("button", { name: "Capture in 5 seconds" }).click();
+  await expect(group.getByRole("button")).toHaveText(["3s"]);
   await group.getByRole("button", { name: "Capture in 3 seconds" }).click();
-  expect(await fake(page, (f) => f.delayedCaptures)).toEqual([5, 3]);
+  expect(await fake(page, (f) => f.delayedCaptures)).toEqual([3]);
 });
 
 test("the countdown badge page shows the number the platform sends, on a transparent page", async ({ page }) => {
@@ -43,7 +42,7 @@ test("Settings: launch at sign-in, the Library folder and Reset tool styles", as
   await expect(page.getByRole("checkbox", { name: "Launch at sign-in" })).not.toBeChecked();
 
   const folder = page.getByLabel("Library folder");
-  await expect(folder).toHaveValue(/Screenshot Annotation/);
+  await expect(folder).toHaveValue(/Sigil \(Screenshot Annotation\)/);
   await expect(folder).toHaveJSProperty("readOnly", true);
   await page.getByRole("button", { name: "Open in Explorer" }).click();
   expect(await fake(page, (f) => f.libraryFolderOpened)).toBe(1);

@@ -6,6 +6,8 @@
  */
 
 import type { Background } from "../core/annotation";
+import type { DrawingTool } from "../drawing/drawingState";
+import type { DrawingEdit } from "../drawing/toolbarState";
 import type { CheckerboardTheme, ImageSettings } from "../shared/imageSettings";
 
 /** A Capture handed to the editor: a plain PNG of one monitor at native resolution. */
@@ -78,10 +80,47 @@ export interface HotkeyState {
 
 export type SetHotkeyResult =
   | { ok: true }
-  | { ok: false; reason: "conflict" | "invalid" | "failed" };
+  | { ok: false; reason: "conflict" | "invalid" | "failed" | "demo-hotkey" };
+
+/** The two demo-tool global hotkeys (tickets 40, 41, 49). */
+export type DemoAction = "laserPointer" | "drawingMode";
+
+export interface DemoHotkeys {
+  laserPointer: string;
+  drawingMode: string;
+  /** False when the OS refused the combination at startup (another app has it). */
+  laserPointerRegistered: boolean;
+  drawingModeRegistered: boolean;
+}
+
+export type SetDemoHotkeyResult =
+  | { ok: true }
+  | { ok: false; reason: "conflict" | "invalid" | "failed" | "print-screen" | "capture-hotkey" | "other-demo" };
+
+/** The laser pointer's sizes (ticket 50); `src-tauri/src/settings.rs` `LASER_POINTER_SIZES` must match (see rustParity.test.ts). */
+export const LASER_POINTER_SIZES = ["small", "medium", "large"] as const;
+export type LaserPointerSize = (typeof LASER_POINTER_SIZES)[number];
+
+/** How the laser pointer looks; stored in settings.json. The on/off state is never stored. */
+export interface LaserPointerSettings {
+  /** `#rrggbb`. */
+  color: string;
+  size: LaserPointerSize;
+  /** A left click shows a ripple. */
+  ripple: boolean;
+}
+
+/** Red, Medium, ripple on; `src-tauri/src/settings.rs` has the same defaults (see rustParity.test.ts). */
+export const DEFAULT_LASER_POINTER_SETTINGS: LaserPointerSettings = { color: "#e02424", size: "medium", ripple: true };
+
+/** What the dot window draws: the settings, and where in the window the dot's centre is (CSS pixels). */
+export interface LaserPointerView extends LaserPointerSettings {
+  dotX: number;
+  dotY: number;
+}
 
 /** The delays the delay timer offers, in seconds (the tray menu lists the same; `src-tauri/src/delay.rs` must match, see rustParity.test.ts). */
-export const CAPTURE_DELAYS = [3, 5, 10] as const;
+export const CAPTURE_DELAYS = [3] as const;
 
 export interface PlatformBridge {
   /** The installed app version, e.g. "0.1.0". */
@@ -112,7 +151,7 @@ export interface PlatformBridge {
   /** Put a plain PNG (an Export) on the clipboard. */
   copyImage(png: Uint8Array): Promise<void>;
   /**
-   * Save a new Library PNG as Pictures\Screenshot Annotation\YYYY-MM\YYYY-MM-DD HHmmss.png
+   * Save a new Library PNG as Pictures\Sigil (Screenshot Annotation)\YYYY-MM\YYYY-MM-DD HHmmss.png
    * (never overwriting; a -2, -3 suffix on collision, written atomically). Returns the path.
    */
   saveToLibrary(png: Uint8Array, capturedAt: Date): Promise<string>;
@@ -213,6 +252,26 @@ export interface PlatformBridge {
    */
   logOverlay(message: string, fatal?: boolean): Promise<void>;
   /**
+   * Drawing mode (ticket 52): leave the mode. The platform destroys every drawing overlay (the page that
+   * asked included) and the drawings go with them; nothing is saved. Also what the hotkey and the tray
+   * item do from the platform's side, so this is only for the page's own Esc.
+   */
+  exitDrawingMode(): Promise<void>;
+  /** Choose the tool from the toolbar or a key of an overlay: delivered to every drawing window via `onDrawingTool` (not remembered: every start of the mode begins on Arrow). */
+  setDrawingTool(tool: DrawingTool): Promise<void>;
+  /** The tool changed (anywhere), including the change this window asked for. */
+  onDrawingTool(handler: (tool: DrawingTool) => void): Promise<() => void>;
+  /** The toolbar's "Use apps": the overlays let the mouse through to the apps below (true), or take it back (false). The drawings stay visible either way. */
+  setDrawingClickThrough(on: boolean): Promise<void>;
+  /** The toolbar window asks to be this big, in CSS pixels (it grows and shrinks when it collapses and expands). */
+  resizeDrawingToolbar(width: number, height: number): Promise<void>;
+  /** An overlay tells the toolbar it drew, undid or redid a drawing (so Undo knows what it can take back). */
+  sendDrawingEdit(edit: DrawingEdit): Promise<void>;
+  onDrawingEdit(handler: (edit: DrawingEdit) => void): Promise<() => void>;
+  /** The toolbar's Undo button: the overlay of that monitor undoes its last drawing. */
+  undoDrawing(monitor: number): Promise<void>;
+  onDrawingUndo(handler: (monitor: number) => void): Promise<() => void>;
+  /**
    * Whether the capture overlay shows its magnifier: a stored setting (default true on a fresh
    * install) that each overlay reads when it starts and the Settings window can change too.
    */
@@ -281,6 +340,36 @@ export interface PlatformBridge {
    * stays in force and the result says `conflict`.
    */
   setHotkey(accelerator: string): Promise<SetHotkeyResult>;
+  /** The laser-pointer and drawing-mode hotkeys (defaults alt+p and alt+d). */
+  getDemoHotkeys(): Promise<DemoHotkeys>;
+  /**
+   * Re-register one demo hotkey and save it, like `setHotkey`. Refused (nothing changes) for Print
+   * Screen, the capture hotkey and the other demo hotkey, or when another app owns the combination.
+   */
+  setDemoHotkey(action: DemoAction, accelerator: string): Promise<SetDemoHotkeyResult>;
+
+  /** How the laser pointer looks (colour, size, ripple), as stored. */
+  getLaserPointerSettings(): Promise<LaserPointerSettings>;
+  /** Store a new look and show it at once on a visible dot. A failed write is logged and kept in memory for this run. */
+  setLaserPointerSettings(settings: LaserPointerSettings): Promise<void>;
+  /** Whether the laser pointer hides the system mouse arrow while it is on (default true; applied live). Windows only. */
+  getLaserPointerHideCursor(): Promise<boolean>;
+  setLaserPointerHideCursor(hide: boolean): Promise<void>;
+  /** Drawing mode's Highlighter opacity in percent (5 to 60, default 20); read when the mode starts. */
+  getDrawingHighlighterOpacity(): Promise<number>;
+  setDrawingHighlighterOpacity(percent: number): Promise<void>;
+  /** Whether the laser pointer is on now. Never stored: it is off at every start. */
+  getLaserPointer(): Promise<boolean>;
+  /** Switch the laser pointer on or off (the editor's button, ticket 51). The hotkey and the tray item do the same. */
+  setLaserPointer(on: boolean): Promise<void>;
+  /** The laser pointer was switched on or off, by the hotkey, the tray item or a button; delivers the new state. */
+  onLaserPointer(handler: (on: boolean) => void): Promise<() => void>;
+  /** The dot window's drawing instructions now (for a window that loads late). */
+  getLaserPointerView(): Promise<LaserPointerView>;
+  /** The look or the dot's place in its window changed. */
+  onLaserPointerView(handler: (view: LaserPointerView) => void): Promise<() => void>;
+  /** A left click began: the dot window shows its ripple. */
+  onLaserPointerRipple(handler: () => void): Promise<() => void>;
 
   /**
    * Whether the Windows setting PrintScreenKeyForSnippingEnabled leaves Print Screen with Snipping

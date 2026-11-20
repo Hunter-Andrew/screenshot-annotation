@@ -1,7 +1,22 @@
 import { encodeRgbaPng, readSize } from "../core/png";
 import { CANVAS_MARGIN, CROP_MARGIN, DEFAULT_IMAGE_SETTINGS, type ImageSettings, inRange, isDarkBackground, OUTSIDE_DARKNESS, sanitizeImageSettings } from "../shared/imageSettings";
+import { DEFAULT_TOOL, type DrawingTool } from "../drawing/drawingState";
+import { drawingHighlighterOpacityPercent } from "../drawing/drawingStyles";
+import type { DrawingEdit } from "../drawing/toolbarState";
 import { formatStamp } from "../shared/stamp";
-import type { CaptureResult, LibraryFile, LibraryItem, OverlayOutcome, OverlayRect, PlatformBridge } from "./bridge";
+import { demoHotkeyRefusal } from "../settings/hotkey";
+import {
+  DEFAULT_LASER_POINTER_SETTINGS,
+  LASER_POINTER_SIZES,
+  type CaptureResult,
+  type LibraryFile,
+  type LibraryItem,
+  type OverlayOutcome,
+  type OverlayRect,
+  type PlatformBridge,
+  type LaserPointerSettings,
+  type LaserPointerView,
+} from "./bridge";
 
 export interface SimulatedShot {
   width: number;
@@ -79,10 +94,41 @@ export interface FakeBridge extends PlatformBridge {
   readonly overlayOutcomes: OverlayOutcome[];
   /** Lines the overlay page wrote to the diagnostics log. */
   readonly overlayLogs: { message: string; fatal: boolean }[];
+  /** How many times a drawing overlay asked to leave Drawing mode (Esc). */
+  readonly drawingExits: number;
+  /** The Drawing mode tool last chosen in this fake (Arrow in a fresh one). Only a record for tests: no window reads it at start. */
+  readonly drawingTool: DrawingTool;
+  /** Whether the toolbar's "Use apps" last made the overlays click-through, and every change in order. */
+  readonly drawingClickThrough: boolean;
+  readonly drawingClickThroughCalls: boolean[];
+  /** The last size the toolbar asked for, in CSS pixels, and null before it asked. */
+  readonly drawingToolbarSize: { width: number; height: number } | null;
+  /** The monitors the toolbar's Undo button asked to undo, in order. */
+  readonly drawingUndos: number[];
+  /** Pretend an overlay on `monitor` drew, undid or redid a drawing. */
+  pretendDrawingEdit(edit: DrawingEdit): void;
+  /** Pretend a key on an overlay chose a tool. */
+  pretendDrawingTool(tool: DrawingTool): void;
   /** Make the next `overlayFrame` call reject with this message. */
   failNextOverlayFrame(message: string): void;
   /** The registered capture hotkey (accelerator). */
   readonly hotkey: string;
+  /** Whether the laser pointer hides the system arrow (true for a fresh fake) and Drawing mode's Highlighter opacity in percent (20 for a fresh fake). */
+  readonly laserPointerHideCursor: boolean;
+  readonly drawingHighlighterOpacity: number;
+  /** The stored laser pointer look (`fake.laserPointerSettings` in the fake storage; red, Medium, ripple on for a fresh fake). */
+  readonly laserPointerSettings: LaserPointerSettings;
+  /** Whether the laser pointer is on. Not stored: a fresh fake (a reload) has it off, like the real app at start. */
+  readonly laserPointerOn: boolean;
+  /** Mimic the laser pointer hotkey or the tray item: flip the Laser pointer and tell the listeners. */
+  pressLaserPointerHotkey(): void;
+  /** Mimic a left click while the Laser pointer is on: the dot window shows its ripple. */
+  clickLaserPointer(): void;
+  /** Move the dot inside its window (the platform does this when the window is held back at a monitor's edge). */
+  setLaserPointerDot(x: number, y: number): void;
+  /** The registered demo-tool hotkeys. */
+  readonly laserPointerHotkey: string;
+  readonly drawingModeHotkey: string;
   /** Combinations "another app" owns; `setHotkey` reports a conflict for these. Mutable by tests. */
   readonly takenHotkeys: Set<string>;
   /** How many times the Bluetooth & devices settings deep link was opened. */
@@ -153,6 +199,8 @@ export function createFakeBridge(
     setItem: (k, v) => void memory.set(k, v),
   };
   let hotkey = store.getItem("fake.hotkey") ?? "ctrl+shift+s";
+  let laserPointerHotkey = store.getItem("fake.laserPointerHotkey") ?? "alt+p";
+  let drawingModeHotkey = store.getItem("fake.drawingModeHotkey") ?? "alt+d";
   const takenHotkeys = new Set<string>();
   let keyboardSettingsOpened = 0;
   let snippingEnabled = options.printScreenSnippingEnabled ?? true;
@@ -166,11 +214,60 @@ export function createFakeBridge(
   let overlayAttempt: number | null = options.overlayAttempt === undefined ? 1 : options.overlayAttempt;
   const overlayAttemptHandlers = new Set<(attempt: number | null) => void>();
   const delayedCaptures: number[] = [];
+  let laserPointerOn = false;
+  const laserPointerStateHandlers = new Set<(on: boolean) => void>();
+  const laserPointerViewHandlers = new Set<(view: LaserPointerView) => void>();
+  const laserPointerRippleHandlers = new Set<() => void>();
+  let laserPointerDot = { dotX: 48, dotY: 48 };
+  const readLaserPointerSettings = (): LaserPointerSettings => {
+    try {
+      const stored = JSON.parse(store.getItem("fake.laserPointerSettings") ?? "null") as Partial<LaserPointerSettings> | null;
+      return {
+        color: typeof stored?.color === "string" && /^#[0-9a-f]{6}$/i.test(stored.color) ? stored.color.toLowerCase() : DEFAULT_LASER_POINTER_SETTINGS.color,
+        size: LASER_POINTER_SIZES.find((s) => s === stored?.size) ?? DEFAULT_LASER_POINTER_SETTINGS.size,
+        ripple: typeof stored?.ripple === "boolean" ? stored.ripple : DEFAULT_LASER_POINTER_SETTINGS.ripple,
+      };
+    } catch {
+      return DEFAULT_LASER_POINTER_SETTINGS;
+    }
+  };
+  const readHideCursor = (): boolean => store.getItem("fake.laserPointerHideCursor") !== "false";
+  const readHighlighterOpacity = (): number => {
+    try {
+      return drawingHighlighterOpacityPercent(JSON.parse(store.getItem("fake.drawingHighlighterOpacity") ?? "null"));
+    } catch {
+      return drawingHighlighterOpacityPercent(undefined);
+    }
+  };
+  const laserPointerView = (): LaserPointerView => ({ ...readLaserPointerSettings(), ...laserPointerDot });
+  const publishLaserPointerOn = (on: boolean) => {
+    laserPointerOn = on;
+    laserPointerStateHandlers.forEach((handler) => handler(on));
+  };
   let countdown: number | null = null;
   const countdownHandlers = new Set<(remaining: number | null) => void>();
   let launchFailure: string | null = null;
   let libraryFolderOpened = 0;
   let toolStylesResets = 0;
+  let drawingExits = 0;
+  let drawingTool: DrawingTool = DEFAULT_TOOL;
+  let drawingClickThrough = false;
+  const drawingClickThroughCalls: boolean[] = [];
+  let drawingToolbarSize: { width: number; height: number } | null = null;
+  const drawingUndos: number[] = [];
+  const drawingToolHandlers = new Set<(tool: DrawingTool) => void>();
+  const drawingEditHandlers = new Set<(edit: DrawingEdit) => void>();
+  const drawingUndoHandlers = new Set<(monitor: number) => void>();
+  const subscribe = <T,>(handlers: Set<(value: T) => void>, handler: (value: T) => void) => {
+    handlers.add(handler);
+    return async () => {
+      handlers.delete(handler);
+    };
+  };
+  const publishDrawingTool = (tool: DrawingTool) => {
+    drawingTool = tool;
+    drawingToolHandlers.forEach((handler) => handler(tool));
+  };
   const toolStylesResetHandlers = new Set<() => void>();
   const magnifierHandlers = new Set<(enabled: boolean) => void>();
   const shortcutHandlers = new Set<(overrides: Record<string, unknown>) => void>();
@@ -308,6 +405,12 @@ export function createFakeBridge(
     get hotkey() {
       return hotkey;
     },
+    get laserPointerHotkey() {
+      return laserPointerHotkey;
+    },
+    get drawingModeHotkey() {
+      return drawingModeHotkey;
+    },
     takenHotkeys,
     settingsLogs,
     setPrintScreenSnipping: (enabled) => {
@@ -326,9 +429,87 @@ export function createFakeBridge(
     setHotkey: async (accelerator) => {
       if (accelerator === hotkey) return { ok: true };
       if (takenHotkeys.has(accelerator)) return { ok: false, reason: "conflict" };
+      if ([laserPointerHotkey, drawingModeHotkey].some((d) => d.toLowerCase() === accelerator.toLowerCase()))
+        return { ok: false, reason: "demo-hotkey" };
       hotkey = accelerator;
       store.setItem("fake.hotkey", accelerator);
       return { ok: true };
+    },
+    getDemoHotkeys: async () => ({
+      laserPointer: laserPointerHotkey,
+      drawingMode: drawingModeHotkey,
+      laserPointerRegistered: true,
+      drawingModeRegistered: true,
+    }),
+    setDemoHotkey: async (action, accelerator) => {
+      const current = action === "laserPointer" ? laserPointerHotkey : drawingModeHotkey;
+      const other = action === "laserPointer" ? drawingModeHotkey : laserPointerHotkey;
+      if (accelerator === current) return { ok: true };
+      const refusal = demoHotkeyRefusal(accelerator, hotkey, other);
+      if (refusal !== null) return { ok: false, reason: refusal };
+      if (takenHotkeys.has(accelerator)) return { ok: false, reason: "conflict" };
+      if (action === "laserPointer") laserPointerHotkey = accelerator;
+      else drawingModeHotkey = accelerator;
+      store.setItem(action === "laserPointer" ? "fake.laserPointerHotkey" : "fake.drawingModeHotkey", accelerator);
+      return { ok: true };
+    },
+    get laserPointerSettings() {
+      return readLaserPointerSettings();
+    },
+    get laserPointerOn() {
+      return laserPointerOn;
+    },
+    pressLaserPointerHotkey: () => publishLaserPointerOn(!laserPointerOn),
+    clickLaserPointer: () => {
+      if (laserPointerOn && readLaserPointerSettings().ripple) laserPointerRippleHandlers.forEach((handler) => handler());
+    },
+    setLaserPointerDot: (x, y) => {
+      laserPointerDot = { dotX: x, dotY: y };
+      const view = laserPointerView();
+      laserPointerViewHandlers.forEach((handler) => handler(view));
+    },
+    getLaserPointerSettings: async () => readLaserPointerSettings(),
+    setLaserPointerSettings: async (settings) => {
+      store.setItem("fake.laserPointerSettings", JSON.stringify(settings));
+      const view = laserPointerView();
+      laserPointerViewHandlers.forEach((handler) => handler(view));
+    },
+    get laserPointerHideCursor() {
+      return readHideCursor();
+    },
+    get drawingHighlighterOpacity() {
+      return readHighlighterOpacity();
+    },
+    getLaserPointerHideCursor: async () => readHideCursor(),
+    setLaserPointerHideCursor: async (hide) => {
+      store.setItem("fake.laserPointerHideCursor", JSON.stringify(hide));
+    },
+    getDrawingHighlighterOpacity: async () => readHighlighterOpacity(),
+    setDrawingHighlighterOpacity: async (percent) => {
+      store.setItem("fake.drawingHighlighterOpacity", JSON.stringify(drawingHighlighterOpacityPercent(percent)));
+    },
+    getLaserPointer: async () => laserPointerOn,
+    setLaserPointer: async (on) => {
+      if (on !== laserPointerOn) publishLaserPointerOn(on);
+    },
+    onLaserPointer: async (handler) => {
+      laserPointerStateHandlers.add(handler);
+      return () => {
+        laserPointerStateHandlers.delete(handler);
+      };
+    },
+    getLaserPointerView: async () => laserPointerView(),
+    onLaserPointerView: async (handler) => {
+      laserPointerViewHandlers.add(handler);
+      return () => {
+        laserPointerViewHandlers.delete(handler);
+      };
+    },
+    onLaserPointerRipple: async (handler) => {
+      laserPointerRippleHandlers.add(handler);
+      return () => {
+        laserPointerRippleHandlers.delete(handler);
+      };
     },
     getPrintScreenNotice: async () => ({
       snippingEnabled,
@@ -515,11 +696,11 @@ export function createFakeBridge(
     failNextLaunchAtSignIn: (message) => {
       launchFailure = message;
     },
-    libraryFolder: "C:\\Users\\fake\\Pictures\\Screenshot Annotation",
+    libraryFolder: "C:\\Users\\fake\\Pictures\\Sigil (Screenshot Annotation)",
     get libraryFolderOpened() {
       return libraryFolderOpened;
     },
-    getLibraryFolder: async () => "C:\\Users\\fake\\Pictures\\Screenshot Annotation",
+    getLibraryFolder: async () => "C:\\Users\\fake\\Pictures\\Sigil (Screenshot Annotation)",
     openLibraryFolder: async () => {
       libraryFolderOpened++;
     },
@@ -573,6 +754,45 @@ export function createFakeBridge(
     logOverlay: async (message, fatal = false) => {
       overlayLogs.push({ message, fatal });
     },
+    get drawingExits() {
+      return drawingExits;
+    },
+    exitDrawingMode: async () => {
+      drawingExits++;
+    },
+    get drawingTool() {
+      return drawingTool;
+    },
+    get drawingClickThrough() {
+      return drawingClickThrough;
+    },
+    get drawingClickThroughCalls() {
+      return drawingClickThroughCalls;
+    },
+    get drawingToolbarSize() {
+      return drawingToolbarSize;
+    },
+    get drawingUndos() {
+      return drawingUndos;
+    },
+    pretendDrawingEdit: (edit) => drawingEditHandlers.forEach((handler) => handler(edit)),
+    pretendDrawingTool: publishDrawingTool,
+    setDrawingTool: async (tool) => publishDrawingTool(tool),
+    onDrawingTool: async (handler) => subscribe(drawingToolHandlers, handler),
+    setDrawingClickThrough: async (on) => {
+      drawingClickThrough = on;
+      drawingClickThroughCalls.push(on);
+    },
+    resizeDrawingToolbar: async (width, height) => {
+      drawingToolbarSize = { width, height };
+    },
+    sendDrawingEdit: async (edit) => drawingEditHandlers.forEach((handler) => handler(edit)),
+    onDrawingEdit: async (handler) => subscribe(drawingEditHandlers, handler),
+    undoDrawing: async (monitor) => {
+      drawingUndos.push(monitor);
+      drawingUndoHandlers.forEach((handler) => handler(monitor));
+    },
+    onDrawingUndo: async (handler) => subscribe(drawingUndoHandlers, handler),
     get magnifier() {
       return store.getItem("fake.magnifier") !== "0";
     },

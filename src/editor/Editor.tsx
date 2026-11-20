@@ -15,6 +15,7 @@ import { eraseEdit } from "../core/annotations/erase";
 import { changedRunKeys, resetRunKeys } from "../core/annotations/runs";
 import { AREA_LIMIT_MESSAGE, followAreaEdit, setAreaEdit } from "../core/area";
 import type { Edit } from "../core/editSession";
+import { type FollowedEdit, followAreaEdits } from "../core/multiEdit";
 import { DEFAULT_IMAGE_SETTINGS, type ImageSettings } from "../shared/imageSettings";
 import { kindOf } from "../core/annotations";
 import { DEFAULT_IMAGE_STYLE } from "../core/annotations/image";
@@ -44,6 +45,7 @@ import { allowedWhileTyping, isTypingTarget } from "./shortcuts";
 import { Stage } from "./Stage";
 import { StylePanel } from "./StylePanel";
 import { CROP_TOOL, SELECT_TOOL, TOOLS } from "./tools";
+import { activeTool, INITIAL_MODE, pickTool, laserPointerChanged, returnToSelect } from "./laserPointerMode";
 import { returnsToSelect } from "./toolBehavior";
 import { ToolColumn } from "./ToolColumn";
 import { DelayCapture } from "./DelayCapture";
@@ -63,7 +65,7 @@ interface Entry {
 }
 
 /** The status line when a read-only image (saved by a newer version) is opened, and when a paste is refused on it. */
-const READ_ONLY_NOTICE = "Opened read-only: it was saved by a newer version of Screenshot Annotation";
+const READ_ONLY_NOTICE = "Opened read-only: it was saved by a newer version of Sigil";
 const NOTHING_OPEN_NOTICE = "Take or open a capture before pasting an image";
 
 function useSessionImage(session: EditSession | null): AnnotatedImage | null {
@@ -111,8 +113,15 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
   // The status line says the 8192 px limit stopped a growth until the next edit (a save would otherwise replace it).
   const limitNotice = useRef<string | null>(null);
 
-  const [tool, setTool] = useState(SELECT_TOOL.id);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  // The tool, together with the global laser pointer: while the pointer is on no tool is active (laserPointerMode.ts).
+  const [mode, setMode] = useState(INITIAL_MODE);
+  const tool = activeTool(mode);
+  const [laserPointerHotkey, setLaserPointerHotkey] = useState<string | null>(null);
+  // Every selected Annotation: several after a rubber band (or Shift-click), which then move and delete together.
+  const [selectedIds, setSelectedIds] = useState<readonly string[]>([]);
+  /** The selected Annotation when exactly one is: what the Style panel and the Arrange buttons are about. */
+  const selectedId = selectedIds.length === 1 ? selectedIds[0]! : null;
+  const setSelectedId = (id: string | null) => setSelectedIds(id === null ? [] : [id]);
   // Last-used style per tool: loaded from the settings at start, stored again (after a short pause) when changed.
   const [toolStyles, setToolStyles] = useState<Record<string, Style>>({});
   const [canvas, setCanvas] = useState<AnnotationCanvas | null>(null);
@@ -284,16 +293,45 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
     };
   }, []);
 
+  // The laser pointer's state, whoever changes it (this button, the hotkey, the tray), and the hotkey for the tooltip.
+  useEffect(() => {
+    let cancelled = false;
+    let off: (() => void) | undefined;
+    const follow = (on: boolean) => {
+      setMode((now) => laserPointerChanged(now, on));
+      if (on) setSelectedId(null);
+    };
+    bridge.getLaserPointer().then((on) => !cancelled && follow(on), () => {});
+    void bridge.onLaserPointer((on) => !cancelled && follow(on)).then((unsubscribe) => {
+      if (cancelled) unsubscribe();
+      else off = unsubscribe;
+    });
+    const readHotkey = () =>
+      bridge.getDemoHotkeys().then(
+        (keys) => !cancelled && setLaserPointerHotkey(keys.laserPointer),
+        () => {},
+      );
+    void readHotkey();
+    window.addEventListener("focus", readHotkey);
+    return () => {
+      cancelled = true;
+      off?.();
+      window.removeEventListener("focus", readHotkey);
+    };
+  }, [bridge]);
+
   // A different image starts at the Select tool with nothing selected.
   useEffect(() => {
-    setTool(SELECT_TOOL.id);
+    setMode(returnToSelect);
     setSelectedId(null);
   }, [current?.id]);
 
   // Undo can remove the selected Annotation (undoing its creation): nothing is selected then.
   useEffect(() => {
-    if (selectedId !== null && image && !image.model.annotations.some((a) => a.id === selectedId)) setSelectedId(null);
-  }, [image, selectedId]);
+    if (!image) return;
+    const alive = selectedIds.filter((id) => image.model.annotations.some((a) => a.id === id));
+    if (alive.length !== selectedIds.length) setSelectedIds(alive);
+  }, [image, selectedIds]);
 
   const captureBytes = image?.capture ?? null;
   const imageUrl = useMemo(
@@ -355,6 +393,15 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
     if (grown.limited) report(AREA_LIMIT_MESSAGE);
   };
 
+  /** Several Annotations changed together (a multi-selection moved or deleted): one undo step. */
+  const commitMany = (items: readonly FollowedEdit[]) => {
+    if (!current) return;
+    limitNotice.current = null;
+    const followed = followAreaEdits(current.session.image, items, imageSettings.background);
+    if (followed.edit) current.session.apply(followed.edit);
+    if (followed.limited) report(AREA_LIMIT_MESSAGE);
+  };
+
   const events: CanvasEvents = {
     onCreate: (annotation, bounds) => {
       if (!current) return;
@@ -362,7 +409,7 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
       // Like the layout prototype Andrew chose: after drawing, the new Annotation is selected and the tool is Select
       // again, unless this tool is set to keep drawing (the Pen by default): then it stays active, nothing selected.
       if (!returnsToSelect(tool, behavior)) return;
-      setTool(SELECT_TOOL.id);
+      setMode(returnToSelect);
       setSelectedId(annotation.id);
     },
     onErase: (path, radius) => {
@@ -374,6 +421,7 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
       if (limited) report(AREA_LIMIT_MESSAGE);
     },
     onUpdate: (id, patch, bounds) => commit({ kind: "update", id, patch }, bounds),
+    onUpdateMany: (updates) => commitMany(updates.map(({ id, patch, bounds }) => ({ edit: { kind: "update", id, patch }, bounds }))),
     onCrop: (next, how) => {
       if (!current) return;
       limitNotice.current = null;
@@ -381,20 +429,20 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
       if (edit) current.session.apply(edit);
       if (limited) report(AREA_LIMIT_MESSAGE);
       // Dragging a handle leaves the Crop tool on, to fine-tune the other edges; a fresh rectangle follows the tool's option.
-      if (how !== "handle" && returnsToSelect(CROP_TOOL.id, behavior)) setTool(SELECT_TOOL.id);
+      if (how !== "handle" && returnsToSelect(CROP_TOOL.id, behavior)) setMode(returnToSelect);
     },
     // A drag went further than the image may grow: it stopped at the limit (the edit it made was applied first).
     onLimit: () => report(AREA_LIMIT_MESSAGE),
     onTextSelection: setTextSelection,
-    onSelect: (id) => {
-      setSelectedId(id);
-      if (id !== null) setSelection(NO_SELECTION); // working on an Annotation: Delete means it, not the picked thumbnails
+    onSelect: (ids) => {
+      setSelectedIds([...ids]);
+      if (ids.length > 0) setSelection(NO_SELECTION); // working on an Annotation: Delete means it, not the picked thumbnails
     },
   };
 
   useEffect(() => canvas?.sync(image?.model ?? emptyModel(), image?.images), [canvas, image?.model, image?.images]);
   useEffect(() => canvas?.setTool(tool), [canvas, tool]);
-  useEffect(() => canvas?.select(selectedId), [canvas, selectedId, image?.model]);
+  useEffect(() => canvas?.select(selectedIds), [canvas, selectedIds, image?.model]);
   useEffect(
     () => canvas?.setDrawStyle(tool === SELECT_TOOL.id ? {} : styleOf(tool, null)),
     [canvas, tool, toolStyles],
@@ -429,8 +477,18 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
 
   const chooseTool = (next: string) => {
     if (readOnly) return;
-    setTool(next);
+    // A tool chosen while the laser pointer is on switches it off (the state event that follows changes nothing).
+    if (mode.laserPointerOn) void bridge.setLaserPointer(false).catch(() => {});
+    setMode((now) => pickTool(now, next));
     setSelectedId(null);
+  };
+
+  /** The tool column's pointer button: switch the global laser pointer; the editor follows its state event. */
+  const toggleLaserPointer = () => {
+    const next = !mode.laserPointerOn;
+    setMode((now) => laserPointerChanged(now, next));
+    if (next) setSelectedId(null);
+    void bridge.setLaserPointer(next).catch(() => {});
   };
 
   // --- actions ----------------------------------------------------------------------------------
@@ -442,7 +500,13 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
   const selectedIndex = image?.model.annotations.findIndex((a) => a.id === selectedId) ?? -1;
   const stackSize = image?.model.annotations.length ?? 0;
   const deleteSelected = () => {
-    if (!current || readOnly || selectedIndex < 0) return;
+    if (!current || readOnly) return;
+    if (selectedIds.length > 1) {
+      commitMany(selectedIds.map((id) => ({ edit: { kind: "delete", id } })));
+      setSelectedIds([]);
+      return;
+    }
+    if (selectedIndex < 0) return;
     commit({ kind: "delete", id: selectedId! });
     setSelectedId(null);
   };
@@ -602,7 +666,7 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
       const annotation: Annotation = { id: newAnnotationId(), type: "image", ...box, imageId, ...DEFAULT_IMAGE_STYLE };
       entry.session.apply({ kind: "add", annotation });
       // Selected, and a drawing tool that was active goes back to Select.
-      setTool(SELECT_TOOL.id);
+      setMode(returnToSelect);
       setSelectedId(annotation.id);
     } catch (e) {
       setStatus("The clipboard picture could not be read as an image");
@@ -627,7 +691,7 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
   // --- keyboard: every key goes through the one shortcut table ------------------------------------
 
   const selectionSize = selection.selected.size;
-  const keys = { chooseTool, copy, discard, view, selectedId, hasImage: image !== null, undo, redo, deleteSelected, moveSelected, selectionSize, deleteSelection, clearSelection };
+  const keys = { laserPointerOn: mode.laserPointerOn, chooseTool, copy, discard, view, selectedId, hasImage: image !== null, selectedCount: selectedIds.length, undo, redo, deleteSelected, moveSelected, selectionSize, deleteSelection, clearSelection };
   const latest = useRef(keys);
   latest.current = keys;
   useEffect(() => {
@@ -653,12 +717,13 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
       }
       switch (action) {
         case "editor.deselect":
+          if (now.laserPointerOn) return; // the pointer is on: Escape does not pick a tool, which would switch it off
           now.clearSelection();
           now.chooseTool(SELECT_TOOL.id);
           break;
         case "editor.copy":
           // Ctrl+C copies the image only when nothing is selected (there is nothing else to copy yet).
-          if (now.selectedId !== null || !now.hasImage) return;
+          if (now.selectedCount > 0 || !now.hasImage) return;
           void now.copy();
           break;
         case "editor.discard":
@@ -709,7 +774,7 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
       {/* The grid covers the editor; the editor stays mounted (its canvas and view survive) but out of reach. */}
       <div className="editor-body" inert={screen === "grid"}>
         <header className="topbar">
-          <strong>Screenshot Annotation</strong>
+          <strong>Sigil (Screenshot Annotation)</strong>
           <button onClick={() => void bridge.startCapture()}>Capture</button>
           <DelayCapture bridge={bridge} />
           <button
@@ -740,7 +805,7 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
             ⚙
           </button>
         </header>
-        <ToolColumn tools={TOOLS} active={tool} disabled={!image || readOnly} bindings={bindings} onPick={chooseTool} />
+        <ToolColumn tools={TOOLS} active={tool} disabled={!image || readOnly} bindings={bindings} onPick={chooseTool} laserPointer={{ on: mode.laserPointerOn, hotkey: laserPointerHotkey, onToggle: toggleLaserPointer }} />
         <main className="well" ref={view.wellRef} style={{ "--outside-darkness": Number((imageSettings.outsideDarkness / 100).toFixed(4)) } as CSSProperties}>
           {image && imageUrl && size && area ? (
             <Stage
@@ -755,7 +820,7 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
               showOutside={showOutside}
               margin={view.margin}
               scale={view.scale}
-              interactive={!readOnly}
+              interactive={!readOnly && !mode.laserPointerOn}
               events={events}
               onCanvas={setCanvas}
             />
@@ -765,6 +830,7 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
         </main>
         <StylePanel
           kind={readOnly ? null : (styledKind ?? null)}
+          selectedCount={selectedIds.length}
           style={panelStyle}
           onChange={restyle}
           textEditing={
@@ -775,7 +841,7 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
           toolGroups={!selected && tool !== SELECT_TOOL.id ? styledKind?.toolGroups : undefined}
           image={
             // With the Select tool and nothing selected, and while the Crop tool is on: the image's own settings.
-            image && !readOnly && ((tool === SELECT_TOOL.id && selectedId === null) || tool === CROP_TOOL.id)
+            image && !readOnly && ((tool === SELECT_TOOL.id && selectedIds.length === 0) || tool === CROP_TOOL.id)
               ? { background, onChange: chooseBackground, showOutside, onShowOutside: chooseShowOutside }
               : null
           }

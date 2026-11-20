@@ -1,4 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
+import { shapesReturnToSelect } from "./legacyStyles";
 import { legacyMargins } from "./sameCropMargin";
 
 legacyMargins(test);
@@ -51,6 +52,10 @@ const areaWidth = async (page: Page) => Math.round((await page.locator(".area").
 const stageBox = async (page: Page) => (await page.locator(".stage").boundingBox())!;
 
 test.use({ viewport: { width: 1000, height: 700 } });
+
+test.beforeEach(async ({ page }) => {
+  await shapesReturnToSelect(page);
+});
 
 test.describe("the Crop tool's handles follow the visible area", () => {
   test("at rest, on the Capture", async ({ page }) => {

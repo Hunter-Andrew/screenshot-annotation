@@ -5,7 +5,7 @@
 use std::time::Duration;
 
 /// The delays on offer, in seconds: the tray menu and the editor's top bar list exactly these.
-pub const CHOICES: [u32; 3] = [3, 5, 10];
+pub const CHOICES: [u32; 1] = [3];
 
 /// The edge of the square countdown badge, in physical pixels.
 pub const BADGE_SIZE: u32 = 72;
@@ -114,11 +114,10 @@ mod tests {
     const SCREEN: Rect = (0, 0, 1920, 1080);
 
     #[test]
-    fn only_three_five_and_ten_seconds_are_accepted() {
-        assert_eq!(CHOICES, [3, 5, 10]);
+    fn only_three_seconds_is_accepted() {
+        assert_eq!(CHOICES, [3]);
         assert_eq!(delay_for(3), Some(Duration::from_secs(3)));
-        assert_eq!(delay_for(10), Some(Duration::from_secs(10)));
-        for refused in [0, 1, 4, 11, 3600] {
+        for refused in [0, 1, 4, 5, 10, 11, 3600] {
             assert_eq!(delay_for(refused), None, "{refused}");
         }
     }

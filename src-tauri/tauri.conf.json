@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Screenshot Annotation",
+  "productName": "Sigil (Screenshot Annotation)",
   "version": "0.6.0",
   "identifier": "io.github.hunter-andrew.screenshot-annotation",
   "build": {

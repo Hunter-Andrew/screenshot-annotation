@@ -30,6 +30,8 @@ export interface TextEditing {
 }
 
 interface Props {
+  /** How many Annotations are selected: with several there is no style to show, only what can be done with them. */
+  selectedCount?: number;
   /** The kind being styled: the selected Annotation's, or the active drawing tool's. Null: nothing to style. */
   kind: AnnotationKind | null;
   /** Current values: the selected Annotation's, or the tool's default style. */
@@ -49,7 +51,7 @@ interface Props {
 }
 
 /** The Style panel (right column): one section per property group the kind opts into. */
-export function StylePanel({ kind, style, onChange, toolGroups = [], arrange = null, crop = null, toolOption = null, image = null, textEditing = null }: Props) {
+export function StylePanel({ selectedCount = 0, kind, style, onChange, toolGroups = [], arrange = null, crop = null, toolOption = null, image = null, textEditing = null }: Props) {
   return (
     <aside className="style-panel" aria-label="Style">
       <h2>Style</h2>
@@ -101,7 +103,13 @@ export function StylePanel({ kind, style, onChange, toolGroups = [], arrange = n
         </section>
       )}
       {kind === null ? (
-        crop?.active ? null : <p className="hint">Select an Annotation, or pick a tool, to change its style.</p>
+        crop?.active ? null : (
+          <p className="hint">
+            {selectedCount > 1
+              ? `${selectedCount} Annotations selected. Drag one to move them all, or press Delete to remove them.`
+              : "Select an Annotation, or pick a tool, to change its style."}
+          </p>
+        )
       ) : (
         [...toolGroups, ...kind.groups].map((group) => {
           const value = style[group];

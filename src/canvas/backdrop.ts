@@ -3,6 +3,7 @@
 // stays the first drawn layer, and a Blur, which pixelates what has been drawn beneath it, sees both.
 import { FabricImage } from "fabric";
 import type { Crop } from "../core/annotation";
+import { sharpDownscale } from "./lanczos";
 
 export class Backdrop extends FabricImage {
   static override type = "Backdrop";
@@ -31,6 +32,28 @@ export class Backdrop extends FabricImage {
       ctx.fillRect(this.area.x - this.width / 2, this.area.y - this.height / 2, this.area.width, this.area.height);
       ctx.restore();
     }
+    // Shrinking the Capture to the zoom: the browser's own filter is soft, so draw a Lanczos-shrunk copy that is
+    // one device pixel per pixel (the canvas sits on whole device pixels, see applyView). Otherwise the default path.
+    const shrunk = this.shrunkFor(ctx);
+    if (shrunk) {
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = "high";
+      ctx.drawImage(shrunk, -this.width / 2, -this.height / 2, this.width, this.height);
+      return;
+    }
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
     super._render(ctx);
+  }
+
+  /** The Capture shrunk to how big it is on this context's pixels, when it is drawn smaller than it is. */
+  private shrunkFor(ctx: CanvasRenderingContext2D): HTMLCanvasElement | null {
+    if (typeof ctx.getTransform !== "function") return null;
+    const m = ctx.getTransform();
+    // Only a plain scale (no rotation or skew) smaller than 1:1.
+    if (m.b !== 0 || m.c !== 0 || m.a <= 0 || m.d <= 0 || (m.a >= 1 && m.d >= 1)) return null;
+    const dw = Math.round(this.width * m.a);
+    const dh = Math.round(this.height * m.d);
+    return sharpDownscale(this.getElement() as HTMLImageElement, this.width, this.height, dw, dh);
   }
 }

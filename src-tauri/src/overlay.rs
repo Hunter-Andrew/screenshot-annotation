@@ -134,6 +134,12 @@ fn end(app: &AppHandle, keep: bool) -> Option<Session> {
     session
 }
 
+/// True from the capture hotkey (or the start of a delay countdown) until the overlay is closed again;
+/// Drawing mode does not start while it holds.
+pub fn capture_in_progress(app: &AppHandle) -> bool {
+    app.state::<OverlayState>().busy.load(Ordering::SeqCst)
+}
+
 /// True while the editor is on screen for the user: shown and not minimized. (A minimized window still counts as
 /// visible to `is_visible`; one the user minimized is out of the picture already and is left alone.)
 fn editor_is_open(win: &tauri::WebviewWindow) -> bool {
@@ -155,7 +161,7 @@ fn show_error(app: &AppHandle, message: &str) {
     };
     app.dialog()
         .message(format!("The capture could not start.\n\n{message}\n\n{location}"))
-        .title("Screenshot Annotation")
+        .title("Sigil (Screenshot Annotation)")
         .kind(MessageDialogKind::Error)
         .show(|_| {});
 }
@@ -170,12 +176,15 @@ fn fail(app: &AppHandle, message: &str) {
     prewarm_in_background(app);
 }
 
-/// Native handles of the overlay windows, so window enumeration can never offer them as targets.
+/// Native handles of the app's own click-through windows (capture overlays, Drawing mode's overlays and toolbar,
+/// the laser pointer's dot), so window enumeration can never offer them as targets.
 #[cfg(windows)]
 fn overlay_handles(app: &AppHandle) -> Vec<isize> {
     app.webview_windows()
         .into_iter()
-        .filter(|(name, _)| name.starts_with(LABEL_PREFIX))
+        .filter(|(name, _)| {
+            name.starts_with(LABEL_PREFIX) || crate::drawing_plan::is_window(name) || name == crate::laser_pointer::LABEL
+        })
         .filter_map(|(_, window)| window.hwnd().ok().map(|h| h.0 as isize))
         .collect()
 }
@@ -318,6 +327,9 @@ fn run(app: &AppHandle, attempt: u64, editor_hidden_already: bool) {
         }
     };
     diag::log(&format!("{} pickable windows listed", windows.len()));
+    // Drawing mode, if it is on: the frames above already hold its drawings (a Capture includes them); the
+    // mode ends here, before any capture overlay window is shown, and its windows are never pickable.
+    crate::drawing::end_for_capture(app);
     let frames: Vec<Arc<MonitorFrame>> = frames.into_iter().map(Arc::new).collect();
     let layout: Vec<MonitorBounds> = frames.iter().map(|f| f.bounds).collect();
     let windows = layout.iter().map(|m| geometry::windows_on_monitor(&windows, *m)).collect();

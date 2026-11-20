@@ -10,10 +10,10 @@
 // a tool means adding its row here and nothing else.
 
 /** Where a shortcut is active. A binding clashes only with another in its own context (ticket 28, decision 3). The editor context includes the grid. */
-export type ShortcutContext = "overlay" | "editor";
+export type ShortcutContext = "overlay" | "editor" | "drawing";
 
 /** Every context, in display order, with the name Settings and refusal messages call it. */
-export const CONTEXT_NAME: Readonly<Record<ShortcutContext, string>> = { overlay: "Capture overlay", editor: "Editor" };
+export const CONTEXT_NAME: Readonly<Record<ShortcutContext, string>> = { overlay: "Capture overlay", editor: "Editor", drawing: "Drawing mode" };
 export const SHORTCUT_CONTEXTS = Object.keys(CONTEXT_NAME) as readonly ShortcutContext[];
 
 export interface ShortcutAction {
@@ -24,7 +24,7 @@ export interface ShortcutAction {
   context: ShortcutContext;
   /** "V", "Escape", "Space", "Ctrl+C", "Ctrl+Delete": modifiers joined with "+", then the key. */
   defaultKey: string;
-  /** False for the fixed keys of ticket 28 decision 8 (Esc, Ctrl+Z, Ctrl+Y, Ctrl+C, Delete, Backspace, ...): shown read-only. */
+  /** False for the fixed keys of ticket 28 decision 8 (Esc, Ctrl+Z, Ctrl+Y, Ctrl+C, Delete, Backspace, ...) the Arrow, Rectangle, Pen and Highlighter keys (fixed to match the drawing mode, ticket 41 decision 4, ticket 54), and the Line, Ellipse, Text, Callout, Blur, Crop, Bring forward and Send back keys: shown read-only, and a saved override is ignored. */
   remappable: boolean;
 }
 
@@ -34,16 +34,16 @@ export const SHORTCUT_REGISTRY: readonly ShortcutAction[] = [
   { id: "overlay.magnifier", label: "Toggle the magnifier", context: "overlay", defaultKey: "M", remappable: true },
 
   { id: "tool.select", label: "Select", context: "editor", defaultKey: "V", remappable: true },
-  { id: "tool.arrow", label: "Arrow", context: "editor", defaultKey: "A", remappable: true },
-  { id: "tool.line", label: "Line", context: "editor", defaultKey: "L", remappable: true },
-  { id: "tool.pen", label: "Pen", context: "editor", defaultKey: "P", remappable: true },
-  { id: "tool.rect", label: "Rectangle", context: "editor", defaultKey: "R", remappable: true },
-  { id: "tool.ellipse", label: "Ellipse", context: "editor", defaultKey: "E", remappable: true },
-  { id: "tool.text", label: "Text", context: "editor", defaultKey: "T", remappable: true },
-  { id: "tool.callout", label: "Callout", context: "editor", defaultKey: "O", remappable: true },
-  { id: "tool.highlight", label: "Highlighter", context: "editor", defaultKey: "H", remappable: true },
-  { id: "tool.blur", label: "Blur", context: "editor", defaultKey: "B", remappable: true },
-  { id: "tool.crop", label: "Crop", context: "editor", defaultKey: "C", remappable: true },
+  { id: "tool.arrow", label: "Arrow", context: "editor", defaultKey: "A", remappable: false },
+  { id: "tool.line", label: "Line", context: "editor", defaultKey: "L", remappable: false },
+  { id: "tool.pen", label: "Pen", context: "editor", defaultKey: "P", remappable: false },
+  { id: "tool.rect", label: "Rectangle", context: "editor", defaultKey: "R", remappable: false },
+  { id: "tool.ellipse", label: "Ellipse", context: "editor", defaultKey: "E", remappable: false },
+  { id: "tool.text", label: "Text", context: "editor", defaultKey: "T", remappable: false },
+  { id: "tool.callout", label: "Callout", context: "editor", defaultKey: "O", remappable: false },
+  { id: "tool.highlight", label: "Highlighter", context: "editor", defaultKey: "H", remappable: false },
+  { id: "tool.blur", label: "Blur", context: "editor", defaultKey: "B", remappable: false },
+  { id: "tool.crop", label: "Crop", context: "editor", defaultKey: "C", remappable: false },
   { id: "editor.deselect", label: "Deselect and return to Select", context: "editor", defaultKey: "Escape", remappable: false },
   { id: "editor.copy", label: "Copy (when nothing is selected)", context: "editor", defaultKey: "Ctrl+C", remappable: false },
   { id: "editor.discard", label: "Discard", context: "editor", defaultKey: "Ctrl+Delete", remappable: true },
@@ -53,12 +53,22 @@ export const SHORTCUT_REGISTRY: readonly ShortcutAction[] = [
   { id: "editor.redoAlt", label: "Redo (alternative)", context: "editor", defaultKey: "Ctrl+Shift+Z", remappable: true },
   { id: "editor.undo", label: "Undo", context: "editor", defaultKey: "Ctrl+Z", remappable: false },
   { id: "editor.redo", label: "Redo", context: "editor", defaultKey: "Ctrl+Y", remappable: false },
-  { id: "editor.bringForward", label: "Bring forward", context: "editor", defaultKey: "Ctrl+]", remappable: true },
-  { id: "editor.sendBack", label: "Send back", context: "editor", defaultKey: "Ctrl+[", remappable: true },
+  { id: "editor.bringForward", label: "Bring forward", context: "editor", defaultKey: "Ctrl+]", remappable: false },
+  { id: "editor.sendBack", label: "Send back", context: "editor", defaultKey: "Ctrl+[", remappable: false },
   { id: "view.fit", label: "Fit to window", context: "editor", defaultKey: "Ctrl+0", remappable: true },
   { id: "view.actualSize", label: "Actual size (100%)", context: "editor", defaultKey: "Ctrl+1", remappable: true },
   { id: "view.zoomIn", label: "Zoom in", context: "editor", defaultKey: "Ctrl+=", remappable: true },
   { id: "view.zoomOut", label: "Zoom out", context: "editor", defaultKey: "Ctrl+-", remappable: true },
+
+  // Drawing mode (ticket 41 decision 4, ticket 53): fixed, in-window keys of the drawing overlay, listed read-only in
+  // Settings. src/drawing/drawingKeys.ts reads the keys; a test keeps it and this table in step.
+  { id: "drawing.arrow", label: "Arrow", context: "drawing", defaultKey: "A", remappable: false },
+  { id: "drawing.rect", label: "Rectangle", context: "drawing", defaultKey: "R", remappable: false },
+  { id: "drawing.pen", label: "Pen", context: "drawing", defaultKey: "P", remappable: false },
+  { id: "drawing.highlight", label: "Highlighter", context: "drawing", defaultKey: "H", remappable: false },
+  { id: "drawing.undo", label: "Undo the last drawing", context: "drawing", defaultKey: "Ctrl+Z", remappable: false },
+  { id: "drawing.redo", label: "Redo", context: "drawing", defaultKey: "Ctrl+Y", remappable: false },
+  { id: "drawing.exit", label: "Leave Drawing mode and clear the drawings", context: "drawing", defaultKey: "Escape", remappable: false },
 ];
 
 export function shortcutsIn(context: ShortcutContext): readonly ShortcutAction[] {

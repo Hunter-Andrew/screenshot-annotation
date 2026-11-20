@@ -4,7 +4,7 @@
 
 **Blocked by:** nothing (builds on tickets 45 to 48, shipped in v0.6.0).
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 Spec: `.scratch/snagit-clone/spec.md`. Decision: Andrew, 2026-11-19. Planned for M6 (v1.0.0).
 
@@ -14,3 +14,7 @@ Spec: `.scratch/snagit-clone/spec.md`. Decision: Andrew, 2026-11-19. Planned for
 - [ ] Settings shows them read-only; a stale override for them in `settings.json` is ignored
 - [ ] Unit tests (written first) for the registry and for override loading; the remap e2e still passes with a remappable tool key (for example Line)
 - [ ] The release checklist's remap item no longer uses a fixed key
+
+## Answer
+
+Implemented in M6 on integration branch `claude/pensive-davinci-z10bb6`; reviewed with `code-review` and fixes applied. Awaiting the Windows manual checklist (`docs/release-checklist.md`, "For v1.0.0 (M6)") before any v1.0.0 tag; not released.

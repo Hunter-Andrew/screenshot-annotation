@@ -4,16 +4,16 @@ import { returnsToSelect, sanitizeBehavior } from "./toolBehavior";
 import { DEFAULT_RETURN_TO_SELECT, TOOLS } from "./tools";
 
 describe("whether a tool returns to Select after one use", () => {
-  it("defaults: the Pen stays, every other drawing tool returns", () => {
-    expect(returnsToSelect("pen", {})).toBe(false);
-    for (const id of ["arrow", "line", "rect", "ellipse", "text"]) expect(returnsToSelect(id, {})).toBe(true);
+  it("defaults: Text, Callout and Crop return; every other drawing tool stays", () => {
+    for (const id of ["pen", "highlight", "blur", "arrow", "line", "rect", "ellipse"]) expect(returnsToSelect(id, {})).toBe(false);
+    for (const id of ["text", "callout", "crop"]) expect(returnsToSelect(id, {})).toBe(true);
   });
 
   it("the user's choice beats the default, per tool", () => {
-    const chosen = { pen: true, rect: false };
+    const chosen = { pen: true, text: false };
     expect(returnsToSelect("pen", chosen)).toBe(true);
-    expect(returnsToSelect("rect", chosen)).toBe(false);
-    expect(returnsToSelect("arrow", chosen)).toBe(true);
+    expect(returnsToSelect("text", chosen)).toBe(false);
+    expect(returnsToSelect("arrow", chosen)).toBe(false);
   });
 
   it("a tool with no default (a future one) returns to Select", () => {

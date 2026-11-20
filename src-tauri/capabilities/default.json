@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Permissions for the Settings, editor, capture overlay and countdown badge windows. App commands (every #[tauri::command] registered in lib.rs, e.g. start_capture, start_delayed_capture, take_capture, library_*, history_*, open_settings, get_launch_at_sign_in, overlay_attempt, overlay_frame, countdown_remaining) are always allowed.",
-  "windows": ["settings", "editor", "overlay-*", "countdown"],
-  "permissions": ["core:default"]
+  "description": "Permissions for the Settings, editor, capture overlay, Drawing mode overlay and toolbar (the toolbar is dragged by its background: start-dragging), countdown badge and laser pointer windows. App commands (every #[tauri::command] registered in lib.rs, e.g. start_capture, start_delayed_capture, take_capture, library_*, history_*, open_settings, get_launch_at_sign_in, overlay_attempt, overlay_frame, countdown_remaining) are always allowed.",
+  "windows": ["settings", "editor", "overlay-*", "countdown", "laser-pointer", "drawing-*"],
+  "permissions": ["core:default", "core:window:allow-start-dragging"]
 }

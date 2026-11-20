@@ -18,18 +18,19 @@ async function openEditor() {
 }
 
 describe("Delay timer in the top bar", () => {
-  it("offers capture in 3s, 5s and 10s, in a group named for what it does", async () => {
+  it("offers only capture in 3s, in a group named for what it does", async () => {
     await openEditor();
     const group = screen.getByRole("group", { name: "Capture after a delay" });
-    expect(within(group).getAllByRole("button").map((b) => b.textContent)).toEqual(["3s", "5s", "10s"]);
+    expect(within(group).getAllByRole("button").map((b) => b.textContent)).toEqual(["3s"]);
   });
 
   it("starts the delay timer with the chosen number of seconds", async () => {
     const bridge = await openEditor();
     const group = screen.getByRole("group", { name: "Capture after a delay" });
-    await userEvent.click(within(group).getByRole("button", { name: "Capture in 5 seconds" }));
-    await userEvent.click(within(group).getByRole("button", { name: "Capture in 10 seconds" }));
-    expect(bridge.delayedCaptures).toEqual([5, 10]);
+    await userEvent.click(within(group).getByRole("button", { name: "Capture in 3 seconds" }));
+    expect(bridge.delayedCaptures).toEqual([3]);
+    expect(within(group).queryByRole("button", { name: "Capture in 5 seconds" })).toBeNull();
+    expect(within(group).queryByRole("button", { name: "Capture in 10 seconds" })).toBeNull();
   });
 
   it("each button says what it does to a screen reader and in its tooltip", async () => {

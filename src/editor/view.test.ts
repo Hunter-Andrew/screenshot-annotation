@@ -112,6 +112,45 @@ describe("scrollAfterZoom: the point in the middle of the view stays in the midd
   });
 });
 
+describe("scrollAfterZoom: with a pointer, the point under it stays under it", () => {
+  const view = { width: 800, height: 600 };
+
+  it("keeps the image point under the mouse fixed", () => {
+    // Mouse at (200, 100) in the view: image point ((100 + 200 - 16) / 1, (50 + 100 - 16) / 1) = (284, 134).
+    const next = scrollAfterZoom({
+      image: { width: 4000, height: 3000 },
+      view,
+      scroll: { left: 100, top: 50 },
+      from: 1,
+      to: 2,
+      pointer: { x: 200, y: 100 },
+    });
+
+    expect(next.left).toBeCloseTo(16 + 284 * 2 - 200);
+    expect(next.top).toBeCloseTo(16 + 134 * 2 - 100);
+  });
+
+  it("zooming out keeps it fixed too, and never scrolls negative", () => {
+    const next = scrollAfterZoom({
+      image: { width: 4000, height: 3000 },
+      view,
+      scroll: { left: 0, top: 0 },
+      from: 2,
+      to: 0.25,
+      pointer: { x: 700, y: 500 },
+    });
+
+    expect(next).toEqual({ left: 0, top: 0 });
+  });
+
+  it("a centred image anchors on its own middle whatever the pointer", () => {
+    const a = scrollAfterZoom({ image: { width: 100, height: 1000 }, view, scroll: { left: 0, top: 0 }, from: 0.568, to: 2 });
+    const b = scrollAfterZoom({ image: { width: 100, height: 1000 }, view, scroll: { left: 0, top: 0 }, from: 0.568, to: 2, pointer: { x: 10, y: 300 } });
+
+    expect(b).toEqual(a);
+  });
+});
+
 describe("visibleCaptureArea: the part of the Capture the well shows, in Capture pixels", () => {
   const rect = (left: number, top: number, width: number, height: number) => ({ left, top, right: left + width, bottom: top + height });
 

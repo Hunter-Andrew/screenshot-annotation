@@ -35,12 +35,12 @@ jobs:
           [ -z "$TRUSTED_SIGNING_PROFILE" ] && missing+=("variable TRUSTED_SIGNING_PROFILE")
           if [ ${#missing[@]} -eq 0 ]; then
             echo "signed=true" >> "$GITHUB_OUTPUT"
-            echo "artifact=Screenshot-Annotation-Setup" >> "$GITHUB_OUTPUT"
+            echo "artifact=Sigil-Setup" >> "$GITHUB_OUTPUT"
             echo "Signing: configured (Azure Trusted Signing)." >> "$GITHUB_STEP_SUMMARY"
           else
             list="$(IFS=,; echo "${missing[*]}")"
             echo "signed=false" >> "$GITHUB_OUTPUT"
-            echo "artifact=Screenshot-Annotation-Setup" >> "$GITHUB_OUTPUT"
+            echo "artifact=Sigil-Setup" >> "$GITHUB_OUTPUT"
             echo "::warning title=Installer is unsigned::Smart App Control may block unsigned installers on some machines. Not configured: $list"
             echo "### Unsigned installer" >> "$GITHUB_STEP_SUMMARY"
             echo "This build is not code-signed. Not configured: $list. To sign, add them under Settings > Secrets and variables > Actions (secrets AZURE_*, variables TRUSTED_SIGNING_*)." >> "$GITHUB_STEP_SUMMARY"
@@ -91,7 +91,7 @@ jobs:
         if: steps.signing.outputs.signed == 'true'
         shell: bash
         run: |
-          npx tauri build --config "{\"bundle\":{\"windows\":{\"signCommand\":\"trusted-signing-cli -e $TRUSTED_SIGNING_ENDPOINT -a $TRUSTED_SIGNING_ACCOUNT -c $TRUSTED_SIGNING_PROFILE -d \\\"Screenshot Annotation\\\" %1\"}}}"
+          npx tauri build --config "{\"bundle\":{\"windows\":{\"signCommand\":\"trusted-signing-cli -e $TRUSTED_SIGNING_ENDPOINT -a $TRUSTED_SIGNING_ACCOUNT -c $TRUSTED_SIGNING_PROFILE -d \\\"Sigil\\\" %1\"}}}"
 
       - name: Build installer (unsigned)
         if: steps.signing.outputs.signed != 'true'
@@ -139,7 +139,7 @@ jobs:
 
       - uses: actions/download-artifact@v4
         with:
-          name: Screenshot-Annotation-Setup
+          name: Sigil-Setup
           path: dist-release
 
       # The installer is not code-signed by a certificate authority (ADR 0006), so what is offered instead is a

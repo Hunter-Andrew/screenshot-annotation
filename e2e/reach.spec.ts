@@ -1,4 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
+import { shapesReturnToSelect } from "./legacyStyles";
 import { legacyMargins } from "./sameCropMargin";
 
 legacyMargins(test);
@@ -53,6 +54,10 @@ async function copiedSize(page: Page) {
 }
 
 const near = (value: number, expected: number, tolerance = 4) => expect(Math.abs(value - expected)).toBeLessThanOrEqual(tolerance);
+
+test.beforeEach(async ({ page }) => {
+  await shapesReturnToSelect(page);
+});
 
 test.describe("a drag follows the pointer past the canvas and the window", () => {
   test("a rectangle dragged far down and right, outside the window, grows the image as far as the pointer", async ({ page }) => {

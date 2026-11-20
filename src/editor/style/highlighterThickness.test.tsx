@@ -26,8 +26,8 @@ describe("Highlighter thickness presets", () => {
     expect(onChange).toHaveBeenCalledWith("stroke", { color: "#ffff00", width: 12 });
   });
 
-  it("shows no preset pressed for a stored width that is none of them (the default 20)", () => {
-    render(<StylePanel kind={highlightKind} style={highlightKind.defaultStyle} onChange={vi.fn()} />);
+  it("shows no preset pressed for a stored width that is none of them (20)", () => {
+    render(<StylePanel kind={highlightKind} style={{ ...highlightKind.defaultStyle, stroke: { color: "#ffff00", width: 20 } }} onChange={vi.fn()} />);
     expect(pressed()).toEqual([]);
   });
 

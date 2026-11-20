@@ -1,0 +1,72 @@
+/* The Drawing mode toolbar (ticket 53): a small pill in its own transparent window. Colours come from theme.css
+   (the facelift green marks the active tool, the purple accent marks Use apps). */
+.drawing-toolbar {
+  box-sizing: border-box;
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  background: var(--chrome);
+  color: var(--fg);
+  font-family: system-ui, sans-serif;
+  user-select: none;
+  overflow: hidden;
+}
+.drawing-toolbar [data-grip] {
+  flex: 0 0 14px;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  cursor: grab;
+}
+.drawing-toolbar [data-grip] span {
+  width: 4px;
+  height: 18px;
+  border-left: 2px dotted currentColor;
+  border-right: 2px dotted currentColor;
+  pointer-events: none;
+}
+.drawing-toolbar button {
+  flex: 0 0 36px;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  border-radius: 50%;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+.drawing-toolbar button:hover:not(:disabled) {
+  background: var(--pressed);
+}
+.drawing-toolbar button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.drawing-toolbar button[aria-pressed="true"][data-kind="tool"] {
+  background: var(--accent2);
+  color: var(--accent2-fg);
+  border-color: var(--accent2-edge);
+}
+.drawing-toolbar button[aria-pressed="true"][data-kind="useApps"] {
+  background: var(--accent);
+  color: var(--accent-fg);
+}
+.drawing-toolbar button[data-kind="exit"]:hover {
+  color: var(--danger);
+}
+.drawing-toolbar [role="separator"] {
+  flex: 0 0 1px;
+  height: 22px;
+  background: var(--line);
+}

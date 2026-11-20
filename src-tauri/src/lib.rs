@@ -5,10 +5,14 @@ mod capture_wire;
 mod countdown;
 mod delay;
 mod diag;
+mod drawing;
+mod drawing_plan;
 mod editor_window;
 mod geometry;
 mod history_store;
 mod hotkey;
+mod laser_pointer;
+mod laser_pointer_math;
 mod library;
 mod library_index;
 mod overlay;
@@ -17,6 +21,7 @@ mod print_screen;
 mod print_screen_key;
 mod raw_input;
 mod settings;
+mod system_cursor;
 mod url_guard;
 mod watchdog;
 mod thumbnail;
@@ -30,7 +35,7 @@ use std::time::Duration;
 
 use tauri::{
     ipc::{InvokeBody, Request, Response},
-    menu::MenuBuilder,
+    menu::{CheckMenuItemBuilder, MenuBuilder, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
     AppHandle, Emitter, Manager, RunEvent, WebviewUrl, WebviewWindowBuilder,
 };
@@ -91,6 +96,30 @@ impl hotkey::ShortcutRegistry for PluginRegistry<'_> {
         accelerator
             .parse::<Shortcut>()
             .is_ok_and(|shortcut| self.0.global_shortcut().is_registered(shortcut))
+    }
+}
+
+/// The three global hotkeys the plugin handler tells apart, parsed, so it can tell which one fired without
+/// taking the settings lock (a command holds that lock while it registers, and the handler runs on the
+/// event loop). Slots: `LASER_POINTER_SLOT`, `DRAWING_MODE_SLOT` and `CAPTURE_SLOT`. A slot is updated
+/// after its new hotkey is registered and saved, so a press of a hotkey that is registered but not yet in
+/// its slot matches nothing and the handler ignores it (it must never fall through to a capture). Held only
+/// for a copy, never while registering.
+#[derive(Default)]
+struct DemoShortcuts(Mutex<[Option<Shortcut>; 3]>);
+
+const LASER_POINTER_SLOT: usize = 0;
+const DRAWING_MODE_SLOT: usize = 1;
+const CAPTURE_SLOT: usize = 2;
+
+impl DemoShortcuts {
+    fn set(&self, index: usize, accelerator: &str) {
+        self.0.lock().unwrap_or_else(|p| p.into_inner())[index] = accelerator.parse::<Shortcut>().ok();
+    }
+    /// Which slot `shortcut` is in, if any.
+    fn which(&self, shortcut: &Shortcut) -> Option<usize> {
+        let held = *self.0.lock().unwrap_or_else(|p| p.into_inner());
+        held.iter().position(|s| s.as_ref() == Some(shortcut))
     }
 }
 
@@ -165,6 +194,15 @@ struct HotkeyState {
 
 #[derive(serde::Serialize)]
 #[serde(rename_all = "camelCase")]
+struct DemoHotkeys {
+    laser_pointer: String,
+    drawing_mode: String,
+    laser_pointer_registered: bool,
+    drawing_mode_registered: bool,
+}
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 struct PrintScreenNotice {
     snipping_enabled: bool,
     dismissed: bool,
@@ -205,10 +243,19 @@ fn get_hotkey(app: AppHandle, state: tauri::State<'_, AppSettings>) -> HotkeySta
 /// Re-registers the capture hotkey and saves it. Errors: "conflict" (another app owns it; the old
 /// hotkey stays), "invalid", "failed" (could not save; the old hotkey stays).
 #[tauri::command]
-fn set_hotkey(app: AppHandle, state: tauri::State<'_, AppSettings>, accelerator: String) -> Result<(), String> {
+fn set_hotkey(
+    app: AppHandle,
+    state: tauri::State<'_, AppSettings>,
+    demo: tauri::State<'_, DemoShortcuts>,
+    accelerator: String,
+) -> Result<(), String> {
     let mut data = state.data.lock().unwrap();
     let old = data.hotkey.clone();
     diag::log(&format!("set_hotkey: requested {accelerator} (current {old})"));
+    if hotkey::clashes_with_demo(&accelerator, &data.laser_pointer_hotkey, &data.drawing_mode_hotkey) {
+        diag::log(&format!("set_hotkey: {accelerator} refused (a demo-tool hotkey uses it); {old} stays in force"));
+        return Err("demo-hotkey".to_string());
+    }
     let mut next = data.clone();
     next.hotkey = accelerator.clone();
     let outcome = hotkey::change_hotkey(&registry(&app), &old, &accelerator, || {
@@ -217,6 +264,7 @@ fn set_hotkey(app: AppHandle, state: tauri::State<'_, AppSettings>, accelerator:
     match outcome {
         Ok(()) => {
             diag::log(&format!("set_hotkey: {accelerator} is now the capture hotkey (saved)"));
+            demo.set(CAPTURE_SLOT, &accelerator);
             data.hotkey = accelerator;
             Ok(())
         }
@@ -225,6 +273,149 @@ fn set_hotkey(app: AppHandle, state: tauri::State<'_, AppSettings>, accelerator:
             Err(code.to_string())
         }
     }
+}
+
+/// The laser-pointer and drawing-mode hotkeys and whether the OS accepted each (false: another app has it).
+#[tauri::command]
+fn get_demo_hotkeys(app: AppHandle, state: tauri::State<'_, AppSettings>) -> DemoHotkeys {
+    use hotkey::ShortcutRegistry;
+    let (laser_pointer, drawing_mode) = {
+        let data = state.data.lock().unwrap();
+        (data.laser_pointer_hotkey.clone(), data.drawing_mode_hotkey.clone())
+    };
+    let reg = registry(&app);
+    let laser_pointer_registered = reg.is_registered(&laser_pointer);
+    let drawing_mode_registered = reg.is_registered(&drawing_mode);
+    diag::log(&format!(
+        "get_demo_hotkeys: laser pointer {laser_pointer} (registered by this app: {laser_pointer_registered}), drawing mode {drawing_mode} (registered by this app: {drawing_mode_registered})"
+    ));
+    DemoHotkeys { laser_pointer, drawing_mode, laser_pointer_registered, drawing_mode_registered }
+}
+
+/// Re-registers one demo hotkey (`action`: "laserPointer" or "drawingMode") and saves it, like `set_hotkey`.
+/// Errors: "print-screen", "capture-hotkey", "other-demo" (refused before anything changes), "conflict" (another
+/// app owns it), "invalid", "failed" (could not save); the old hotkey stays in force on every error.
+#[tauri::command]
+fn set_demo_hotkey(
+    app: AppHandle,
+    state: tauri::State<'_, AppSettings>,
+    demo: tauri::State<'_, DemoShortcuts>,
+    action: String,
+    accelerator: String,
+) -> Result<(), String> {
+    let mut data = state.data.lock().unwrap();
+    let is_laser_pointer = match action.as_str() {
+        "laserPointer" => true,
+        "drawingMode" => false,
+        _ => return Err("invalid".to_string()),
+    };
+    let (old, other) = if is_laser_pointer {
+        (data.laser_pointer_hotkey.clone(), data.drawing_mode_hotkey.clone())
+    } else {
+        (data.drawing_mode_hotkey.clone(), data.laser_pointer_hotkey.clone())
+    };
+    diag::log(&format!("set_demo_hotkey: {action} requested {accelerator} (current {old})"));
+    if let Some(code) = hotkey::demo_refusal(&accelerator, &data.hotkey, &other) {
+        diag::log(&format!("set_demo_hotkey: {accelerator} refused ({code}); {old} stays in force"));
+        return Err(code.to_string());
+    }
+    let mut next = data.clone();
+    if is_laser_pointer {
+        next.laser_pointer_hotkey = accelerator.clone();
+    } else {
+        next.drawing_mode_hotkey = accelerator.clone();
+    }
+    let outcome = hotkey::change_hotkey(&registry(&app), &old, &accelerator, || {
+        settings::save(&state.dir, &next)
+            .inspect_err(|e| diag::log(&format!("set_demo_hotkey: could not save settings.json: {e}")))
+    });
+    match outcome {
+        Ok(()) => {
+            diag::log(&format!("set_demo_hotkey: {accelerator} is now the {action} hotkey (saved)"));
+            if is_laser_pointer {
+                data.laser_pointer_hotkey = accelerator.clone();
+            } else {
+                data.drawing_mode_hotkey = accelerator.clone();
+            }
+            demo.set(if is_laser_pointer { LASER_POINTER_SLOT } else { DRAWING_MODE_SLOT }, &accelerator);
+            if is_laser_pointer {
+                laser_pointer::refresh_tray_label(&app, &accelerator);
+            } else {
+                drawing::update_tray_label(&app, &accelerator);
+            }
+            Ok(())
+        }
+        Err(code) => {
+            diag::log(&format!("set_demo_hotkey: {accelerator} refused ({code}); {old} stays in force"));
+            Err(code.to_string())
+        }
+    }
+}
+
+/// How the laser pointer looks (colour, size, ripple), stored in settings.json (ticket 50).
+#[tauri::command]
+fn get_laser_pointer_settings(state: tauri::State<'_, AppSettings>) -> settings::LaserPointerSettings {
+    state.data.lock().unwrap().laser_pointer_settings()
+}
+
+/// Stores how the laser pointer looks and shows it at once on a visible dot. A failed write is logged and the
+/// value stays in memory for this run; a colour that is not #RRGGBB or an unknown size is refused.
+#[tauri::command]
+fn set_laser_pointer_settings(
+    app: AppHandle,
+    state: tauri::State<'_, AppSettings>,
+    laser_pointer: settings::LaserPointerSettings,
+) -> Result<(), String> {
+    let mut data = state.data.lock().unwrap();
+    let saved = settings::set_laser_pointer_settings(&state.dir, &mut data, &laser_pointer);
+    if let Err(e) = &saved {
+        diag::log(&format!("laser pointer settings {laser_pointer:?}; could not save settings.json (kept in memory): {e}"));
+    }
+    let now = data.laser_pointer_settings();
+    drop(data);
+    laser_pointer::apply_settings(&app, &now);
+    saved.or_else(|e| if e.kind() == std::io::ErrorKind::InvalidInput { Err(e.to_string()) } else { Ok(()) })
+}
+
+/// Whether the laser pointer hides the system mouse arrow while it is on (`laserPointerHideCursor`, default true).
+#[tauri::command]
+fn get_laser_pointer_hide_cursor(state: tauri::State<'_, AppSettings>) -> bool {
+    state.data.lock().unwrap().laser_pointer_hide_cursor
+}
+
+/// Stores `laserPointerHideCursor` and applies it at once: with the Laser pointer on, the arrow is hidden or brought back. A
+/// failed write is logged and the value stays in memory for this run.
+#[tauri::command]
+fn set_laser_pointer_hide_cursor(app: AppHandle, state: tauri::State<'_, AppSettings>, hide: bool) {
+    let mut data = state.data.lock().unwrap();
+    if let Err(e) = settings::set_laser_pointer_hide_cursor(&state.dir, &mut data, hide) {
+        diag::log(&format!("laser pointer hide cursor set to {hide}; could not save settings.json (kept in memory): {e}"));
+    }
+    drop(data);
+    laser_pointer::refresh_cursor(&app);
+}
+
+/// Drawing mode's Highlighter opacity in percent (`drawingHighlighterOpacity`, 5 to 60, default 20).
+#[tauri::command]
+fn get_drawing_highlighter_opacity(state: tauri::State<'_, AppSettings>) -> u32 {
+    state.data.lock().unwrap().drawing_highlighter_opacity
+}
+
+/// Stores Drawing mode's Highlighter opacity; a value outside 5 to 60 is refused. It is read when Drawing mode starts.
+#[tauri::command]
+fn set_drawing_highlighter_opacity(state: tauri::State<'_, AppSettings>, percent: u32) -> Result<(), String> {
+    let mut data = state.data.lock().unwrap();
+    let saved = settings::set_drawing_highlighter_opacity(&state.dir, &mut data, percent);
+    if let Err(e) = &saved {
+        diag::log(&format!("Drawing mode Highlighter opacity set to {percent}; could not save settings.json (kept in memory): {e}"));
+    }
+    saved.or_else(|e| if e.kind() == std::io::ErrorKind::InvalidInput { Err(e.to_string()) } else { Ok(()) })
+}
+
+/// Switch the laser pointer on or off (the editor's button, ticket 51). Returns at once.
+#[tauri::command]
+fn set_laser_pointer(app: AppHandle, on: bool) {
+    laser_pointer::request(&app, Some(on));
 }
 
 /// Whether Windows still gives Print Screen to Snipping Tool (read-only registry check), and
@@ -546,7 +737,7 @@ fn write_plain_png_to_clipboard(app: &AppHandle, png: &[u8]) -> Result<(), Strin
     app.clipboard().write_image(&image).map_err(|e| e.to_string())
 }
 
-/// Saves a new Library PNG under Pictures\Screenshot Annotation\YYYY-MM\. The `x-captured-at`
+/// Saves a new Library PNG under Pictures\Sigil (Screenshot Annotation)\YYYY-MM\. The `x-captured-at`
 /// header carries the local capture time as `YYYY-MM-DD HHmmss`. Returns the path written.
 #[tauri::command]
 fn library_save(app: AppHandle, request: Request<'_>) -> Result<String, String> {
@@ -973,10 +1164,10 @@ fn close_editor_to_tray(app: &AppHandle) {
             use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
             app.dialog()
                 .message(
-                    "Screenshot Annotation is still running in the system tray, so the capture hotkey keeps \
+                    "Sigil is still running in the system tray, so the capture hotkey keeps \
                      working.\n\nClick its tray icon to open the editor again, or right-click it and choose Exit to quit.",
                 )
-                .title("Screenshot Annotation")
+                .title("Sigil (Screenshot Annotation)")
                 .kind(MessageDialogKind::Info)
                 .blocking_show();
         });
@@ -987,7 +1178,7 @@ fn close_editor_to_tray(app: &AppHandle) {
 /// pre-warmed window and for a window made on demand.
 fn editor_builder<'a>(app: &'a AppHandle) -> WebviewWindowBuilder<'a, tauri::Wry, AppHandle> {
     new_window(app, EDITOR_LABEL, WebviewUrl::App("index.html".into()))
-        .title("Screenshot Annotation")
+        .title("Sigil (Screenshot Annotation)")
         .inner_size(1100.0, 720.0)
         .min_inner_size(760.0, 480.0)
 }
@@ -1108,6 +1299,7 @@ pub fn run() {
         })
         .manage(RawInput::default())
         .manage(overlay::OverlayState::default())
+        .manage(drawing::DrawingState::default())
         // A second launch focuses the running instance.
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| request_editor(app, "second launch")))
         .plugin(tauri_plugin_clipboard_manager::init())
@@ -1143,6 +1335,17 @@ pub fn run() {
             save_png_as,
             get_hotkey,
             set_hotkey,
+            get_demo_hotkeys,
+            set_demo_hotkey,
+            get_laser_pointer_settings,
+            set_laser_pointer_settings,
+            set_laser_pointer,
+            get_laser_pointer_hide_cursor,
+            set_laser_pointer_hide_cursor,
+            get_drawing_highlighter_opacity,
+            set_drawing_highlighter_opacity,
+            laser_pointer::get_laser_pointer,
+            laser_pointer::laser_pointer_view,
             get_print_screen_notice,
             settings_log,
             dismiss_print_screen_notice,
@@ -1157,6 +1360,10 @@ pub fn run() {
             overlay::overlay_ready,
             overlay::overlay_log,
             overlay::overlay_finish,
+            drawing::drawing_exit,
+            drawing::set_drawing_tool,
+            drawing::set_drawing_click_through,
+            drawing::resize_drawing_toolbar,
             get_magnifier,
             set_magnifier,
             get_image_settings,
@@ -1183,7 +1390,19 @@ pub fn run() {
                         if *shortcut == countdown::escape_shortcut() {
                             countdown::cancel(app);
                         } else {
-                            capture_async(app.clone(), "hotkey");
+                            match app.try_state::<DemoShortcuts>().and_then(|d| d.which(shortcut)) {
+                                Some(LASER_POINTER_SLOT) => {
+                                    diag::log("hotkey event: laser pointer hotkey pressed");
+                                    laser_pointer::request(app, None);
+                                }
+                                Some(DRAWING_MODE_SLOT) => {
+                                    diag::log("hotkey event: drawing mode hotkey pressed");
+                                    drawing::toggle(app.clone(), "hotkey");
+                                }
+                                Some(CAPTURE_SLOT) => capture_async(app.clone(), "hotkey"),
+                                // Registered a moment ago and not yet in its slot (a hotkey being changed): never a capture.
+                                _ => diag::log("hotkey event: not a known hotkey (being changed?), ignored"),
+                            }
                         }
                     })
                     .build(),
@@ -1192,8 +1411,20 @@ pub fn run() {
             diag::init(&dir);
             diag::log(&format!("started, version {}", app.package_info().version));
             let loaded = settings::load(&dir);
+            // The handler tells the hotkeys apart by these slots: fill and manage them before registering any.
+            let demo_shortcuts = DemoShortcuts::default();
+            demo_shortcuts.set(CAPTURE_SLOT, &loaded.hotkey);
+            demo_shortcuts.set(LASER_POINTER_SLOT, &loaded.laser_pointer_hotkey);
+            demo_shortcuts.set(DRAWING_MODE_SLOT, &loaded.drawing_mode_hotkey);
+            app.manage(demo_shortcuts);
+            app.manage(laser_pointer::LaserPointerState::new(&loaded.laser_pointer_settings()));
+            // An earlier run killed while the laser pointer hid the mouse arrow may have left it hidden.
+            laser_pointer::restore_cursor_on_startup();
             // A taken hotkey must not stop the app from starting; Settings shows the conflict warning.
             let _ = hotkey::ShortcutRegistry::register(&registry(app.handle()), &loaded.hotkey);
+            // The demo-tool hotkeys the same way (ticket 49): a taken one is shown in Settings > Demo tools.
+            let _ = hotkey::ShortcutRegistry::register(&registry(app.handle()), &loaded.laser_pointer_hotkey);
+            let _ = hotkey::ShortcutRegistry::register(&registry(app.handle()), &loaded.drawing_mode_hotkey);
             let reading = print_screen::read();
             diag::log(&format!(
                 "startup: hotkey {}, one-time notice answered: {}; {}",
@@ -1203,6 +1434,8 @@ pub fn run() {
             ));
             let notice_pending = !loaded.print_screen_notice_dismissed && reading.enabled();
             let launch_at_sign_in = loaded.launch_at_sign_in;
+            let laser_pointer_hotkey = loaded.laser_pointer_hotkey.clone();
+            let drawing_hotkey = loaded.drawing_mode_hotkey.clone();
             app.manage(AppSettings { dir, data: Mutex::new(loaded) });
             if notice_pending {
                 // First run: open Settings, where the one-time Print Screen notice lives.
@@ -1212,9 +1445,23 @@ pub fn run() {
             sync_launch_at_sign_in(launch_at_sign_in);
 
             let mut menu = MenuBuilder::new(app);
-            for entry in tray_menu::entries(&delay::CHOICES) {
+            // The laser pointer is off at every start (its state is not saved), so its item starts unchecked.
+            for entry in tray_menu::entries(&delay::CHOICES, &laser_pointer_hotkey, false, &drawing_hotkey) {
                 menu = match entry {
+                    // The "Draw on screen" item is kept, so its label can follow the hotkey when it is changed.
+                    tray_menu::Entry::Item { id, label } if id == tray_menu::DRAW_ID => {
+                        let draw = MenuItem::with_id(app, id, label, true, None::<&str>)?;
+                        let menu = menu.item(&draw);
+                        app.manage(drawing::TrayItem(draw));
+                        menu
+                    }
                     tray_menu::Entry::Item { id, label } => menu.text(id, label),
+                    tray_menu::Entry::Check { id, label, checked } => {
+                        let item = CheckMenuItemBuilder::with_id(id, label).checked(checked).build(app.handle())?;
+                        let menu = menu.item(&item);
+                        app.state::<laser_pointer::LaserPointerState>().set_tray_item(item);
+                        menu
+                    }
                     tray_menu::Entry::Separator => menu.separator(),
                 };
             }
@@ -1222,7 +1469,7 @@ pub fn run() {
             if let Some(icon) = app.default_window_icon() {
                 tray = tray.icon(icon.clone());
             }
-            tray.tooltip("Screenshot Annotation")
+            tray.tooltip("Sigil (Screenshot Annotation)")
                 .menu(&menu.build()?)
                 .show_menu_on_left_click(false)
                 .on_tray_icon_event(|tray, event| {
@@ -1238,7 +1485,9 @@ pub fn run() {
                 .on_menu_event(|app, event| match tray_menu::action_for(event.id.as_ref()) {
                     Some(tray_menu::Action::Capture) => capture_async(app.clone(), "tray"),
                     Some(tray_menu::Action::CaptureIn(seconds)) => overlay::begin_delayed(app.clone(), seconds),
+                    Some(tray_menu::Action::DrawOnScreen) => drawing::toggle(app.clone(), "tray"),
                     Some(tray_menu::Action::OpenLogFolder) => open_log_folder(),
+                    Some(tray_menu::Action::ToggleLaserPointer) => laser_pointer::request(app, None),
                     Some(tray_menu::Action::OpenEditor) => request_editor(app, "tray menu"),
                     Some(tray_menu::Action::Settings) => request_settings(app, "tray menu"),
                     Some(tray_menu::Action::Exit) => app.exit(0),
@@ -1250,13 +1499,16 @@ pub fn run() {
             Ok(())
         })
         .build(tauri::generate_context!())
-        .expect("error while building Screenshot Annotation")
-        .run(|_app, event| {
+        .expect("error while building Sigil")
+        .run(|app, event| match event {
             // Closing a window must not quit the app; only the tray's Exit does (app.exit(0)).
-            if let RunEvent::ExitRequested { api, code, .. } = event {
+            RunEvent::ExitRequested { api, code, .. } => {
                 if code.is_none() {
                     api.prevent_exit();
                 }
             }
+            // The app is going: bring the mouse arrow back if the laser pointer had hidden it.
+            RunEvent::Exit => laser_pointer::restore_cursor_on_exit(app),
+            _ => {}
         });
 }

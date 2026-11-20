@@ -12,7 +12,7 @@ describe("capturedAtFromPath", () => {
     const expected = new Date(2026, 10, 5, 9, 3, 7).getTime();
 
     expect(capturedAtFromPath("2026-11\\2026-11-05 090307.png")?.getTime()).toBe(expected);
-    expect(capturedAtFromPath("C:\\Users\\a\\Pictures\\Screenshot Annotation\\2026-11\\2026-11-05 090307-2.png")?.getTime()).toBe(expected);
+    expect(capturedAtFromPath("C:\\Users\\a\\Pictures\\Sigil (Screenshot Annotation)\\2026-11\\2026-11-05 090307-2.png")?.getTime()).toBe(expected);
     expect(capturedAtFromPath("/home/a/2026-11-05 090307.png")?.getTime()).toBe(expected);
   });
 

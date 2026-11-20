@@ -1,10 +1,15 @@
 import { invoke } from "@tauri-apps/api/core";
-import { listen } from "@tauri-apps/api/event";
+import { emit, listen } from "@tauri-apps/api/event";
+import { DRAWING_TOOLS, type DrawingTool } from "../drawing/drawingState";
+import type { DrawingEdit } from "../drawing/toolbarState";
 import { sanitizeImageSettings } from "../shared/imageSettings";
 import { formatStamp } from "../shared/stamp";
 import { watchLibrary } from "./libraryWatch";
 import type {
   CaptureResult,
+  DemoHotkeys,
+  LaserPointerSettings,
+  LaserPointerView,
   HotkeyState,
   LibraryFile,
   LibraryItem,
@@ -90,9 +95,36 @@ export function createTauriBridge(): PlatformBridge {
         await invoke<void>("set_hotkey", { accelerator });
         return { ok: true };
       } catch (e) {
-        return { ok: false, reason: e === "conflict" || e === "invalid" ? e : "failed" };
+        return { ok: false, reason: e === "conflict" || e === "invalid" || e === "demo-hotkey" ? e : "failed" };
       }
     },
+    getDemoHotkeys: () => invoke<DemoHotkeys>("get_demo_hotkeys"),
+    setDemoHotkey: async (action, accelerator) => {
+      try {
+        await invoke<void>("set_demo_hotkey", { action, accelerator });
+        return { ok: true };
+      } catch (e) {
+        return {
+          ok: false,
+          reason:
+            e === "conflict" || e === "invalid" || e === "print-screen" || e === "capture-hotkey" || e === "other-demo"
+              ? e
+              : "failed",
+        };
+      }
+    },
+    getLaserPointerSettings: () => invoke<LaserPointerSettings>("get_laser_pointer_settings"),
+    setLaserPointerSettings: (settings) => invoke<void>("set_laser_pointer_settings", { laserPointer: settings }),
+    getLaserPointerHideCursor: () => invoke<boolean>("get_laser_pointer_hide_cursor"),
+    setLaserPointerHideCursor: (hide) => invoke<void>("set_laser_pointer_hide_cursor", { hide }),
+    getDrawingHighlighterOpacity: () => invoke<number>("get_drawing_highlighter_opacity"),
+    setDrawingHighlighterOpacity: (percent) => invoke<void>("set_drawing_highlighter_opacity", { percent }),
+    getLaserPointer: () => invoke<boolean>("get_laser_pointer"),
+    setLaserPointer: (on) => invoke<void>("set_laser_pointer", { on }),
+    onLaserPointer: (handler) => listen<boolean>("laser-pointer-state", (event) => handler(event.payload === true)),
+    getLaserPointerView: () => invoke<LaserPointerView>("laser_pointer_view"),
+    onLaserPointerView: (handler) => listen<LaserPointerView>("laser-pointer-view", (event) => handler(event.payload)),
+    onLaserPointerRipple: (handler) => listen("laser-pointer-ripple", () => handler()),
     getPrintScreenNotice: () =>
       invoke<{ snippingEnabled: boolean; dismissed: boolean }>("get_print_screen_notice"),
     dismissPrintScreenNotice: () => invoke<void>("dismiss_print_screen_notice"),
@@ -140,6 +172,18 @@ export function createTauriBridge(): PlatformBridge {
     overlayWindows: (monitor) => invoke<OverlayRect[]>("overlay_windows", { monitor }),
     overlayReady: (monitor) => invoke<void>("overlay_ready", { monitor }),
     finishOverlay: (outcome) => invoke<void>("overlay_finish", { outcome }),
+    exitDrawingMode: () => invoke<void>("drawing_exit"),
+    setDrawingTool: (tool) => invoke<void>("set_drawing_tool", { tool }),
+    onDrawingTool: (handler) =>
+      listen<string>("drawing-tool", (event) => {
+        if (DRAWING_TOOLS.includes(event.payload as DrawingTool)) handler(event.payload as DrawingTool);
+      }),
+    setDrawingClickThrough: (on) => invoke<void>("set_drawing_click_through", { on }),
+    resizeDrawingToolbar: (width, height) => invoke<void>("resize_drawing_toolbar", { width, height }),
+    sendDrawingEdit: (edit) => emit("drawing-edit", edit),
+    onDrawingEdit: (handler) => listen<DrawingEdit>("drawing-edit", (event) => handler(event.payload)),
+    undoDrawing: (monitor) => emit("drawing-undo", monitor),
+    onDrawingUndo: (handler) => listen<number>("drawing-undo", (event) => handler(event.payload)),
     logOverlay: async (message, fatal = false) => {
       try {
         await invoke<void>("overlay_log", { message, fatal });

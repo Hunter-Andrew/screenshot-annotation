@@ -1,4 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
+import { legacyTextStyles } from "./legacyStyles";
 import { decodePixels } from "../src/core/testing";
 import { liveArea } from "./liveCanvas";
 
@@ -103,6 +104,7 @@ test("dragging out a Callout with its tail and leaving the box by clicking away 
 });
 
 test("an empty Callout can be moved, resized, and edited by double-click", async ({ page }) => {
+  await legacyTextStyles(page);
   await page.goto("/");
   const view = await capture(page, 600, 400);
   await page.keyboard.press("o");

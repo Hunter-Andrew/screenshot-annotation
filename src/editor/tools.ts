@@ -25,17 +25,17 @@ export const TOOLS: readonly Tool[] = [
  * Per-tool default for "return to Select after one use". The one table of tool-behavior defaults, next
  * to the registry (ticket 28's remapping must not scatter it): a new tool adds one line here. The user's
  * own choice per tool (the Style panel checkbox) overrides it; see toolBehavior.ts.
- * Pen stays on the tool (strokes come in runs); the rest switch back, as drawing always did.
+ * Every drawing tool but Text and Callout (which are edited right after) stays on the tool, since shapes come in runs; Crop switches back.
  */
 export const DEFAULT_RETURN_TO_SELECT: Readonly<Record<string, boolean>> = {
-  arrow: true,
-  line: true,
-  rect: true,
-  ellipse: true,
+  arrow: false,
+  line: false,
+  rect: false,
+  ellipse: false,
   text: true,
   callout: true,
   pen: false,
   highlight: false,
-  blur: true,
+  blur: false,
   crop: true,
 };

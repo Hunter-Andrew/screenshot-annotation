@@ -1,8 +1,8 @@
-# screenshot-annotation
+# Sigil (Screenshot Annotation)
 
 A Windows desktop app for capturing and annotating screenshots, in the style of Snagit (images only, no video). It installs per-user, with no admin rights needed.
 
-> **Status:** Milestones M0 to M2 are built. M3 (Library) is built (the Library Strip, the full-window grid, delete with Undo and the folder as the source of truth) and is at version 0.4.0 in the code; it is not released until the [release checklist](docs/release-checklist.md) has passed on the Windows test PC. M4 (Callout, Highlighter, Blur, Crop and polish) is next. Decisions are recorded in [.scratch/snagit-clone/map.md](.scratch/snagit-clone/map.md) and [docs/adr/](docs/adr/); terms are in [GLOSSARY.md](GLOSSARY.md).
+> **Status:** Milestones M0 to M5 are released (the latest is v0.6.0). M6 (Desktop demo tools: the laser pointer, drawing mode over the screen and the fixed editor tool keys) is built; v1.0.0 (the version bump included) is not released until the [release checklist](docs/release-checklist.md) has passed on the Windows test PC. Exclusive full-screen games are not supported by the demo tools ([ADR 0009](docs/adr/0009-demo-tool-hotkeys-and-click-through-windows.md)). Decisions are recorded in [.scratch/snagit-clone/map.md](.scratch/snagit-clone/map.md) and [docs/adr/](docs/adr/); terms are in [GLOSSARY.md](GLOSSARY.md).
 
 ## Roadmap
 
@@ -11,17 +11,17 @@ A Windows desktop app for capturing and annotating screenshots, in the style of 
 | M0 · Skeleton | v0.1 | Built | Per-user installer, tray icon, Settings/About, CI and Releases |
 | M1 · Capture → Copy | v0.2 | Built | Hotkey, capture overlay, editor view, Copy, Save as PNG; captures saved to the Library |
 | M2 · Annotate | v0.3 | Built | Arrow, Line, Pen, Rectangle, Ellipse, Text; select/edit; undo; sticky styles |
-| M3 · Library | v0.4 | Built; awaiting the release checklist | Library Strip, full-window grid, reopen and edit, delete with Undo, the folder as the source of truth |
+| M3 · Library | v0.4 | Released | Library Strip, full-window grid, reopen and edit, delete with Undo, the folder as the source of truth |
 | M4 · Complete | v0.5 | Released | Callout, Highlighter, Blur, Crop and canvas expansion, paste images into the canvas, delay timer, startup and polish |
-| M5 · Shortcuts, polish and facelift | v0.6 | Planned | Settings lists and remaps all keyboard shortcuts; style panel polish; colour facelift |
-| M6 · Desktop demo tools | v1.0 | Planned | Desktop pointer highlight and on-screen annotation |
+| M5 · Shortcuts, polish and facelift | v0.6 | Released | Settings lists and remaps all keyboard shortcuts; style panel polish; colour facelift |
+| M6 · Desktop demo tools | v1.0 | Built; awaiting the release checklist | Desktop laser pointer and Drawing mode, with two global hotkeys |
 
 ## Workflow
 
 1. **Capture**: press Print Screen (fallback `Ctrl+Shift+S`). Drag a region, click a window, or press Space for the whole monitor. There's an optional 3/5/10 s delay. The editor opens instantly.
 2. **Annotate**: text, callouts, arrows, lines, freehand pen, rectangles, ellipses, highlighter, pixelate blur, and crop. Everything stays editable.
 3. **Copy**: one click puts the finished image on the clipboard. "Save as PNG…" is also available.
-4. **Library**: a strip of thumbnails along the bottom of the editor, newest on the left, to browse every past capture; "All captures" opens a full-window grid grouped by date. Click a thumbnail to reopen it with its annotations still editable. Hover a thumbnail for Copy and ✕; Ctrl or Shift+click picks several and Delete removes them. Deleting moves files to the Recycle Bin with no confirmation, and an Undo notice (about 8 seconds) brings them back. Each image is one PNG in `Pictures\Screenshot Annotation\<year-month>` that opens anywhere and stays editable in the app. The folder is the source of truth: delete a file in Explorer and it leaves the Library, drop a PNG in and it appears with no annotations. Thumbnails are a disposable cache under `%LOCALAPPDATA%`, never in Pictures.
+4. **Library**: a strip of thumbnails along the bottom of the editor, newest on the left, to browse every past capture; "All captures" opens a full-window grid grouped by date. Click a thumbnail to reopen it with its annotations still editable. Hover a thumbnail for Copy and ✕; Ctrl or Shift+click picks several and Delete removes them. Deleting moves files to the Recycle Bin with no confirmation, and an Undo notice (about 8 seconds) brings them back. Each image is one PNG in `Pictures\Sigil (Screenshot Annotation)\<year-month>` that opens anywhere and stays editable in the app. The folder is the source of truth: delete a file in Explorer and it leaves the Library, drop a PNG in and it appears with no annotations. Thumbnails are a disposable cache under `%LOCALAPPDATA%`, never in Pictures.
 
 ## Stack
 

@@ -4,7 +4,7 @@
 
 **Blocked by:** 49.
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 Spec: `.scratch/snagit-clone/spec.md`. Decisions: ticket 40. Planned for M6 (v1.0.0).
 
@@ -16,3 +16,7 @@ Spec: `.scratch/snagit-clone/spec.md`. Decisions: ticket 40. Planned for M6 (v1.
 - [ ] Unit tests (written first): size and glow table, scale-factor sizing, position-before-size ordering and the position clamp (pure functions), settings round-trip
 - [ ] E2E with the fake bridge: the Settings controls and the tray-state event
 - [ ] Release checklist (M6), Windows only: dot follows the pointer on a 24-inch monitor plus a laptop screen and looks the same size on both; click-through works; not in a capture; works over a PowerPoint slideshow; off after a restart
+
+## Answer
+
+Implemented in M6 on integration branch `claude/pensive-davinci-z10bb6`; reviewed with `code-review` and fixes applied. Awaiting the Windows manual checklist (`docs/release-checklist.md`, "For v1.0.0 (M6)") before any v1.0.0 tag; not released.

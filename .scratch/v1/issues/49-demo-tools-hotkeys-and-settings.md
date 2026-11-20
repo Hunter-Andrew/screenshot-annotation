@@ -6,7 +6,7 @@ Also record the domain and the decision: add the terms **Pointer highlight** and
 
 **Blocked by:** nothing.
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 Spec: `.scratch/snagit-clone/spec.md`. Decisions: tickets 40 and 41 (grilling, 2026-11-19). Planned for M6 (v1.0.0).
 
@@ -18,3 +18,7 @@ Spec: `.scratch/snagit-clone/spec.md`. Decisions: tickets 40 and 41 (grilling, 2
 - [ ] Unit tests (written first): the validation and clash rules, settings round-trip (Rust tests mirror an existing pattern; no GTK here, so re-read the Rust for compile errors)
 - [ ] E2E with the fake bridge: set each hotkey, a clash is refused, a failed registration shows its message
 - [ ] GLOSSARY and the new ADR written; no low-level hooks anywhere
+
+## Answer
+
+Implemented in M6 on integration branch `claude/pensive-davinci-z10bb6`; reviewed with `code-review` and fixes applied. Awaiting the Windows manual checklist (`docs/release-checklist.md`, "For v1.0.0 (M6)") before any v1.0.0 tag; not released.

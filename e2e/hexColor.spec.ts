@@ -1,4 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
+import { shapesReturnToSelect } from "./legacyStyles";
 import { decodePixels } from "../src/core/testing";
 
 // The hex field of the Style panel's ColorField (ticket 34) in real Chromium with the real Fabric
@@ -71,6 +72,10 @@ async function typeHex(page: Page, name: string, text: string) {
   await field.press("Enter");
   return field;
 }
+
+test.beforeEach(async ({ page }) => {
+  await shapesReturnToSelect(page);
+});
 
 test.describe("hex color field", () => {
   test.use({ viewport: { width: 760, height: 520 } });

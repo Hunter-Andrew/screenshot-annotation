@@ -4,6 +4,18 @@
 //!
 //! What the fields in `settings.json` mean (plain language; the user may open this file):
 //! - `hotkey`: the capture hotkey, e.g. "ctrl+shift+s" or "PrintScreen". Change it in Settings, not here.
+//! - `laserPointerHotkey` / `drawingModeHotkey`: the global hotkeys of the two demo tools, e.g.
+//!   "alt+p" and "alt+d" (the defaults). Change them in Settings > Bind keyboard shortcuts. Never Print
+//!   Screen, the capture hotkey or each other; a value that breaks that, or is not text, becomes the default.
+//! - `laserPointerColor` (`#RRGGBB`, default `#e02424`, red), `laserPointerSize` ("small", "medium" or "large"; default
+//!   "medium") and `laserPointerRipple` (true by default): how the laser pointer looks (ticket 50). Change them in
+//!   Settings > Demo tools. Anything else is read as the default. Whether the Laser pointer is on is never stored:
+//!   it is off at every start.
+//! - `laserPointerHideCursor` (true by default): while the laser pointer is on, the Windows mouse arrow is hidden so
+//!   only the dot shows. Set it to false (or untick it in Settings > Demo tools) to keep the arrow.
+//! - `drawingHighlighterOpacity` (percent, 5 to 60, default 20): how solid Drawing mode's Highlighter is. Drawing
+//!   mode takes the Highlighter's colour and thickness from the editor but not its opacity. Out-of-range numbers
+//!   are brought into range; anything that is not a whole number is 20.
 //! - `printScreenNoticeDismissed`: true means "you answered the one-time Print Screen notice" (clicked
 //!   either of its two buttons). It only stops that notice from showing again. It does NOT mean Print
 //!   Screen works or that the Windows setting is off; the warning under the hotkey field reads that live
@@ -51,12 +63,36 @@ pub const FILE_NAME: &str = "settings.json";
 /// Where an unparseable settings.json is kept (see `load`).
 pub const CORRUPT_FILE_NAME: &str = "settings.json.corrupt";
 pub const DEFAULT_HOTKEY: &str = "ctrl+shift+s";
+pub const DEFAULT_LASER_POINTER_HOTKEY: &str = "alt+p";
+pub const DEFAULT_DRAWING_MODE_HOTKEY: &str = "alt+d";
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct Settings {
     /// Capture hotkey as an accelerator string, e.g. "ctrl+shift+s" or "PrintScreen".
     pub hotkey: String,
+    /// Global hotkey that switches the laser pointer on and off (ticket 49). Never Print Screen, the
+    /// capture hotkey or the drawing-mode hotkey; anything unusable is the default.
+    #[serde(deserialize_with = "laser_pointer_hotkey_or_default")]
+    pub laser_pointer_hotkey: String,
+    /// Global hotkey that starts and ends drawing mode (ticket 49); same rules.
+    #[serde(deserialize_with = "drawing_mode_hotkey_or_default")]
+    pub drawing_mode_hotkey: String,
+    /// The laser pointer's colour, `#rrggbb` (`DEFAULT_LASER_POINTER_COLOR`).
+    #[serde(deserialize_with = "laser_pointer_color_or_default")]
+    pub laser_pointer_color: String,
+    /// The laser pointer's size: one of `LASER_POINTER_SIZES`.
+    #[serde(deserialize_with = "laser_pointer_size_or_default")]
+    pub laser_pointer_size: String,
+    /// Whether a left click shows the ripple (default true).
+    #[serde(deserialize_with = "bool_or_true")]
+    pub laser_pointer_ripple: bool,
+    /// Whether the laser pointer hides the system mouse arrow while it is on (default true).
+    #[serde(deserialize_with = "bool_or_true")]
+    pub laser_pointer_hide_cursor: bool,
+    /// Drawing mode's Highlighter opacity in percent (`DRAWING_HIGHLIGHTER_OPACITY`).
+    #[serde(deserialize_with = "drawing_highlighter_opacity_or_default")]
+    pub drawing_highlighter_opacity: u32,
     /// The one-time Print Screen / Snipping Tool notice was answered.
     pub print_screen_notice_dismissed: bool,
     /// Show the magnifier in the capture overlay (default true).
@@ -103,6 +139,9 @@ pub const BACKGROUNDS: [&str; 3] = ["white", "dark", "transparent"];
 pub const CHECKERBOARDS: [&str; 2] = ["dark", "light"];
 pub const DEFAULT_IMAGE_BACKGROUND: &str = "transparent";
 pub const DEFAULT_CHECKERBOARD: &str = "light";
+pub const LASER_POINTER_SIZES: [&str; 3] = ["small", "medium", "large"];
+pub const DEFAULT_LASER_POINTER_SIZE: &str = "medium";
+pub const DEFAULT_LASER_POINTER_COLOR: &str = "#e02424";
 
 /// An inclusive range of whole numbers a numeric setting may take.
 #[derive(Debug, Clone, Copy)]
@@ -146,6 +185,8 @@ impl DecimalRange {
 }
 
 pub const CANVAS_MARGIN: Range = Range { min: 0, max: 200, default: 16 };
+/// Drawing mode's Highlighter opacity in percent; `DRAWING_HIGHLIGHTER_OPACITY` in src/drawing/drawingStyles.ts must match.
+pub const DRAWING_HIGHLIGHTER_OPACITY: Range = Range { min: 5, max: 60, default: 20 };
 pub const CROP_MARGIN: Range = Range { min: 0, max: 400, default: 150 };
 pub const DEFAULT_DARK_BACKGROUND: &str = "#191919";
 
@@ -213,6 +254,10 @@ fn canvas_margin_or_default<'de, D: serde::Deserializer<'de>>(d: D) -> Result<u3
     number_in(d, CANVAS_MARGIN)
 }
 
+fn drawing_highlighter_opacity_or_default<'de, D: serde::Deserializer<'de>>(d: D) -> Result<u32, D::Error> {
+    number_in(d, DRAWING_HIGHLIGHTER_OPACITY)
+}
+
 fn crop_margin_or_default<'de, D: serde::Deserializer<'de>>(d: D) -> Result<u32, D::Error> {
     number_in(d, CROP_MARGIN)
 }
@@ -229,6 +274,18 @@ fn outside_darkness_or_default<'de, D: serde::Deserializer<'de>>(d: D) -> Result
     tenths_in(d, OUTSIDE_DARKNESS)
 }
 
+/// A stored `#RRGGBB` laser pointer colour is kept (lower-cased); anything else is red.
+fn laser_pointer_color_or_default<'de, D: serde::Deserializer<'de>>(d: D) -> Result<String, D::Error> {
+    Ok(match serde_json::Value::deserialize(d)? {
+        serde_json::Value::String(s) if is_hex_color(&s) => s.to_ascii_lowercase(),
+        _ => DEFAULT_LASER_POINTER_COLOR.to_string(),
+    })
+}
+
+fn laser_pointer_size_or_default<'de, D: serde::Deserializer<'de>>(d: D) -> Result<String, D::Error> {
+    choice_or(d, &LASER_POINTER_SIZES, DEFAULT_LASER_POINTER_SIZE)
+}
+
 fn bool_or_true<'de, D: serde::Deserializer<'de>>(d: D) -> Result<bool, D::Error> {
     Ok(match serde_json::Value::deserialize(d)? {
         serde_json::Value::Bool(b) => b,
@@ -236,11 +293,51 @@ fn bool_or_true<'de, D: serde::Deserializer<'de>>(d: D) -> Result<bool, D::Error
     })
 }
 
+/// A stored demo hotkey is kept when it is a non-empty string that is not Print Screen; anything else is `default`.
+fn demo_hotkey_or<'de, D: serde::Deserializer<'de>>(d: D, default: &str) -> Result<String, D::Error> {
+    Ok(match serde_json::Value::deserialize(d)? {
+        serde_json::Value::String(s) if !s.trim().is_empty() && !crate::hotkey::uses_print_screen(&s) => s,
+        _ => default.to_string(),
+    })
+}
+
+fn laser_pointer_hotkey_or_default<'de, D: serde::Deserializer<'de>>(d: D) -> Result<String, D::Error> {
+    demo_hotkey_or(d, DEFAULT_LASER_POINTER_HOTKEY)
+}
+
+fn drawing_mode_hotkey_or_default<'de, D: serde::Deserializer<'de>>(d: D) -> Result<String, D::Error> {
+    demo_hotkey_or(d, DEFAULT_DRAWING_MODE_HOTKEY)
+}
+
+/// A hand-edited file may give both demo tools, or a demo tool and the capture hotkey, the same
+/// combination: the later field falls back to its default so each combination has one action.
+fn resolve_demo_hotkey_clashes(s: &mut Settings) {
+    if crate::hotkey::demo_refusal(&s.laser_pointer_hotkey, &s.hotkey, &s.drawing_mode_hotkey).is_some() {
+        s.laser_pointer_hotkey = DEFAULT_LASER_POINTER_HOTKEY.into();
+    }
+    if crate::hotkey::demo_refusal(&s.drawing_mode_hotkey, &s.hotkey, &s.laser_pointer_hotkey).is_some() {
+        s.drawing_mode_hotkey = DEFAULT_DRAWING_MODE_HOTKEY.into();
+    }
+}
+
 fn bool_or_false<'de, D: serde::Deserializer<'de>>(d: D) -> Result<bool, D::Error> {
     Ok(matches!(serde_json::Value::deserialize(d)?, serde_json::Value::Bool(true)))
 }
 
+/// How the laser pointer looks, as the frontend spells it (Settings > Demo tools, the dot window).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LaserPointerSettings {
+    pub color: String,
+    pub size: String,
+    pub ripple: bool,
+}
+
 impl Settings {
+    pub fn laser_pointer_settings(&self) -> LaserPointerSettings {
+        LaserPointerSettings { color: self.laser_pointer_color.clone(), size: self.laser_pointer_size.clone(), ripple: self.laser_pointer_ripple }
+    }
+
     pub fn image_settings(&self) -> ImageSettings {
         ImageSettings {
             background: self.image_background.clone(),
@@ -259,6 +356,13 @@ impl Default for Settings {
     fn default() -> Self {
         Settings {
             hotkey: DEFAULT_HOTKEY.into(),
+            laser_pointer_hotkey: DEFAULT_LASER_POINTER_HOTKEY.into(),
+            drawing_mode_hotkey: DEFAULT_DRAWING_MODE_HOTKEY.into(),
+            laser_pointer_color: DEFAULT_LASER_POINTER_COLOR.into(),
+            laser_pointer_size: DEFAULT_LASER_POINTER_SIZE.into(),
+            laser_pointer_ripple: true,
+            laser_pointer_hide_cursor: true,
+            drawing_highlighter_opacity: DRAWING_HIGHLIGHTER_OPACITY.default,
             print_screen_notice_dismissed: false,
             magnifier: true,
             tool_styles: serde_json::Map::new(),
@@ -294,7 +398,10 @@ where
 pub fn load(dir: &Path) -> Settings {
     let Ok(bytes) = fs::read(dir.join(FILE_NAME)) else { return Settings::default() };
     match serde_json::from_slice(&bytes) {
-        Ok(settings) => settings,
+        Ok(mut settings) => {
+            resolve_demo_hotkey_clashes(&mut settings);
+            settings
+        }
         Err(parse_error) => {
             let outcome = match fs::write(dir.join(CORRUPT_FILE_NAME), &bytes) {
                 Ok(()) => format!("a copy was kept as {CORRUPT_FILE_NAME}"),
@@ -425,6 +532,38 @@ pub fn set_outside_darkness(dir: &Path, settings: &mut Settings, value: f64) -> 
     save(dir, settings)
 }
 
+/// Sets how the laser pointer looks and then tries to save; like `set_magnifier`, the in-memory value
+/// changes even when the write fails. A colour that is not `#RRGGBB` or a size that is not one of
+/// `LASER_POINTER_SIZES` changes nothing.
+pub fn set_laser_pointer_settings(dir: &Path, settings: &mut Settings, new: &LaserPointerSettings) -> io::Result<()> {
+    if !is_hex_color(&new.color) {
+        return Err(invalid_choice("colour (#RRGGBB)", &new.color));
+    }
+    if !LASER_POINTER_SIZES.contains(&new.size.as_str()) {
+        return Err(invalid_choice("laser pointer size", &new.size));
+    }
+    settings.laser_pointer_color = new.color.to_ascii_lowercase();
+    settings.laser_pointer_size = new.size.clone();
+    settings.laser_pointer_ripple = new.ripple;
+    save(dir, settings)
+}
+
+/// Sets whether the laser pointer hides the system mouse arrow and then tries to save (in-memory value kept
+/// when the write fails, like `set_magnifier`).
+pub fn set_laser_pointer_hide_cursor(dir: &Path, settings: &mut Settings, hide: bool) -> io::Result<()> {
+    settings.laser_pointer_hide_cursor = hide;
+    save(dir, settings)
+}
+
+/// Sets Drawing mode's Highlighter opacity in percent; a value outside `DRAWING_HIGHLIGHTER_OPACITY` changes nothing.
+pub fn set_drawing_highlighter_opacity(dir: &Path, settings: &mut Settings, percent: u32) -> io::Result<()> {
+    if !DRAWING_HIGHLIGHTER_OPACITY.contains(percent) {
+        return Err(out_of_range("Drawing mode Highlighter opacity", percent, DRAWING_HIGHLIGHTER_OPACITY));
+    }
+    settings.drawing_highlighter_opacity = percent;
+    save(dir, settings)
+}
+
 /// Sets whether new images show the area outside the canvas.
 pub fn set_show_outside_default(dir: &Path, settings: &mut Settings, show: bool) -> io::Result<()> {
     settings.show_outside_default = show;
@@ -462,6 +601,64 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("sa-settings-{name}-{}", std::process::id()));
         let _ = fs::remove_dir_all(&dir);
         dir
+    }
+
+    #[test]
+    fn the_demo_hotkeys_default_for_a_fresh_install_and_for_files_from_before_they_existed() {
+        let s = load(&temp_dir("demo-fresh"));
+        assert_eq!((s.laser_pointer_hotkey.as_str(), s.drawing_mode_hotkey.as_str()), ("alt+p", "alt+d"));
+        let dir = temp_dir("demo-old-file");
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(dir.join(FILE_NAME), br#"{"hotkey":"alt+x"}"#).unwrap();
+        let s = load(&dir);
+        assert_eq!(s.hotkey, "alt+x");
+        assert_eq!((s.laser_pointer_hotkey.as_str(), s.drawing_mode_hotkey.as_str()), ("alt+p", "alt+d"));
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn the_demo_hotkeys_round_trip_through_the_file() {
+        let dir = temp_dir("demo-round-trip");
+        let s = Settings {
+            laser_pointer_hotkey: "ctrl+alt+p".into(),
+            drawing_mode_hotkey: "ctrl+alt+o".into(),
+            ..Settings::default()
+        };
+        save(&dir, &s).unwrap();
+        let back = load(&dir);
+        assert_eq!(back.laser_pointer_hotkey, "ctrl+alt+p");
+        assert_eq!(back.drawing_mode_hotkey, "ctrl+alt+o");
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn an_unusable_demo_hotkey_falls_back_to_its_default_and_keeps_the_rest() {
+        let dir = temp_dir("demo-invalid");
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(dir.join(FILE_NAME), br#"{"hotkey":"alt+x","laserPointerHotkey":5,"drawingModeHotkey":"PrintScreen"}"#).unwrap();
+        let s = load(&dir);
+        assert_eq!(s.hotkey, "alt+x");
+        assert_eq!(s.laser_pointer_hotkey, "alt+p");
+        assert_eq!(s.drawing_mode_hotkey, "alt+d");
+        fs::write(dir.join(FILE_NAME), br#"{"laserPointerHotkey":"","drawingModeHotkey":"ctrl+PrintScreen"}"#).unwrap();
+        let s = load(&dir);
+        assert_eq!((s.laser_pointer_hotkey.as_str(), s.drawing_mode_hotkey.as_str()), ("alt+p", "alt+d"));
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn a_demo_hotkey_that_clashes_with_the_capture_or_the_other_demo_hotkey_falls_back() {
+        let dir = temp_dir("demo-clash");
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(dir.join(FILE_NAME), br#"{"hotkey":"ctrl+alt+p","laserPointerHotkey":"ctrl+alt+p","drawingModeHotkey":"ctrl+alt+o"}"#).unwrap();
+        let s = load(&dir);
+        assert_eq!(s.laser_pointer_hotkey, "alt+p");
+        assert_eq!(s.drawing_mode_hotkey, "ctrl+alt+o");
+        fs::write(dir.join(FILE_NAME), br#"{"laserPointerHotkey":"ctrl+alt+o","drawingModeHotkey":"ctrl+alt+o"}"#).unwrap();
+        let s = load(&dir);
+        assert_eq!(s.laser_pointer_hotkey, "alt+p");
+        assert_eq!(s.drawing_mode_hotkey, "ctrl+alt+o");
+        fs::remove_dir_all(&dir).unwrap();
     }
 
     #[test]
@@ -911,5 +1108,121 @@ mod tests {
         assert!(set_transparency_checkerboard(&blocker, &mut s, "light").is_err());
         assert_eq!(s.transparency_checkerboard, "light");
         fs::remove_file(&blocker).unwrap();
+    }
+
+    #[test]
+    fn the_laser_pointer_defaults_to_a_red_medium_dot_with_the_ripple_on() {
+        let s = load(&temp_dir("laser-pointer-fresh"));
+        assert_eq!(s.laser_pointer_settings(), LaserPointerSettings { color: "#e02424".into(), size: "medium".into(), ripple: true });
+        // A file from before the laser pointer existed.
+        let dir = temp_dir("laser-pointer-old-file");
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(dir.join(FILE_NAME), br#"{"hotkey":"alt+x"}"#).unwrap();
+        assert_eq!(load(&dir).laser_pointer_settings(), Settings::default().laser_pointer_settings());
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn the_laser_pointer_settings_round_trip_through_the_file() {
+        let dir = temp_dir("laser-pointer-round-trip");
+        let mut s = Settings::default();
+        let chosen = LaserPointerSettings { color: "#2563EB".into(), size: "large".into(), ripple: false };
+        set_laser_pointer_settings(&dir, &mut s, &chosen).unwrap();
+        let back = load(&dir);
+        assert_eq!(back.laser_pointer_settings(), LaserPointerSettings { color: "#2563eb".into(), size: "large".into(), ripple: false });
+        let json = fs::read_to_string(dir.join(FILE_NAME)).unwrap();
+        assert!(json.contains("\"laserPointerColor\"") && json.contains("\"laserPointerSize\"") && json.contains("\"laserPointerRipple\""), "{json}");
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn a_laser_pointer_colour_or_size_that_is_not_allowed_changes_nothing() {
+        let dir = temp_dir("laser-pointer-refused");
+        let mut s = Settings::default();
+        let ok = Settings::default().laser_pointer_settings();
+        for color in ["", "e02424", "#e0242", "#gggggg", "red"] {
+            let bad = LaserPointerSettings { color: color.into(), ..ok.clone() };
+            assert!(set_laser_pointer_settings(&dir, &mut s, &bad).is_err(), "{color}");
+        }
+        assert!(set_laser_pointer_settings(&dir, &mut s, &LaserPointerSettings { size: "huge".into(), ..ok.clone() }).is_err());
+        assert_eq!(s.laser_pointer_settings(), ok);
+    }
+
+    #[test]
+    fn unusable_stored_laser_pointer_values_are_the_defaults() {
+        let dir = temp_dir("laser-pointer-hand-edited");
+        fs::create_dir_all(&dir).unwrap();
+        for (stored, color, size, ripple) in [
+            (r##"{"laserPointerColor":"#ABCDEF","laserPointerSize":"small","laserPointerRipple":false}"##, "#abcdef", "small", false),
+            (r##"{"laserPointerColor":"pink","laserPointerSize":"Huge","laserPointerRipple":"no"}"##, "#e02424", "medium", true),
+            (r#"{"laserPointerColor":5,"laserPointerSize":null,"laserPointerRipple":null}"#, "#e02424", "medium", true),
+        ] {
+            fs::write(dir.join(FILE_NAME), stored).unwrap();
+            let s = load(&dir);
+            assert_eq!((s.laser_pointer_color.as_str(), s.laser_pointer_size.as_str(), s.laser_pointer_ripple), (color, size, ripple), "{stored}");
+        }
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn the_laser_pointer_settings_reach_the_page_in_camel_case() {
+        let json = serde_json::to_value(Settings::default().laser_pointer_settings()).unwrap();
+        assert_eq!(json, serde_json::json!({ "color": "#e02424", "size": "medium", "ripple": true }));
+    }
+
+    #[test]
+    fn the_new_demo_settings_default_to_hiding_the_arrow_and_a_20_percent_highlighter() {
+        let s = load(&temp_dir("demo-new-fresh"));
+        assert!(s.laser_pointer_hide_cursor);
+        assert_eq!(s.drawing_highlighter_opacity, 20);
+        // A file from before these settings existed.
+        let dir = temp_dir("demo-new-old-file");
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(dir.join(FILE_NAME), br#"{"hotkey":"alt+x"}"#).unwrap();
+        let old = load(&dir);
+        assert!(old.laser_pointer_hide_cursor);
+        assert_eq!(old.drawing_highlighter_opacity, 20);
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn the_new_demo_settings_round_trip_through_the_file() {
+        let dir = temp_dir("demo-new-round-trip");
+        let mut s = Settings::default();
+        set_laser_pointer_hide_cursor(&dir, &mut s, false).unwrap();
+        set_drawing_highlighter_opacity(&dir, &mut s, 45).unwrap();
+        let back = load(&dir);
+        assert!(!back.laser_pointer_hide_cursor);
+        assert_eq!(back.drawing_highlighter_opacity, 45);
+        let json = fs::read_to_string(dir.join(FILE_NAME)).unwrap();
+        assert!(json.contains("\"laserPointerHideCursor\"") && json.contains("\"drawingHighlighterOpacity\""), "{json}");
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn a_highlighter_opacity_outside_5_to_60_is_refused_and_a_stored_one_is_brought_into_range() {
+        let dir = temp_dir("demo-new-range");
+        let mut s = Settings::default();
+        for bad in [0, 4, 61, 100] {
+            assert!(set_drawing_highlighter_opacity(&dir, &mut s, bad).is_err(), "{bad}");
+        }
+        assert_eq!(s.drawing_highlighter_opacity, 20);
+        fs::create_dir_all(&dir).unwrap();
+        for (stored, want) in [
+            (r#"{"drawingHighlighterOpacity":1}"#, 5),
+            (r#"{"drawingHighlighterOpacity":99}"#, 60),
+            (r#"{"drawingHighlighterOpacity":35}"#, 35),
+            (r#"{"drawingHighlighterOpacity":"30"}"#, 20),
+            (r#"{"drawingHighlighterOpacity":null}"#, 20),
+            (r#"{"drawingHighlighterOpacity":12.5}"#, 20),
+        ] {
+            fs::write(dir.join(FILE_NAME), stored).unwrap();
+            assert_eq!(load(&dir).drawing_highlighter_opacity, want, "{stored}");
+        }
+        fs::write(dir.join(FILE_NAME), br#"{"laserPointerHideCursor":"yes"}"#).unwrap();
+        assert!(load(&dir).laser_pointer_hide_cursor);
+        fs::write(dir.join(FILE_NAME), br#"{"laserPointerHideCursor":false}"#).unwrap();
+        assert!(!load(&dir).laser_pointer_hide_cursor);
+        fs::remove_dir_all(&dir).unwrap();
     }
 }

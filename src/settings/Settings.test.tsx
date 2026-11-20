@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { createFakeBridge } from "../platform/fakeBridge";
 import { Settings } from "./Settings";
+import { renderShortcuts } from "./renderShortcuts";
 
 describe("Settings > About", () => {
   it("shows the installed version", async () => {
@@ -23,13 +24,13 @@ describe("Settings > About", () => {
 
 describe("Settings > Capture hotkey", () => {
   it("shows the current hotkey", async () => {
-    render(<Settings bridge={createFakeBridge()} />);
+    renderShortcuts(createFakeBridge());
     expect(await screen.findByRole("button", { name: "Ctrl+Shift+S" })).toBeVisible();
   });
 
   it("records a new combination, registers it and shows it", async () => {
     const bridge = createFakeBridge();
-    render(<Settings bridge={bridge} />);
+    renderShortcuts(bridge);
     await userEvent.click(await screen.findByRole("button", { name: "Ctrl+Shift+S" }));
     expect(screen.getByRole("button", { name: /Press a key combination/ })).toBeVisible();
     await userEvent.keyboard("{Control>}{Alt>}k{/Alt}{/Control}");
@@ -41,7 +42,7 @@ describe("Settings > Capture hotkey", () => {
   it("warns on a conflict and keeps the old hotkey", async () => {
     const bridge = createFakeBridge();
     bridge.takenHotkeys.add("ctrl+alt+k");
-    render(<Settings bridge={bridge} />);
+    renderShortcuts(bridge);
     await userEvent.click(await screen.findByRole("button", { name: "Ctrl+Shift+S" }));
     await userEvent.keyboard("{Control>}{Alt>}k{/Alt}{/Control}");
     expect(await screen.findByRole("alert")).toHaveTextContent(/Ctrl\+Alt\+K is already in use by another app/);
@@ -51,7 +52,7 @@ describe("Settings > Capture hotkey", () => {
 
   it("explains a combination that needs a modifier and does not register it", async () => {
     const bridge = createFakeBridge();
-    render(<Settings bridge={bridge} />);
+    renderShortcuts(bridge);
     await userEvent.click(await screen.findByRole("button", { name: "Ctrl+Shift+S" }));
     await userEvent.keyboard("k");
     expect(await screen.findByRole("alert")).toHaveTextContent(/Ctrl, Alt, Shift or Win/);
@@ -60,7 +61,7 @@ describe("Settings > Capture hotkey", () => {
 
   it("Escape stops recording without a change", async () => {
     const bridge = createFakeBridge();
-    render(<Settings bridge={bridge} />);
+    renderShortcuts(bridge);
     await userEvent.click(await screen.findByRole("button", { name: "Ctrl+Shift+S" }));
     await userEvent.keyboard("{Escape}");
     expect(screen.getByRole("button", { name: "Ctrl+Shift+S" })).toBeVisible();
@@ -70,39 +71,39 @@ describe("Settings > Capture hotkey", () => {
   it("warns at once when the saved hotkey could not be registered at startup", async () => {
     const bridge = createFakeBridge();
     bridge.getHotkey = async () => ({ accelerator: "ctrl+shift+s", registered: false });
-    render(<Settings bridge={bridge} />);
+    renderShortcuts(bridge);
     expect(await screen.findByRole("alert")).toHaveTextContent(/Ctrl\+Shift\+S is already in use by another app/);
   });
 });
 
 describe("Settings > Print Screen notice", () => {
   it("is shown when Windows still gives Print Screen to Snipping Tool", async () => {
-    render(<Settings bridge={createFakeBridge()} />);
+    renderShortcuts(createFakeBridge());
     expect(await screen.findByText(/Print Screen opens Snipping Tool/)).toBeVisible();
   });
 
   it("is not shown when Windows has the setting off", async () => {
     const bridge = createFakeBridge({ printScreenSnippingEnabled: false });
-    render(<Settings bridge={bridge} />);
+    renderShortcuts(bridge);
     await screen.findByRole("button", { name: "Ctrl+Shift+S" });
     expect(screen.queryByText(/Print Screen opens Snipping Tool/)).toBeNull();
   });
 
   it("[Open Windows setting] opens Windows Settings (Bluetooth & devices) and retires the notice", async () => {
     const bridge = createFakeBridge();
-    render(<Settings bridge={bridge} />);
+    renderShortcuts(bridge);
     await userEvent.click(await screen.findByRole("button", { name: "Open Windows setting" }));
     expect(bridge.keyboardSettingsOpened).toBe(1);
     expect(screen.queryByText(/Print Screen opens Snipping Tool/)).toBeNull();
     // A later visit does not show it again.
-    render(<Settings bridge={bridge} />);
+    renderShortcuts(bridge);
     await screen.findAllByRole("button", { name: "Ctrl+Shift+S" });
     expect(screen.queryByText(/Print Screen opens Snipping Tool/)).toBeNull();
   });
 
   it("[Keep Ctrl+Shift+S] retires the notice without opening anything", async () => {
     const bridge = createFakeBridge();
-    render(<Settings bridge={bridge} />);
+    renderShortcuts(bridge);
     await userEvent.click(await screen.findByRole("button", { name: "Keep Ctrl+Shift+S" }));
     expect(bridge.keyboardSettingsOpened).toBe(0);
     expect(screen.queryByText(/Print Screen opens Snipping Tool/)).toBeNull();
@@ -114,7 +115,7 @@ describe("Settings > Print Screen warning (independent of the one-time notice)",
 
   it("appears right after recording Print Screen while Windows still gives it to Snipping Tool", async () => {
     const bridge = createFakeBridge();
-    render(<Settings bridge={bridge} />);
+    renderShortcuts(bridge);
     await userEvent.click(await screen.findByRole("button", { name: "Ctrl+Shift+S" }));
     fireEvent.keyUp(window, { code: "PrintScreen" });
     await screen.findByRole("button", { name: "Print Screen" });
@@ -128,7 +129,7 @@ describe("Settings > Print Screen warning (independent of the one-time notice)",
     const bridge = createFakeBridge();
     await bridge.setHotkey("PrintScreen");
     await bridge.dismissPrintScreenNotice();
-    render(<Settings bridge={bridge} />);
+    renderShortcuts(bridge);
     expect(await screen.findByRole("status")).toHaveTextContent(/Snipping Tool/);
     expect(screen.queryByText(/Print Screen opens Snipping Tool/)).toBeNull();
   });
@@ -136,19 +137,19 @@ describe("Settings > Print Screen warning (independent of the one-time notice)",
   it("also covers Print Screen with modifiers", async () => {
     const bridge = createFakeBridge();
     await bridge.setHotkey("ctrl+PrintScreen");
-    render(<Settings bridge={bridge} />);
+    renderShortcuts(bridge);
     expect(await screen.findByRole("status")).toBeVisible();
   });
 
   it("is absent for other hotkeys and when the Windows setting is off", async () => {
-    const other = render(<Settings bridge={createFakeBridge()} />);
+    const other = renderShortcuts(createFakeBridge());
     await screen.findByRole("button", { name: "Ctrl+Shift+S" });
     expect(warning()).toBeNull();
     other.unmount();
 
     const off = createFakeBridge({ printScreenSnippingEnabled: false });
     await off.setHotkey("PrintScreen");
-    render(<Settings bridge={off} />);
+    renderShortcuts(off);
     await screen.findByRole("button", { name: "Print Screen" });
     expect(warning()).toBeNull();
   });
@@ -156,7 +157,7 @@ describe("Settings > Print Screen warning (independent of the one-time notice)",
   it("[Open Windows setting] opens the deep link and leaves the warning (and the one-time flag) alone", async () => {
     const bridge = createFakeBridge();
     await bridge.setHotkey("PrintScreen");
-    render(<Settings bridge={bridge} />);
+    renderShortcuts(bridge);
     const status = await screen.findByRole("status");
     await userEvent.click(within(status).getByRole("button", { name: "Open Windows setting" }));
     expect(bridge.keyboardSettingsOpened).toBe(1);
@@ -167,7 +168,7 @@ describe("Settings > Print Screen warning (independent of the one-time notice)",
   it("re-checks when the window regains focus and goes away once Windows' setting is off", async () => {
     const bridge = createFakeBridge();
     await bridge.setHotkey("PrintScreen");
-    render(<Settings bridge={bridge} />);
+    renderShortcuts(bridge);
     await screen.findByRole("status");
     bridge.setPrintScreenSnipping(false);
     fireEvent.focus(window);
@@ -185,13 +186,13 @@ describe("Settings > Print Screen clipboard note", () => {
   it("explains next to a bare Print Screen hotkey that Windows' own copy happens and the captured region replaces it", async () => {
     const bridge = createFakeBridge({ printScreenSnippingEnabled: false });
     await bridge.setHotkey("PrintScreen");
-    render(<Settings bridge={bridge} />);
+    renderShortcuts(bridge);
     expect(await screen.findByText(note)).toBeVisible();
   });
 
   it("is also shown with the Snipping Tool warning, and appears right after recording Print Screen", async () => {
     const bridge = createFakeBridge();
-    render(<Settings bridge={bridge} />);
+    renderShortcuts(bridge);
     await userEvent.click(await screen.findByRole("button", { name: "Ctrl+Shift+S" }));
     expect(screen.queryByText(note)).toBeNull();
     fireEvent.keyUp(window, { code: "PrintScreen" });
@@ -201,12 +202,12 @@ describe("Settings > Print Screen clipboard note", () => {
 
   it("is absent for other hotkeys, Ctrl+Print Screen included", async () => {
     const bridge = createFakeBridge({ printScreenSnippingEnabled: false });
-    const first = render(<Settings bridge={bridge} />);
+    const first = renderShortcuts(bridge);
     await screen.findByRole("button", { name: "Ctrl+Shift+S" });
     expect(screen.queryByText(note)).toBeNull();
     first.unmount();
     await bridge.setHotkey("ctrl+PrintScreen");
-    render(<Settings bridge={bridge} />);
+    renderShortcuts(bridge);
     await screen.findByRole("button", { name: "Ctrl+Print Screen" });
     expect(screen.queryByText(note)).toBeNull();
   });
@@ -216,13 +217,13 @@ describe("Settings > Print Screen listener failure", () => {
   it("shows the failure like any other hotkey problem when the Raw Input listener could not start", async () => {
     const bridge = createFakeBridge({ printScreenSnippingEnabled: false, rawInputFails: true });
     await bridge.setHotkey("PrintScreen");
-    render(<Settings bridge={bridge} />);
+    renderShortcuts(bridge);
     expect(await screen.findByRole("alert")).toHaveTextContent(/could not watch the Print Screen key.*capture\.log/s);
   });
 
   it("shows it right after recording Print Screen, and not for other hotkeys", async () => {
     const bridge = createFakeBridge({ printScreenSnippingEnabled: false, rawInputFails: true });
-    render(<Settings bridge={bridge} />);
+    renderShortcuts(bridge);
     await userEvent.click(await screen.findByRole("button", { name: "Ctrl+Shift+S" }));
     fireEvent.keyUp(window, { code: "PrintScreen" });
     expect(await screen.findByRole("alert")).toHaveTextContent(/could not watch the Print Screen key/);
@@ -235,7 +236,7 @@ describe("Settings > Print Screen listener failure", () => {
 
 describe("Settings > one-time notice wording", () => {
   it("says what answering does and that it only appears once", async () => {
-    render(<Settings bridge={createFakeBridge()} />);
+    renderShortcuts(createFakeBridge());
     const notice = (await screen.findByText(/Print Screen opens Snipping Tool/)).closest("section")!;
     expect(notice).toHaveTextContent(/only appears once/i);
     expect(notice).toHaveTextContent(/Open Windows setting.*opens/i);
@@ -250,7 +251,7 @@ describe("Settings > one-time notice wording", () => {
 describe("Settings > recorder diagnostics", () => {
   it("logs what the recorder received and the outcome of saving", async () => {
     const bridge = createFakeBridge();
-    render(<Settings bridge={bridge} />);
+    renderShortcuts(bridge);
     await userEvent.click(await screen.findByRole("button", { name: "Ctrl+Shift+S" }));
     fireEvent.keyUp(window, { code: "PrintScreen" });
     await screen.findByRole("button", { name: "Print Screen" });
@@ -262,7 +263,7 @@ describe("Settings > recorder diagnostics", () => {
 
   it("logs and explains a window that loses focus mid-recording (what Snipping Tool does to the key)", async () => {
     const bridge = createFakeBridge();
-    render(<Settings bridge={bridge} />);
+    renderShortcuts(bridge);
     const field = await screen.findByRole("button", { name: "Ctrl+Shift+S" });
     await userEvent.click(field);
     const hasFocus = vi.spyOn(document, "hasFocus").mockReturnValue(false);

@@ -1,4 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
+import { shapesReturnToSelect } from "./legacyStyles";
 import { legacyMargins } from "./sameCropMargin";
 
 legacyMargins(test);
@@ -67,6 +68,10 @@ const DIM = [6, 8, 12];
 const dimmed = (own: number[], percent: number) => own.slice(0, 3).map((c, k) => c * (1 - percent / 100) + DIM[k]! * (percent / 100));
 
 test.use({ viewport: { width: 1000, height: 700 } });
+
+test.beforeEach(async ({ page }) => {
+  await shapesReturnToSelect(page);
+});
 
 test.describe("no border", () => {
   test("nothing is drawn around the visible area at rest, with the Crop tool on, or after a crop", async ({ page }) => {

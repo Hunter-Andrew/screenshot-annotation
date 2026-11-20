@@ -53,6 +53,66 @@ pub fn change_hotkey(
     Ok(())
 }
 
+/// Whether the key part of an accelerator is Print Screen, alone or with modifiers (mirrors `usesPrintScreen`
+/// in `src/settings/hotkey.ts`).
+pub fn uses_print_screen(accelerator: &str) -> bool {
+    accelerator.rsplit('+').next().is_some_and(|key| key.trim().eq_ignore_ascii_case("PrintScreen"))
+}
+
+/// An accelerator reduced to what the OS sees: its modifiers (named `ctrl`, `alt`, `shift`, `super`, in that
+/// order, each once) and its key in lower case. Case, spacing, the order of the modifiers and the aliases
+/// (`control`, `commandorcontrol`, `cmdorctrl` for ctrl; `option` for alt; `meta`, `cmd`, `command`, `win` for
+/// super) do not matter. The key is the last part that is not a modifier name.
+fn normalize_accelerator(accelerator: &str) -> (Vec<&'static str>, String) {
+    const ORDER: [&str; 4] = ["ctrl", "alt", "shift", "super"];
+    let mut mods: Vec<&'static str> = Vec::new();
+    let mut key = String::new();
+    for part in accelerator.split('+') {
+        let part = part.trim().to_ascii_lowercase();
+        let modifier = match part.as_str() {
+            "ctrl" | "control" | "commandorcontrol" | "cmdorctrl" => Some("ctrl"),
+            "alt" | "option" => Some("alt"),
+            "shift" => Some("shift"),
+            "super" | "meta" | "cmd" | "command" | "win" => Some("super"),
+            _ => None,
+        };
+        match modifier {
+            Some(m) => {
+                if !mods.contains(&m) {
+                    mods.push(m);
+                }
+            }
+            None => key = part,
+        }
+    }
+    mods.sort_by_key(|m| ORDER.iter().position(|x| x == m));
+    (mods, key)
+}
+
+fn same_accelerator(a: &str, b: &str) -> bool {
+    normalize_accelerator(a) == normalize_accelerator(b)
+}
+
+/// Why a demo-tool hotkey (laser pointer, drawing mode; ticket 49) may not be `new`, as the wire code
+/// `src/platform/tauriBridge.ts` maps back to a message: Print Screen, the capture hotkey, or the other
+/// demo hotkey. `None` when it may (whether another app owns it is only known by registering it).
+pub fn demo_refusal(new: &str, capture: &str, other_demo: &str) -> Option<&'static str> {
+    if uses_print_screen(new) {
+        Some("print-screen")
+    } else if same_accelerator(new, capture) {
+        Some("capture-hotkey")
+    } else if same_accelerator(new, other_demo) {
+        Some("other-demo")
+    } else {
+        None
+    }
+}
+
+/// The capture hotkey may not take a combination a demo tool already uses.
+pub fn clashes_with_demo(new: &str, laser_pointer: &str, drawing_mode: &str) -> bool {
+    same_accelerator(new, laser_pointer) || same_accelerator(new, drawing_mode)
+}
+
 /// Sends bare Print Screen to the Raw Input listener (RegisterHotKey never fires for it on
 /// Andrew's laptop; ticket 26, ADR 0007) and every other combination to the global-shortcut plugin,
 /// so `change_hotkey` keeps its ordering and rollback unchanged. If the listener cannot start, bare
@@ -179,6 +239,61 @@ mod tests {
         assert_eq!(change_hotkey(&live, "ctrl+shift+s", "ctrl+shift+s", || panic!("no save")), Ok(()));
         let dead = Fake { held: RefCell::new(vec![]), taken_by_others: vec!["ctrl+shift+s".into()] };
         assert_eq!(change_hotkey(&dead, "ctrl+shift+s", "ctrl+shift+s", || Ok(())), Err("conflict"));
+    }
+
+    #[test]
+    fn a_free_combination_is_not_refused_for_a_demo_hotkey() {
+        assert_eq!(demo_refusal("ctrl+shift+l", "ctrl+shift+s", "ctrl+shift+d"), None);
+    }
+
+    #[test]
+    fn print_screen_is_refused_for_a_demo_hotkey_bare_or_with_modifiers() {
+        assert_eq!(demo_refusal("PrintScreen", "ctrl+shift+s", "ctrl+shift+d"), Some("print-screen"));
+        assert_eq!(demo_refusal("ctrl+PrintScreen", "ctrl+shift+s", "ctrl+shift+d"), Some("print-screen"));
+        assert!(!uses_print_screen("ctrl+shift+s"));
+        assert!(!uses_print_screen(""));
+    }
+
+    #[test]
+    fn the_capture_hotkey_and_the_other_demo_hotkey_are_refused_for_a_demo_hotkey() {
+        assert_eq!(demo_refusal("ctrl+shift+s", "ctrl+shift+s", "ctrl+shift+d"), Some("capture-hotkey"));
+        assert_eq!(demo_refusal("CTRL+SHIFT+D", "ctrl+shift+s", "ctrl+shift+d"), Some("other-demo"));
+    }
+
+    #[test]
+    fn a_differently_spelled_equivalent_combination_is_the_same_hotkey() {
+        assert_eq!(demo_refusal("Shift+Control+S", "ctrl+shift+s", "ctrl+shift+d"), Some("capture-hotkey"));
+        assert_eq!(demo_refusal("CommandOrControl+shift+D", "ctrl+shift+s", "ctrl+shift+d"), Some("other-demo"));
+        assert_eq!(demo_refusal("shift+ctrl+d", "ctrl+shift+s", "Ctrl+Shift+D"), Some("other-demo"));
+        assert!(clashes_with_demo("shift+ctrl+L", "ctrl+shift+l", "ctrl+shift+d"));
+        assert!(clashes_with_demo("Win+Alt+d", "ctrl+shift+l", "alt+super+D"));
+        assert!(same_accelerator(" ctrl + shift + s ", "ctrl+shift+s"));
+    }
+
+    #[test]
+    fn different_combinations_are_not_the_same_hotkey() {
+        assert!(!same_accelerator("ctrl+shift+s", "ctrl+s"));
+        assert!(!same_accelerator("ctrl+shift+s", "ctrl+shift+d"));
+        assert!(!same_accelerator("ctrl+shift+s", "ctrl+alt+s"));
+        assert!(!same_accelerator("ctrl+s", "s"));
+        assert_eq!(demo_refusal("ctrl+alt+k", "ctrl+shift+s", "ctrl+shift+d"), None);
+    }
+
+    #[test]
+    fn the_capture_hotkey_may_not_take_a_demo_combination() {
+        assert!(clashes_with_demo("ctrl+shift+l", "ctrl+shift+l", "ctrl+shift+d"));
+        assert!(clashes_with_demo("ctrl+shift+d", "ctrl+shift+l", "ctrl+shift+d"));
+        assert!(!clashes_with_demo("ctrl+alt+k", "ctrl+shift+l", "ctrl+shift+d"));
+    }
+
+    #[test]
+    fn a_demo_hotkey_change_keeps_the_register_first_rollback() {
+        let reg = fake_holding("ctrl+shift+l", &["ctrl+alt+j"]);
+        assert_eq!(change_hotkey(&reg, "ctrl+shift+l", "ctrl+alt+j", || panic!("must not persist")), Err("conflict"));
+        assert_eq!(*reg.held.borrow(), vec!["ctrl+shift+l".to_string()]);
+        let r = change_hotkey(&reg, "ctrl+shift+l", "ctrl+alt+k", || Err(io::Error::other("disk full")));
+        assert_eq!(r, Err("failed"));
+        assert_eq!(*reg.held.borrow(), vec!["ctrl+shift+l".to_string()]);
     }
 
     // Routing between the Raw Input listener and the plugin.

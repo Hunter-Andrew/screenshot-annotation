@@ -14,7 +14,7 @@ async function remap(page: Page, rowName: string, key: string) {
 }
 
 test("remapping M and Space is used by the next capture overlay", async ({ page }) => {
-  await page.goto("/#settings");
+  await page.goto("/#settings/shortcuts");
   await remap(page, "Toggle the magnifier", "n");
   await remap(page, "Capture the whole monitor under the cursor", "g");
   const overlay = page.getByRole("group", { name: "Capture overlay" });
@@ -43,31 +43,43 @@ test("remapping M and Space is used by the next capture overlay", async ({ page 
 });
 
 test("a remapped editor tool key selects the tool, and the old key no longer does", async ({ page }) => {
-  await page.goto("/#settings");
-  await remap(page, "Arrow", "k");
-  await expect(page.getByRole("button", { name: "Change shortcut for Arrow" })).toHaveText("K");
+  await page.goto("/#settings/shortcuts");
+  await remap(page, "Select", "k");
+  await expect(page.getByRole("button", { name: "Change shortcut for Select" })).toHaveText("K");
 
   await page.goto("/");
-  const arrow = page.getByRole("button", { name: /^Arrow \(K\)/ });
-  await expect(arrow).toBeVisible();
-  await page.keyboard.press("a");
-  await expect(arrow).toHaveAttribute("aria-pressed", "false");
+  const select = page.getByRole("button", { name: /^Select \(K\)/ });
+  await expect(select).toBeVisible();
+  await page.keyboard.press("r");
+  await expect(select).toHaveAttribute("aria-pressed", "false");
+  await page.keyboard.press("v");
+  await expect(select).toHaveAttribute("aria-pressed", "false");
   await page.keyboard.press("k");
-  await expect(arrow).toHaveAttribute("aria-pressed", "true");
+  await expect(select).toHaveAttribute("aria-pressed", "true");
 });
 
 test("a clash is refused with a message naming the other action, and nothing is saved", async ({ page }) => {
-  await page.goto("/#settings");
-  await remap(page, "Arrow", "l");
+  await page.goto("/#settings/shortcuts");
+  await remap(page, "Select", "l");
   await expect(page.getByRole("alert").filter({ hasText: "Line" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Change shortcut for Arrow" })).toHaveText("A");
+  await expect(page.getByRole("button", { name: "Change shortcut for Select" })).toHaveText("V");
   await page.reload();
-  await expect(page.getByRole("button", { name: "Change shortcut for Arrow" })).toHaveText("A");
-  await expect(page.getByRole("button", { name: "Change shortcut for Line" })).toHaveText("L");
+  await expect(page.getByRole("button", { name: "Change shortcut for Select" })).toHaveText("V");
+  await expect(page.getByRole("listitem", { name: "Line", exact: true })).toContainText("L");
+});
+
+test("the Arrow, Rectangle, Pen and Highlighter keys are fixed: read-only in Settings, no remap controls (ticket 54)", async ({ page }) => {
+  await page.goto("/#settings/shortcuts");
+  const editor = page.getByRole("region", { name: "Shortcuts" }).getByRole("group", { name: "Editor" });
+  for (const [name, key] of [["Arrow", "A"], ["Rectangle", "R"], ["Pen", "P"], ["Highlighter", "H"]]) {
+    await expect(editor.getByRole("listitem", { name })).toContainText(key);
+    await expect(editor.getByRole("listitem", { name })).toContainText("Fixed");
+    await expect(page.getByRole("button", { name: `Change shortcut for ${name}` })).toHaveCount(0);
+  }
 });
 
 test("remapped keys persist across a reload, and Reset all brings the defaults back", async ({ page }) => {
-  await page.goto("/#settings");
+  await page.goto("/#settings/shortcuts");
   await remap(page, "Toggle the magnifier", "n");
   await page.reload();
   const magnifier = page.getByRole("button", { name: "Change shortcut for Toggle the magnifier" });
@@ -80,33 +92,33 @@ test("remapped keys persist across a reload, and Reset all brings the defaults b
 
 test("a remap in Settings reaches an already open editor and its displayed keys", async ({ page, context }) => {
   await page.goto("/");
-  await expect(page.getByRole("button", { name: /^Arrow \(A\)/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: /^Select \(V\)/ })).toBeVisible();
 
   const settings = await context.newPage(); // another window on the same stored settings
-  await settings.goto("/#settings");
-  await remap(settings, "Arrow", "k");
-  await expect(settings.getByRole("button", { name: "Change shortcut for Arrow" })).toHaveText("K");
+  await settings.goto("/#settings/shortcuts");
+  await remap(settings, "Select", "k");
+  await expect(settings.getByRole("button", { name: "Change shortcut for Select" })).toHaveText("K");
 
-  const arrow = page.getByRole("button", { name: /^Arrow \(K\)/ }); // no reload of the editor
-  await expect(arrow).toBeVisible();
-  await page.keyboard.press("a");
-  await expect(arrow).toHaveAttribute("aria-pressed", "false");
+  const line = page.getByRole("button", { name: /^Select \(K\)/ }); // no reload of the editor
+  await expect(line).toBeVisible();
+  await page.keyboard.press("l");
+  await expect(line).toHaveAttribute("aria-pressed", "false");
   await page.keyboard.press("k");
-  await expect(arrow).toHaveAttribute("aria-pressed", "true");
+  await expect(line).toHaveAttribute("aria-pressed", "true");
 
   await settings.getByRole("button", { name: "Reset all shortcuts" }).click();
-  await expect(page.getByRole("button", { name: /^Arrow \(A\)/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: /^Select \(V\)/ })).toBeVisible();
 });
 
 test("while a text input has focus, bare keys are suspended and Ctrl/Alt combinations still work", async ({ page }) => {
-  await page.goto("/#settings");
-  await remap(page, "Arrow", "Alt+k");
-  await expect(page.getByRole("button", { name: "Change shortcut for Arrow" })).toHaveText("Alt+K");
+  await page.goto("/#settings/shortcuts");
+  await remap(page, "Select", "Alt+k");
+  await expect(page.getByRole("button", { name: "Change shortcut for Select" })).toHaveText("Alt+K");
   await page.goto("/");
   await page.reload();
-  const arrow = page.getByRole("button", { name: /^Arrow \(Alt\+K\)/ });
-  const line = page.getByRole("button", { name: /^Line \(L\)/ });
-  await expect(arrow).toBeVisible();
+  const lineTool = page.getByRole("button", { name: /^Select \(Alt\+K\)/ });
+  const ellipse = page.getByRole("button", { name: /^Ellipse \(E\)/ });
+  await expect(lineTool).toBeVisible();
 
   await page.waitForFunction(() => Boolean((window as unknown as { __fakeBridge?: unknown }).__fakeBridge));
   await page.evaluate(() => {
@@ -116,8 +128,8 @@ test("while a text input has focus, bare keys are suspended and Ctrl/Alt combina
   await expect(page.getByRole("img", { name: "Capture" })).toBeVisible();
   await page.getByRole("button", { name: /^Rectangle \(/ }).click(); // a drawing tool shows its Stroke group
   await page.getByRole("textbox", { name: "Color hex", exact: true }).focus();
-  await page.keyboard.press("l"); // typed into the field, not a tool switch
-  await expect(line).toHaveAttribute("aria-pressed", "false");
+  await page.keyboard.press("e"); // typed into the field, not a tool switch
+  await expect(ellipse).toHaveAttribute("aria-pressed", "false");
   await page.keyboard.press("Alt+k");
-  await expect(arrow).toHaveAttribute("aria-pressed", "true");
+  await expect(lineTool).toHaveAttribute("aria-pressed", "true");
 });

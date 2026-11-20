@@ -1,7 +1,7 @@
-import { useCallback, useState } from "react";
+import { type ReactNode, useCallback, useState } from "react";
 import type { PlatformBridge } from "../platform/bridge";
 import { reservedKeysWithoutAction, resolveBindings, validateBinding, validateReset } from "../shared/shortcutBindings";
-import { CONTEXT_NAME, keyLabel, SHORTCUT_CONTEXTS, shortcutsIn } from "../shared/shortcutRegistry";
+import { CONTEXT_NAME, formatKeySpec, keyLabel, SHORTCUT_CONTEXTS, shortcutsIn } from "../shared/shortcutRegistry";
 import { useShortcutOverrides } from "../shared/useShortcutBindings";
 import { HotkeyRecorder } from "./HotkeyRecorder";
 import { ShortcutRecorder } from "./ShortcutRecorder";
@@ -20,7 +20,7 @@ const ROW_STYLE = {
  * and a Reset; overrides are saved to settings.json at once (ticket 47). A refused key never changes
  * anything: the row says why, naming the clashing action.
  */
-export function ShortcutsSection({ bridge }: { bridge: PlatformBridge }) {
+export function ShortcutsSection({ bridge, extra }: { bridge: PlatformBridge; extra?: ReactNode }) {
   const [overrides, setOverrides] = useShortcutOverrides(bridge, (message) => void bridge.logSettings(message));
   const [recording, setRecording] = useState<string | null>(null);
   const [problem, setProblem] = useState<{ id: string; message: string } | null>(null);
@@ -58,6 +58,7 @@ export function ShortcutsSection({ bridge }: { bridge: PlatformBridge }) {
         <h3 style={{ fontSize: 13 }}>Capture</h3>
         <HotkeyRecorder bridge={bridge} />
       </div>
+      {extra}
       {SHORTCUT_CONTEXTS.map((context) => {
         const name = CONTEXT_NAME[context];
         const bindings = resolveBindings(context, overrides);
@@ -105,14 +106,18 @@ export function ShortcutsSection({ bridge }: { bridge: PlatformBridge }) {
             </ul>
             {context === "editor" && (
               // The rest of the fixed keys (ticket 28 decision 8): they have no action of their own, so no row above.
-              <dl aria-label="Other fixed keys" style={{ margin: 0 }}>
-                {reservedKeysWithoutAction().map((spec) => (
-                  <div key={spec} style={ROW_STYLE}>
-                    <dt>{spec}</dt>
-                    <dd style={{ margin: 0, opacity: 0.7 }}>Fixed</dd>
-                  </div>
+              // Laid out like the rows above: what it does on the left, the key and "Fixed" on the right.
+              <ul aria-label="Other fixed keys" style={{ listStyle: "none", margin: 0, padding: 0 }}>
+                {reservedKeysWithoutAction().map(({ spec, label }) => (
+                  <li key={spec} aria-label={label} style={ROW_STYLE}>
+                    <span>{label}</span>
+                    <span>
+                      <kbd>{formatKeySpec(spec)}</kbd>
+                      <span style={{ marginLeft: 8, opacity: 0.7 }}>Fixed</span>
+                    </span>
+                  </li>
                 ))}
-              </dl>
+              </ul>
             )}
           </div>
         );

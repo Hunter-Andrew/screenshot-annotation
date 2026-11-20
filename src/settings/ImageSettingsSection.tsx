@@ -24,7 +24,7 @@ const CHECKERBOARD_LABELS: Record<CheckerboardTheme, string> = { dark: "Dark", l
  * `slider`, a slider next to the box moves the same value: the box follows it while it moves, and it is stored when it
  * is let go.
  */
-function NumberSetting(props: {
+export function NumberSetting(props: {
   label: string;
   hint: string;
   range: NumberRange;

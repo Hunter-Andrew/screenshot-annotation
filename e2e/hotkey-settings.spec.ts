@@ -7,7 +7,7 @@ const fake = <T,>(page: Page, read: (f: Fake) => T) =>
   ) as Promise<T>;
 
 test("recording a new hotkey saves it; a taken one shows a warning and keeps the old one", async ({ page }) => {
-  await page.goto("/#settings");
+  await page.goto("/#settings/shortcuts");
   const field = page.getByRole("button", { name: "Ctrl+Shift+S", exact: true });
   await expect(field).toBeVisible();
 
@@ -30,7 +30,7 @@ test("recording a new hotkey saves it; a taken one shows a warning and keeps the
 });
 
 test("the Print Screen notice appears once, and [Open Windows setting] uses the deep link", async ({ page }) => {
-  await page.goto("/#settings");
+  await page.goto("/#settings/shortcuts");
   await expect(page.getByText(/Print Screen opens Snipping Tool/)).toBeVisible();
   await expect(page.getByText(/Bluetooth & devices > Keyboard > Use the Print screen button to open screen capturing/)).toBeVisible();
 
@@ -44,7 +44,7 @@ test("the Print Screen notice appears once, and [Open Windows setting] uses the 
 });
 
 test("[Keep Ctrl+Shift+S] dismisses the notice without opening Windows Settings", async ({ page }) => {
-  await page.goto("/#settings");
+  await page.goto("/#settings/shortcuts");
   await page.getByRole("button", { name: "Keep Ctrl+Shift+S" }).click();
   await expect(page.getByText(/Print Screen opens Snipping Tool/)).toHaveCount(0);
   expect(await fake(page, (f) => f.keyboardSettingsOpened)).toBe(0);
@@ -54,14 +54,14 @@ test("[Keep Ctrl+Shift+S] dismisses the notice without opening Windows Settings"
 });
 
 test("no notice when the Windows setting is explicitly off", async ({ page }) => {
-  await page.goto("/?printScreenSnipping=off#settings");
+  await page.goto("/?printScreenSnipping=off#settings/shortcuts");
   await expect(page.getByRole("heading", { name: "Capture hotkey" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Ctrl+Shift+S", exact: true })).toBeVisible();
   await expect(page.getByText(/Print Screen opens Snipping Tool/)).toHaveCount(0);
 });
 
 test("recording Print Screen shows a persistent warning that survives answering the notice and clears after the Windows setting is turned off", async ({ page }) => {
-  await page.goto("/#settings");
+  await page.goto("/#settings/shortcuts");
   await page.getByRole("button", { name: "Keep Ctrl+Shift+S" }).click();
   await page.getByRole("button", { name: "Ctrl+Shift+S", exact: true }).click();
   await page.evaluate(() => window.dispatchEvent(new KeyboardEvent("keyup", { code: "PrintScreen" })));

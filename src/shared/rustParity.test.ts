@@ -8,7 +8,11 @@ import { describe, expect, it } from "vitest";
 import { BACKGROUNDS } from "../core/area";
 import { CAPTURE_DELAYS } from "../platform/bridge";
 import { CANVAS_MARGIN, CHECKERBOARD_THEMES, CROP_MARGIN, DEFAULT_DARK_BACKGROUND, DEFAULT_IMAGE_SETTINGS, OUTSIDE_DARKNESS } from "./imageSettings";
-import { COUNTDOWN_HASH, OVERLAY_HASH_PREFIX, RELEASES_URL, SETTINGS_HASH } from "./constants";
+import { COUNTDOWN_HASH, DRAWING_HASH_PREFIX, DRAWING_TOOLBAR_HASH, DRAWING_TOOLBAR_SIZE, OVERLAY_HASH_PREFIX, LASER_POINTER_HASH, RELEASES_URL, SETTINGS_HASH } from "./constants";
+import { DEFAULT_LASER_POINTER_SETTINGS, LASER_POINTER_SIZES } from "../platform/bridge";
+import { DRAWING_HIGHLIGHTER_OPACITY } from "../drawing/drawingStyles";
+import { LASER_POINTER_WINDOW_SIZE } from "../laserPointer/laserPointerStyle";
+import { DRAWING_TOOLS } from "../drawing/drawingState";
 
 const rust = (file: string) => readFileSync(resolve(__dirname, "../../src-tauri/src", file), "utf8");
 
@@ -26,6 +30,18 @@ describe("TS/Rust shared constants", () => {
   it("overlay.rs opens each overlay window at the prefix App.tsx routes on", () => {
     const match = rust("overlay.rs").match(/WebviewUrl::App\(format!\("index\.html([^"{]*)\{/);
     expect(match?.[1]).toBe(OVERLAY_HASH_PREFIX);
+  });
+
+  it("drawing.rs opens each Drawing mode overlay window at the prefix App.tsx routes on", () => {
+    const match = rust("drawing.rs").match(/WebviewUrl::App\(format!\("index\.html([^"{]*)\{/);
+    expect(match?.[1]).toBe(DRAWING_HASH_PREFIX);
+  });
+
+  it("the capability glob covers the Drawing mode overlay window labels", () => {
+    const label = rust("drawing_plan.rs").match(/pub const LABEL_PREFIX: &str = "([^"]+)";/)?.[1];
+    const capability = readFileSync(resolve(__dirname, "../../src-tauri/capabilities/default.json"), "utf8");
+    expect(label).toBeTruthy();
+    expect(JSON.parse(capability).windows).toContain(`${label}*`);
   });
 
   it("countdown.rs opens the countdown badge window at the hash App.tsx routes on", () => {
@@ -167,5 +183,100 @@ describe("TS/Rust shared constants", () => {
       expect(lib).toMatch(new RegExp(`\\b${command},`));
     }
     expect(lib).toMatch(/fn set_tool_styles\([^)]*\bstyles: /);
+  });
+
+  it("laser_pointer.rs opens the dot window at the hash App.tsx routes on, and the capability covers its label", () => {
+    const match = rust("laser_pointer.rs").match(/WebviewUrl::App\("index\.html([^"]*)"/);
+    expect(match?.[1]).toBe(LASER_POINTER_HASH);
+    const label = rust("laser_pointer.rs").match(/pub const LABEL: &str = "([^"]+)";/)?.[1];
+    const capability = readFileSync(resolve(__dirname, "../../src-tauri/capabilities/default.json"), "utf8");
+    expect(JSON.parse(capability).windows).toContain(label);
+  });
+
+  it("laser_pointer_math.rs sizes the dot window like the page lays it out", () => {
+    expect(Number(rust("laser_pointer_math.rs").match(/pub const WINDOW_SIZE: u32 = (\d+);/)?.[1])).toBe(LASER_POINTER_WINDOW_SIZE);
+  });
+
+  it("settings.rs offers the same laser pointer sizes, colour and defaults as Settings > Demo tools", () => {
+    const sizes = rust("settings.rs").match(/pub const LASER_POINTER_SIZES: \[&str; \d+\] = \[([^\]]*)\];/)?.[1].split(",").map((v) => v.trim().replace(/"/g, ""));
+    expect(sizes).toEqual([...LASER_POINTER_SIZES]);
+    const text = (name: string) => rust("settings.rs").match(new RegExp(`pub const ${name}: &str = "([^"]+)";`))?.[1];
+    expect(text("DEFAULT_LASER_POINTER_SIZE")).toBe(DEFAULT_LASER_POINTER_SETTINGS.size);
+    expect(text("DEFAULT_LASER_POINTER_COLOR")).toBe(DEFAULT_LASER_POINTER_SETTINGS.color);
+    expect(rust("settings.rs")).toMatch(/laser_pointer_ripple: true,/);
+    expect(DEFAULT_LASER_POINTER_SETTINGS.ripple).toBe(true);
+  });
+
+  it("settings.rs has the same Drawing mode Highlighter opacity range as Settings > Demo tools, and hides the arrow by default", () => {
+    const range = rust("settings.rs").match(/pub const DRAWING_HIGHLIGHTER_OPACITY: Range = Range \{ min: (\d+), max: (\d+), default: (\d+) \};/);
+    expect(range?.slice(1).map(Number)).toEqual([DRAWING_HIGHLIGHTER_OPACITY.min, DRAWING_HIGHLIGHTER_OPACITY.max, DRAWING_HIGHLIGHTER_OPACITY.default]);
+    expect(rust("settings.rs")).toMatch(/laser_pointer_hide_cursor: true,/);
+  });
+
+  it("the hide-cursor and Highlighter-opacity commands exist on both sides with matching argument names", () => {
+    const tauriBridge = readFileSync(resolve(__dirname, "../platform/tauriBridge.ts"), "utf8");
+    const lib = rust("lib.rs");
+    for (const [command, call, signature] of [
+      ["get_laser_pointer_hide_cursor", 'invoke<boolean>("get_laser_pointer_hide_cursor")', /fn get_laser_pointer_hide_cursor\(/],
+      ["set_laser_pointer_hide_cursor", 'invoke<void>("set_laser_pointer_hide_cursor", { hide })', /fn set_laser_pointer_hide_cursor\([^)]*\bhide: bool/],
+      ["get_drawing_highlighter_opacity", 'invoke<number>("get_drawing_highlighter_opacity")', /fn get_drawing_highlighter_opacity\(/],
+      ["set_drawing_highlighter_opacity", 'invoke<void>("set_drawing_highlighter_opacity", { percent })', /fn set_drawing_highlighter_opacity\([^)]*\bpercent: u32/],
+    ] as const) {
+      expect(tauriBridge).toContain(call);
+      expect(lib).toMatch(signature);
+      expect(lib).toContain(`            ${command},`);
+    }
+  });
+
+  it("the laser pointer events Rust emits are the ones the Tauri bridge listens for", () => {
+    const tauriBridge = readFileSync(resolve(__dirname, "../platform/tauriBridge.ts"), "utf8");
+    for (const constant of ["STATE_EVENT", "VIEW_EVENT", "RIPPLE_EVENT"]) {
+      const name = rust("laser_pointer.rs").match(new RegExp(`pub const ${constant}: &str = "([^"]+)"`))?.[1];
+      expect(name).toBeTruthy();
+      expect(tauriBridge).toMatch(new RegExp(`listen(<[^>]*>)?\\("${name}"`));
+    }
+  });
+
+  it("the laser pointer commands the bridge invokes use the argument names Rust expects", () => {
+    const tauriBridge = readFileSync(resolve(__dirname, "../platform/tauriBridge.ts"), "utf8");
+    const lib = rust("lib.rs");
+    expect(tauriBridge).toContain('invoke<void>("set_laser_pointer_settings", { laserPointer: settings })');
+    expect(lib).toMatch(/fn set_laser_pointer_settings\([^)]*\blaser_pointer: settings::LaserPointerSettings/);
+    expect(tauriBridge).toContain('invoke<void>("set_laser_pointer", { on })');
+    expect(lib).toMatch(/fn set_laser_pointer\(app: AppHandle, on: bool\)/);
+  });
+
+  it("drawing.rs opens the Drawing mode toolbar at the hash App.tsx routes on, and the capability glob covers its label", () => {
+    const match = rust("drawing.rs").match(/WebviewUrl::App\("index\.html([^"]*)"\.into\(\)\)/);
+    expect(match?.[1]).toBe(DRAWING_TOOLBAR_HASH);
+    const label = rust("drawing_plan.rs").match(/pub const TOOLBAR_LABEL: &str = "([^"]+)";/)?.[1];
+    const prefix = rust("drawing_plan.rs").match(/pub const LABEL_PREFIX: &str = "([^"]+)";/)?.[1];
+    expect(label?.startsWith(prefix ?? "?")).toBe(true);
+    const capability = JSON.parse(readFileSync(resolve(__dirname, "../../src-tauri/capabilities/default.json"), "utf8"));
+    expect(capability.windows).toContain(`${prefix}*`);
+    expect(capability.permissions).toContain("core:window:allow-start-dragging");
+  });
+
+  it("drawing_plan.rs sizes the toolbar window like the page lays it out, and knows the same four tools", () => {
+    const plan = rust("drawing_plan.rs");
+    expect(Number(plan.match(/pub const TOOLBAR_WIDTH: u32 = (\d+);/)?.[1])).toBe(DRAWING_TOOLBAR_SIZE.width);
+    expect(Number(plan.match(/pub const TOOLBAR_HEIGHT: u32 = (\d+);/)?.[1])).toBe(DRAWING_TOOLBAR_SIZE.height);
+    const tools = plan.match(/pub const TOOLS: \[&str; \d+\] = \[([^\]]*)\];/)?.[1].split(",").map((v) => v.trim().replace(/"/g, ""));
+    expect(tools).toEqual([...DRAWING_TOOLS]);
+    expect(plan).toContain(`pub const DEFAULT_TOOL: &str = "${DRAWING_TOOLS[0]}";`);
+  });
+
+  it("the Drawing mode toolbar commands and the tool event exist on both sides", () => {
+    const tauriBridge = readFileSync(resolve(__dirname, "../platform/tauriBridge.ts"), "utf8");
+    const lib = rust("lib.rs");
+    const drawing = rust("drawing.rs");
+    for (const command of ["set_drawing_tool", "set_drawing_click_through", "resize_drawing_toolbar"]) {
+      expect(tauriBridge).toContain(`invoke<`);
+      expect(tauriBridge).toContain(`"${command}"`);
+      expect(drawing).toMatch(new RegExp(`pub async fn ${command}\\(`));
+      expect(lib).toContain(`drawing::${command},`);
+    }
+    expect(drawing).toContain('pub const TOOL_EVENT: &str = "drawing-tool";');
+    expect(tauriBridge).toContain('listen<string>("drawing-tool"');
   });
 });

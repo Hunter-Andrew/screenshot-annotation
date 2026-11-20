@@ -65,7 +65,7 @@ describe("upgrade", () => {
 
 describe("data safety", () => {
   it("never touches the Library or any user folder", () => {
-    expect(hooks()).not.toMatch(/\$PICTURES|\$MYPICTURES|\$DOCUMENTS|\$PROFILE|\$DESKTOP|Screenshot Annotation\\/i);
+    expect(hooks()).not.toMatch(/\$PICTURES|\$MYPICTURES|\$DOCUMENTS|\$PROFILE|\$DESKTOP|Sigil \(Screenshot Annotation\)\\/i);
   });
 
   it("deletes no file or folder itself, leaving app-data removal to Tauri's checkbox-gated uninstaller", () => {
@@ -77,7 +77,7 @@ describe("data safety", () => {
   it("deletes one registry value only: this app's launch-at-sign-in entry, not the Run key", () => {
     const deletions = hooks().match(/^\s*DeleteRegValue\b.*$/gim) ?? [];
     expect(deletions).toHaveLength(1);
-    expect(deletions[0]).toMatch(/DeleteRegValue\s+HKCU\s+"Software\\Microsoft\\Windows\\CurrentVersion\\Run"\s+"Screenshot Annotation"/);
+    expect(deletions[0]).toMatch(/DeleteRegValue\s+HKCU\s+"Software\\Microsoft\\Windows\\CurrentVersion\\Run"\s+"Sigil \(Screenshot Annotation\)"/);
   });
 });
 
