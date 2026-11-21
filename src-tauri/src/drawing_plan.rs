@@ -134,7 +134,7 @@ mod tests {
         // 1920x1080 at 100%: 396 wide, centred, 12 below the top.
         assert_eq!(toolbar_placement((0, 0, 1920, 1080), 1.0), Placement { x: 762, y: 12, width: 396, height: 48 });
         // 3840x2160 at 200%: twice the size, twice the gap, still centred.
-        assert_eq!(toolbar_placement((0, 0, 3840, 2160), 2.0), Placement { x: 1564, y: 24, width: 712, height: 96 });
+        assert_eq!(toolbar_placement((0, 0, 3840, 2160), 2.0), Placement { x: 1524, y: 24, width: 792, height: 96 });
     }
 
     #[test]

@@ -82,15 +82,18 @@ export type SetHotkeyResult =
   | { ok: true }
   | { ok: false; reason: "conflict" | "invalid" | "failed" | "demo-hotkey" };
 
-/** The two demo-tool global hotkeys (tickets 40, 41, 49). */
-export type DemoAction = "laserPointer" | "drawingMode";
+/** The extra global hotkeys besides capture: the two demo tools (tickets 40, 41, 49) and the editor window (ticket 56). */
+export type DemoAction = "laserPointer" | "drawingMode" | "editor";
 
 export interface DemoHotkeys {
   laserPointer: string;
   drawingMode: string;
+  /** Opens the editor window, or closes it to the tray when it is open. */
+  editor: string;
   /** False when the OS refused the combination at startup (another app has it). */
   laserPointerRegistered: boolean;
   drawingModeRegistered: boolean;
+  editorRegistered: boolean;
 }
 
 export type SetDemoHotkeyResult =
@@ -343,8 +346,8 @@ export interface PlatformBridge {
   /** The laser-pointer and drawing-mode hotkeys (defaults alt+p and alt+d). */
   getDemoHotkeys(): Promise<DemoHotkeys>;
   /**
-   * Re-register one demo hotkey and save it, like `setHotkey`. Refused (nothing changes) for Print
-   * Screen, the capture hotkey and the other demo hotkey, or when another app owns the combination.
+   * Re-register one extra hotkey and save it, like `setHotkey`. Refused (nothing changes) for Print
+   * Screen, the capture hotkey and the other extra hotkeys, or when another app owns the combination.
    */
   setDemoHotkey(action: DemoAction, accelerator: string): Promise<SetDemoHotkeyResult>;
 

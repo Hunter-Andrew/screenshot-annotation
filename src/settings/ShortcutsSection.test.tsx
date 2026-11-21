@@ -10,10 +10,10 @@ function group(name: string) {
 }
 
 describe("Settings > Shortcuts", () => {
-  it("groups shortcuts Capture / Demo tools / Capture overlay / Editor / Drawing mode in that order", () => {
+  it("groups shortcuts Capture / Demo tools / Editor window / Capture overlay / Editor / Drawing mode in that order", () => {
     renderShortcuts(createFakeBridge());
     const names = within(screen.getByRole("region", { name: "Shortcuts" })).getAllByRole("group").map((g) => g.getAttribute("aria-label"));
-    expect(names).toEqual(["Capture", "Demo tools", "Capture overlay", "Editor", "Drawing mode"]);
+    expect(names).toEqual(["Capture", "Demo tools", "Editor window", "Capture overlay", "Editor", "Drawing mode"]);
   });
 
   it("lists Space and M under Capture overlay with their bindings", () => {

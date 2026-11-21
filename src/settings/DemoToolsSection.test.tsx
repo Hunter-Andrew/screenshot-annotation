@@ -1,4 +1,4 @@
-import { fireEvent, screen } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import { createFakeBridge } from "../platform/fakeBridge";
@@ -14,6 +14,7 @@ describe("Settings > Demo tools", () => {
     expect(shortcuts.compareDocumentPosition(demo) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(await field("Laser pointer hotkey: Alt+P")).toBeVisible();
     expect(await field("Drawing mode hotkey: Alt+D")).toBeVisible();
+    expect(await field("Open or close the editor hotkey: Alt+E")).toBeVisible();
   });
 
   it("records a new laser pointer hotkey", async () => {
@@ -55,5 +56,38 @@ describe("Settings > Demo tools", () => {
     await userEvent.keyboard("{Control>}{Alt>}j{/Alt}{/Control}");
     expect(await screen.findByRole("alert")).toHaveTextContent("Ctrl+Alt+J is already in use by another app");
     expect(bridge.drawingModeHotkey).toBe("alt+d");
+  });
+
+  it("records a new editor hotkey and saves it", async () => {
+    const bridge = createFakeBridge();
+    renderShortcuts(bridge);
+    await userEvent.click(await field("Open or close the editor hotkey: Alt+E"));
+    await userEvent.keyboard("{Control>}{Alt>}w{/Alt}{/Control}");
+    expect(await field("Open or close the editor hotkey: Ctrl+Alt+W")).toBeVisible();
+    expect(bridge.editorHotkey).toBe("ctrl+alt+w");
+    expect(bridge.laserPointerHotkey).toBe("alt+p");
+  });
+
+  it("refuses a combination another extra hotkey has, naming it, and keeps the old editor hotkey", async () => {
+    const bridge = createFakeBridge();
+    renderShortcuts(bridge);
+    await userEvent.click(await field("Open or close the editor hotkey: Alt+E"));
+    await userEvent.keyboard("{Alt>}p{/Alt}");
+    expect(await screen.findByRole("alert")).toHaveTextContent(/Laser pointer/);
+    expect(bridge.editorHotkey).toBe("alt+e");
+    // And the other way: the laser pointer cannot take the editor's combination.
+    await userEvent.click(await field("Laser pointer hotkey: Alt+P"));
+    await userEvent.keyboard("{Alt>}e{/Alt}");
+    await waitFor(() => expect(screen.getAllByRole("alert").map((alert) => alert.textContent).join("|")).toMatch(/already the editor hotkey/));
+    expect(bridge.laserPointerHotkey).toBe("alt+p");
+  });
+
+  it("refuses Print Screen, so Alt+Print Screen is not available for the editor hotkey", async () => {
+    const bridge = createFakeBridge();
+    renderShortcuts(bridge);
+    await userEvent.click(await field("Open or close the editor hotkey: Alt+E"));
+    fireEvent.keyDown(window, { code: "PrintScreen", altKey: true });
+    expect(await screen.findByRole("alert")).toHaveTextContent(/Print Screen/);
+    expect(bridge.editorHotkey).toBe("alt+e");
   });
 });

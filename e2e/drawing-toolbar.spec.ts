@@ -17,7 +17,7 @@ const fake = <T,>(page: Page, read: (f: Fake) => T) => page.evaluate(`(${read.to
 const button = (page: Page, name: string) => page.getByRole("button", { name, exact: true });
 
 test.beforeEach(async ({ page }) => {
-  await page.setViewportSize({ width: 356, height: 48 });
+  await page.setViewportSize({ width: 396, height: 48 });
   await page.goto("/#drawing-toolbar");
   await expect(page.getByRole("toolbar", { name: "Drawing tools" })).toBeVisible();
 });
@@ -26,10 +26,10 @@ test("shows the buttons in order, icon-only, with the key in each tooltip, and A
   const names = await page.getByRole("toolbar").locator("button, [role=separator]").evaluateAll((els) =>
     els.map((e) => (e.getAttribute("role") === "separator" ? "|" : e.getAttribute("aria-label"))),
   );
-  expect(names).toEqual(["Arrow", "Rectangle", "Pen", "Highlighter", "|", "Use apps", "Undo", "Collapse", "Exit"]);
+  expect(names).toEqual(["Arrow", "Rectangle", "Pen", "Highlighter", "Eraser", "|", "Use apps", "Undo", "Collapse", "Exit"]);
   const titles = await page.getByRole("toolbar").getByRole("button").evaluateAll((els) => els.map((e) => [e.textContent, e.getAttribute("title")]));
   expect(titles).toEqual([
-    ["", "Arrow (A)"], ["", "Rectangle (R)"], ["", "Pen (P)"], ["", "Highlighter (H)"],
+    ["", "Arrow (A)"], ["", "Rectangle (R)"], ["", "Pen (P)"], ["", "Highlighter (H)"], ["", "Eraser (E)"],
     ["", "Use apps"], ["", "Undo (Ctrl+Z)"], ["", "Collapse"], ["", "Exit (Esc)"],
   ]);
   await expect(button(page, "Arrow")).toHaveAttribute("aria-pressed", "true");
@@ -38,7 +38,7 @@ test("shows the buttons in order, icon-only, with the key in each tooltip, and A
 });
 
 test("each tool button highlights and tells the platform", async ({ page }) => {
-  for (const [name, tool] of [["Rectangle", "rect"], ["Pen", "pen"], ["Highlighter", "highlight"], ["Arrow", "arrow"]] as const) {
+  for (const [name, tool] of [["Rectangle", "rect"], ["Pen", "pen"], ["Highlighter", "highlight"], ["Eraser", "eraser"], ["Arrow", "arrow"]] as const) {
     await button(page, name).click();
     await expect(button(page, name)).toHaveAttribute("aria-pressed", "true");
     expect(await fake(page, (f) => f.drawingTool)).toBe(tool);
@@ -78,7 +78,7 @@ test("Collapse makes the small pill and a click on it expands again", async ({ p
   await expect(button(page, "Arrow")).toHaveCount(0);
   await expect(button(page, "Expand")).toBeVisible();
   await button(page, "Expand").click();
-  expect(await fake(page, (f) => f.drawingToolbarSize)).toEqual({ width: 356, height: 48 });
+  expect(await fake(page, (f) => f.drawingToolbarSize)).toEqual({ width: 396, height: 48 });
   await expect(button(page, "Arrow")).toBeVisible();
 });
 
@@ -93,5 +93,5 @@ test("the pill fits its window with no scroll, on a transparent page", async ({ 
   expect(overflow[1]).toBeLessThanOrEqual(0);
   expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe("rgba(0, 0, 0, 0)");
   const last = await button(page, "Exit").boundingBox();
-  expect(last!.x + last!.width).toBeLessThanOrEqual(356);
+  expect(last!.x + last!.width).toBeLessThanOrEqual(396);
 });

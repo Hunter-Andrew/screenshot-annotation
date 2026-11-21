@@ -65,8 +65,12 @@ The feature that shows an audience where the mouse is during a demo or screen sh
 _Avoid_: Pointer highlight, laser dot, pointer dot, cursor highlight, spotlight
 
 **Drawing mode**:
-A temporary state, started and ended by its own global hotkey (default Alt+D), in which the user draws arrows, rectangles, pen strokes and highlighter strokes over the live desktop for an audience. Nothing is saved; leaving the mode clears every drawing. A Capture taken during it includes the drawings. Its drawings are not Annotations and never reach the Library.
+A temporary state, started and ended by its own global hotkey (default Alt+D), in which the user draws arrows, rectangles, pen strokes and highlighter strokes over the live desktop for an audience, and can use the Eraser (key E, a toolbar button) to cut away parts of the pen strokes, with the eraser size saved with the editor's Pen tool; one drag is one Undo step, and it never touches the other drawings. Nothing is saved; leaving the mode clears every drawing. A Capture taken during it includes the drawings. Its drawings are not Annotations and never reach the Library.
 _Avoid_: Screen annotation, whiteboard, markup mode
+
+**Editor hotkey**:
+A global hotkey (default Alt+E, changed in Settings > Shortcuts) that opens the editor window, or closes it to the tray when it is open. The editor never opens by itself when the app starts: at startup the app is only in the tray, and the editor opens only on an action of the user (the tray icon, the tray menu, this hotkey, a finished Capture, or starting the app again once it has been running for a few seconds).
+_Avoid_: Show-editor key, window hotkey
 
 **Export**:
 The flattened image produced from an Annotated Image for use outside the app (clipboard or Save as). It is a plain image that never carries the editable data or the original Capture.

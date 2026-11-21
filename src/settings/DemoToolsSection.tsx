@@ -4,10 +4,12 @@ import { comboFromKeyEvent, formatCombo } from "./hotkey";
 import { DrawingHighlighterSetting } from "./DrawingHighlighterSetting";
 import { LaserPointerSettings } from "./LaserPointerSettings";
 
-const ROWS: { action: DemoAction; label: string; other: string }[] = [
-  { action: "laserPointer", label: "Laser pointer", other: "Drawing mode" },
-  { action: "drawingMode", label: "Drawing mode", other: "Laser pointer" },
+const DEMO_ROWS: { action: DemoAction; label: string }[] = [
+  { action: "laserPointer", label: "Laser pointer" },
+  { action: "drawingMode", label: "Drawing mode" },
 ];
+const NAMES: Record<DemoAction, string> = { laserPointer: "Laser pointer", drawingMode: "Drawing mode", editor: "editor" };
+const EDITOR_ROWS: { action: DemoAction; label: string }[] = [{ action: "editor", label: "Open or close the editor" }];
 
 type Problem =
   | { kind: "refused"; reason: Extract<SetDemoHotkeyResult, { ok: false }>["reason"]; accelerator: string }
@@ -26,22 +28,27 @@ export function DemoToolsSection({ bridge }: { bridge: PlatformBridge }) {
   );
 }
 
-/** The keyboard shortcuts screen: one hotkey recorder each for the laser pointer and drawing mode (ticket 49). */
+/**
+ * The keyboard shortcuts screen: one hotkey recorder each for the laser pointer and drawing mode (ticket 49), and one for
+ * the editor window, which opens it or closes it to the tray (ticket 56).
+ */
 export function DemoHotkeys({ bridge }: { bridge: PlatformBridge }) {
   const [hotkeys, setHotkeys] = useState<Record<DemoAction, string> | null>(null);
   const [unregistered, setUnregistered] = useState<Record<DemoAction, boolean>>({
     laserPointer: false,
     drawingMode: false,
+    editor: false,
   });
   const [recording, setRecording] = useState<DemoAction | null>(null);
   const [problems, setProblems] = useState<Partial<Record<DemoAction, Problem>>>({});
 
   useEffect(() => {
     void bridge.getDemoHotkeys().then((state) => {
-      setHotkeys({ laserPointer: state.laserPointer, drawingMode: state.drawingMode });
+      setHotkeys({ laserPointer: state.laserPointer, drawingMode: state.drawingMode, editor: state.editor });
       setUnregistered({
         laserPointer: !state.laserPointerRegistered,
         drawingMode: !state.drawingModeRegistered,
+        editor: !state.editorRegistered,
       });
     });
   }, [bridge]);
@@ -81,10 +88,8 @@ export function DemoHotkeys({ bridge }: { bridge: PlatformBridge }) {
     };
   }, [recording, bridge]);
 
-  return (
-    <div role="group" aria-label="Demo tools">
-      <h3 style={{ fontSize: 13 }}>Demo tools</h3>
-      {ROWS.map(({ action, label, other }) => {
+  const rows = (list: typeof DEMO_ROWS) =>
+    list.map(({ action, label }) => {
         const current = hotkeys?.[action] ?? null;
         const problem = problems[action];
         const shown = recording === action ? "Press a key combination… (Esc to cancel)" : current === null ? "…" : formatCombo(current);
@@ -105,7 +110,7 @@ export function DemoHotkeys({ bridge }: { bridge: PlatformBridge }) {
             </button>
             {problem !== undefined && (
               <p role="alert" className="error">
-                {describe(problem, other)}
+                {describe(problem, holder(action, problem, hotkeys))}
               </p>
             )}
             {dead && (
@@ -115,12 +120,30 @@ export function DemoHotkeys({ bridge }: { bridge: PlatformBridge }) {
             )}
           </div>
         );
-      })}
-    </div>
+    });
+
+  return (
+    <>
+      <div role="group" aria-label="Demo tools">
+        <h3 style={{ fontSize: 13 }}>Demo tools</h3>
+        {rows(DEMO_ROWS)}
+      </div>
+      <div role="group" aria-label="Editor window">
+        <h3 style={{ fontSize: 13 }}>Editor window</h3>
+        {rows(EDITOR_ROWS)}
+      </div>
+    </>
   );
 }
 
-function describe(problem: Problem, other: string): string {
+/** Which other extra hotkey has the combination that was refused as "other-demo", for the message. */
+function holder(action: DemoAction, problem: Problem, hotkeys: Record<DemoAction, string> | null): string | null {
+  if (problem.kind !== "refused" || hotkeys === null) return null;
+  const found = (Object.keys(NAMES) as DemoAction[]).find((a) => a !== action && hotkeys[a].toLowerCase() === problem.accelerator.toLowerCase());
+  return found ? NAMES[found] : null;
+}
+
+function describe(problem: Problem, other: string | null): string {
   if (problem.kind === "key") {
     return problem.reason === "needs-modifier"
       ? "Hold Ctrl, Alt, Shift or Win together with the key."
@@ -129,11 +152,11 @@ function describe(problem: Problem, other: string): string {
   const name = formatCombo(problem.accelerator);
   switch (problem.reason) {
     case "print-screen":
-      return "Print Screen is the capture key and cannot be used for a demo tool. Pick a different combination.";
+      return "Print Screen is the capture key and cannot be used for this hotkey. Pick a different combination.";
     case "capture-hotkey":
       return `${name} is the capture hotkey. Pick a different combination.`;
     case "other-demo":
-      return `${name} is already the ${other} hotkey. Pick a different combination.`;
+      return `${name} is already the ${other ?? "another Sigil"} hotkey. Pick a different combination.`;
     case "conflict":
       return `${name} is already in use by another app. The previous hotkey stays in force; pick a different combination.`;
     default:

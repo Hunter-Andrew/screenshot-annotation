@@ -14,7 +14,8 @@ test("Settings lists Space, M and a tool key under the right groups, without sid
   await expect(editor.getByRole("listitem", { name: "Undo" })).toContainText("Fixed");
 
   const drawing = shortcuts.getByRole("group", { name: "Drawing mode" });
-  await expect(drawing.getByRole("listitem")).toHaveCount(7);
+  await expect(drawing.getByRole("listitem")).toHaveCount(8);
+  await expect(drawing.getByRole("listitem", { name: "Eraser" })).toContainText("E");
   await expect(drawing.getByRole("listitem", { name: "Highlighter" })).toContainText("H");
   await expect(drawing.getByRole("listitem", { name: "Redo" })).toContainText("Ctrl+Y");
   await expect(drawing.getByRole("button")).toHaveCount(0);
