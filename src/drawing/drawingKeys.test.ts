@@ -12,7 +12,8 @@ const key = (k: string, mods: Partial<{ ctrlKey: boolean; altKey: boolean; metaK
 });
 
 describe("the fixed keys of Drawing mode", () => {
-  it("A, R, P and H choose the tools, in either case", () => {
+  it("A, R, P, H and E choose the tools, in either case", () => {
+    expect(drawingKeyAction(key("e"))).toEqual({ kind: "tool", tool: "eraser" });
     expect(drawingKeyAction(key("a"))).toEqual({ kind: "tool", tool: "arrow" });
     expect(drawingKeyAction(key("R"))).toEqual({ kind: "tool", tool: "rect" });
     expect(drawingKeyAction(key("p"))).toEqual({ kind: "tool", tool: "pen" });

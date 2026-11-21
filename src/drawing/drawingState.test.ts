@@ -4,9 +4,11 @@ import {
   clampToMonitor,
   clear,
   commit,
+  commitErase,
   DEFAULT_TOOL,
   DRAWING_TOOLS,
   drawingFromGesture,
+  eraseDrawings,
   initialDrawingState,
   redo,
   selectTool,
@@ -20,8 +22,8 @@ const arrow = (id: string): Annotation =>
   drawingFromGesture("arrow", id, [{ x: 10, y: 10 }, { x: 200, y: 100 }], styles, screen)!;
 
 describe("tools", () => {
-  it("offers Arrow, Rectangle, Pen and Highlighter, and starts on Arrow", () => {
-    expect(DRAWING_TOOLS).toEqual(["arrow", "rect", "pen", "highlight"]);
+  it("offers Arrow, Rectangle, Pen, Highlighter and Eraser, and starts on Arrow", () => {
+    expect(DRAWING_TOOLS).toEqual(["arrow", "rect", "pen", "highlight", "eraser"]);
     expect(DEFAULT_TOOL).toBe("arrow");
     expect(initialDrawingState().tool).toBe("arrow");
   });
@@ -110,5 +112,42 @@ describe("drawing from a gesture", () => {
     });
     const r = drawingFromGesture("rect", "r", [{ x: 0, y: 0 }, { x: 80, y: 40 }], custom, screen);
     expect(r).toMatchObject({ stroke: { color: "#112233", width: 9 }, fill: { mode: "semi", color: "#445566", opacity: 0.3 } });
+  });
+});
+
+describe("the Eraser", () => {
+  const pen = (id: string, from = 0, to = 400): Annotation =>
+    drawingFromGesture("pen", id, [{ x: from, y: 100 }, { x: (from + to) / 2, y: 100 }, { x: to, y: 100 }], styles, screen)!;
+  let n = 0;
+  const newId = () => `piece-${n++}`;
+
+  it("cuts a Pen stroke into two Pen strokes of the same style, in the stroke's place", () => {
+    const before = [arrow("a"), pen("p"), arrow("b")];
+    const after = eraseDrawings(before, [{ x: 200, y: 100 }, { x: 200, y: 100 }], 20, newId)!;
+    expect(after.map((d) => d.type)).toEqual(["arrow", "pen", "pen", "arrow"]);
+    expect(after[1]!.id).toBe("p");
+    expect(after[2]!.id).not.toBe("p");
+    expect(after[1]).toMatchObject({ stroke: (before[1] as { stroke: unknown }).stroke });
+  });
+
+  it("is null when the eraser touched nothing, and leaves other drawings alone", () => {
+    expect(eraseDrawings([arrow("a"), pen("p")], [{ x: 200, y: 500 }, { x: 250, y: 500 }], 20, newId)).toBeNull();
+    const highlight = drawingFromGesture("highlight", "h", [{ x: 0, y: 100 }, { x: 400, y: 100 }], styles, screen)!;
+    expect(eraseDrawings([highlight, arrow("a")], [{ x: 0, y: 100 }, { x: 400, y: 100 }], 100, newId)).toBeNull();
+  });
+
+  it("drops a stroke with nothing left", () => {
+    expect(eraseDrawings([pen("p", 0, 20)], [{ x: 0, y: 100 }, { x: 30, y: 100 }], 100, newId)).toEqual([]);
+  });
+
+  it("is one Undo step however many strokes it cut", () => {
+    let s = commit(commit(initialDrawingState(), pen("p1")), pen("p2"));
+    const after = eraseDrawings(s.drawings, [{ x: 200, y: 100 }, { x: 200, y: 100 }], 20, newId)!;
+    s = commitErase(s, after);
+    expect(s.drawings).toHaveLength(4);
+    s = undo(s);
+    expect(s.drawings.map((d) => d.id)).toEqual(["p1", "p2"]);
+    s = redo(s);
+    expect(s.drawings).toHaveLength(4);
   });
 });

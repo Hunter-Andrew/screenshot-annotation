@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DRAWING_HIGHLIGHTER_OPACITY, drawingHighlighterOpacityPercent, readDrawingStyles } from "./drawingStyles";
+import { DRAWING_HIGHLIGHTER_OPACITY, drawingHighlighterOpacityPercent, readDrawingStyles, readEraserSize } from "./drawingStyles";
 
 const RED = { color: "#e02424", width: 4 };
 
@@ -73,5 +73,19 @@ describe("the Highlighter's opacity in Drawing mode", () => {
     for (const bad of [undefined, null, "30", NaN, Infinity, {}, []]) expect(drawingHighlighterOpacityPercent(bad)).toBe(20);
     expect(readDrawingStyles({}, 500).highlight.opacity).toEqual({ value: 0.6 });
     expect(readDrawingStyles({}, "x").highlight.opacity).toEqual({ value: 0.2 });
+  });
+});
+
+describe("the Eraser's size", () => {
+  it("is the one saved with the editor's Pen tool", () => {
+    expect(readEraserSize({ pen: { stroke: { color: "#e02424", width: 4 }, eraser: { mode: "pen", size: 55 } } })).toBe(55);
+    // Eraser mode or Pen mode in the editor makes no difference.
+    expect(readEraserSize({ pen: { eraser: { mode: "eraser", size: 8 } } })).toBe(8);
+  });
+
+  it("is the editor's default (20) when nothing usable is saved", () => {
+    for (const raw of [undefined, null, {}, { pen: {} }, { pen: { eraser: { mode: "eraser", size: 3 } } }, { pen: { eraser: { mode: "eraser", size: 101 } } }, { pen: { eraser: "big" } }]) {
+      expect(readEraserSize(raw)).toBe(20);
+    }
   });
 });

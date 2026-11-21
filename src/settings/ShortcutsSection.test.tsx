@@ -37,11 +37,11 @@ describe("Settings > Shortcuts", () => {
     }
   });
 
-  it("lists the Drawing mode keys read-only: A, R, P, H, Ctrl+Z, Ctrl+Y, Esc, with no change or reset control", () => {
+  it("lists the Drawing mode keys read-only: A, R, P, H, E, Ctrl+Z, Ctrl+Y, Esc, with no change or reset control", () => {
     renderShortcuts(createFakeBridge());
     const drawing = within(group("Drawing mode"));
     const rows = drawing.getAllByRole("listitem");
-    expect(rows.map((r) => r.querySelector("kbd")?.textContent)).toEqual(["A", "R", "P", "H", "Ctrl+Z", "Ctrl+Y", "Esc"]);
+    expect(rows.map((r) => r.querySelector("kbd")?.textContent)).toEqual(["A", "R", "P", "H", "E", "Ctrl+Z", "Ctrl+Y", "Esc"]);
     for (const row of rows) {
       expect(row).toHaveTextContent("Fixed");
       expect(within(row).queryByRole("button")).toBeNull();

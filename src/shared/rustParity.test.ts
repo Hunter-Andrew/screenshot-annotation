@@ -257,7 +257,7 @@ describe("TS/Rust shared constants", () => {
     expect(capability.permissions).toContain("core:window:allow-start-dragging");
   });
 
-  it("drawing_plan.rs sizes the toolbar window like the page lays it out, and knows the same four tools", () => {
+  it("drawing_plan.rs sizes the toolbar window like the page lays it out, and knows the same tools", () => {
     const plan = rust("drawing_plan.rs");
     expect(Number(plan.match(/pub const TOOLBAR_WIDTH: u32 = (\d+);/)?.[1])).toBe(DRAWING_TOOLBAR_SIZE.width);
     expect(Number(plan.match(/pub const TOOLBAR_HEIGHT: u32 = (\d+);/)?.[1])).toBe(DRAWING_TOOLBAR_SIZE.height);

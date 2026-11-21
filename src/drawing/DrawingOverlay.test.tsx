@@ -210,5 +210,114 @@ describe("Drawing mode overlay and its toolbar (ticket 53)", () => {
     await act(async () => bridge.undoDrawing(0));
     expect(count(canvas)).toBe(0);
   });
-});
 
+  describe("the Eraser", () => {
+    // A Pen stroke along y = 100 CSS (200 physical) from x = 100 to 400 CSS, drawn through six pointer positions.
+    const penStroke = (canvas: HTMLElement) => {
+      key("p");
+      at(canvas, "pointerDown", 100, 100);
+      for (const x of [150, 200, 250, 300, 350]) at(canvas, "pointerMove", x, 100);
+      at(canvas, "pointerUp", 400, 100);
+    };
+    const saved = (size: number) => ({ pen: { stroke: { color: "#e02424", width: 4 }, eraser: { mode: "pen", size } } });
+
+    it("E chooses it, and the platform is told so the toolbar follows", async () => {
+      const canvas = await show();
+      const chosen: string[] = [];
+      await bridge.onDrawingTool((tool) => chosen.push(tool));
+      key("e");
+      expect(canvas.dataset.tool).toBe("eraser");
+      await waitFor(() => expect(chosen).toEqual(["eraser"]));
+    });
+
+    it("cuts a Pen stroke in two where it passes, and one Undo puts the stroke back", async () => {
+      const canvas = await show(saved(40));
+      penStroke(canvas);
+      expect(count(canvas)).toBe(1);
+      key("e");
+      drag(canvas, [250, 100], [250, 100]);
+      expect(count(canvas)).toBe(2);
+      key("z", { ctrlKey: true });
+      expect(count(canvas)).toBe(1);
+      key("y", { ctrlKey: true });
+      expect(count(canvas)).toBe(2);
+    });
+
+    it("uses the eraser size saved in the editor: the same drag misses with a small eraser and hits with a big one", async () => {
+      // 20 CSS px below the stroke is 40 physical px away.
+      const small = await show(saved(20));
+      penStroke(small);
+      key("e");
+      drag(small, [250, 120], [250, 120]);
+      expect(count(small)).toBe(1);
+      document.body.innerHTML = "";
+
+      const big = await show(saved(100));
+      penStroke(big);
+      key("e");
+      drag(big, [250, 120], [250, 120]);
+      expect(count(big)).toBe(2);
+    });
+
+    it("uses the editor's default size when none is saved", async () => {
+      // The default is 20 px across: 4 physical px away is inside it, 40 is not.
+      const canvas = await show();
+      penStroke(canvas);
+      key("e");
+      drag(canvas, [250, 120], [250, 120]);
+      expect(count(canvas)).toBe(1);
+      drag(canvas, [250, 102], [250, 102]);
+      expect(count(canvas)).toBe(2);
+    });
+
+    it("removes a stroke it covers entirely", async () => {
+      const canvas = await show(saved(100));
+      key("p");
+      drag(canvas, [100, 100], [110, 100]);
+      expect(count(canvas)).toBe(1);
+      key("e");
+      drag(canvas, [95, 100], [120, 100]);
+      expect(count(canvas)).toBe(0);
+    });
+
+    it("never touches an Arrow, a Rectangle or a Highlighter stroke, and a drag that touches nothing is no Undo step", async () => {
+      bridge = createFakeBridge({ storage: memory(saved(100)) });
+      const edits: unknown[] = [];
+      await bridge.onDrawingEdit((e) => edits.push(e));
+      render(<DrawingOverlay bridge={bridge} monitor={0} />);
+      await act(async () => {});
+      const canvas = screen.getByTestId("drawing-canvas");
+      drag(canvas, [100, 100], [400, 100]); // an Arrow
+      key("r");
+      drag(canvas, [100, 200], [300, 300]);
+      key("h");
+      drag(canvas, [100, 400], [300, 400]);
+      expect(count(canvas)).toBe(3);
+      key("e");
+      drag(canvas, [100, 100], [300, 400]);
+      expect(count(canvas)).toBe(3);
+      await waitFor(() => expect(edits).toHaveLength(3));
+    });
+
+    it("reports a cut as one drawing step of its monitor", async () => {
+      bridge = createFakeBridge({ storage: memory(saved(40)) });
+      const edits: unknown[] = [];
+      await bridge.onDrawingEdit((e) => edits.push(e));
+      render(<DrawingOverlay bridge={bridge} monitor={2} />);
+      await act(async () => {});
+      const canvas = screen.getByTestId("drawing-canvas");
+      penStroke(canvas);
+      key("e");
+      drag(canvas, [250, 100], [250, 100]);
+      await waitFor(() => expect(edits).toEqual([{ monitor: 2, edit: "commit" }, { monitor: 2, edit: "commit" }]));
+    });
+
+    it("shows a circle the size of the eraser at the pointer instead of the crosshair", async () => {
+      const canvas = await show(saved(40));
+      key("e");
+      at(canvas, "pointerMove", 100, 50);
+      expect(canvas.style.cursor).toBe("none");
+      expect(painted).toContain("arc(200,100,20,0,6.283185307179586)");
+    });
+  });
+});

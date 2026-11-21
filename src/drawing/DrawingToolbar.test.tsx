@@ -18,10 +18,10 @@ async function show(remembered?: "pen") {
 const button = (name: string) => screen.getByRole("button", { name });
 
 describe("the Drawing mode toolbar", () => {
-  it("has icon-only buttons in order: Arrow, Rectangle, Pen, Highlighter, a divider, Use apps, Undo, Collapse, Exit", async () => {
+  it("has icon-only buttons in order: Arrow, Rectangle, Pen, Highlighter, Eraser, a divider, Use apps, Undo, Collapse, Exit", async () => {
     const bar = await show();
     const children = Array.from(bar.children).filter((c) => !c.hasAttribute("data-grip")).map((c) => (c.getAttribute("role") === "separator" ? "|" : c.getAttribute("aria-label")));
-    expect(children).toEqual(["Arrow", "Rectangle", "Pen", "Highlighter", "|", "Use apps", "Undo", "Collapse", "Exit"]);
+    expect(children).toEqual(["Arrow", "Rectangle", "Pen", "Highlighter", "Eraser", "|", "Use apps", "Undo", "Collapse", "Exit"]);
     for (const b of within(bar).getAllByRole("button")) expect(b.textContent).toBe("");
   });
 
@@ -31,6 +31,7 @@ describe("the Drawing mode toolbar", () => {
     expect(button("Rectangle")).toHaveAttribute("title", "Rectangle (R)");
     expect(button("Pen")).toHaveAttribute("title", "Pen (P)");
     expect(button("Highlighter")).toHaveAttribute("title", "Highlighter (H)");
+    expect(button("Eraser")).toHaveAttribute("title", "Eraser (E)");
     expect(button("Use apps")).toHaveAttribute("title", "Use apps");
     expect(button("Undo")).toHaveAttribute("title", "Undo (Ctrl+Z)");
     expect(button("Collapse")).toHaveAttribute("title", "Collapse");

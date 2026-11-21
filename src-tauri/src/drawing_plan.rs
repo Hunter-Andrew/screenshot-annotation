@@ -22,8 +22,8 @@ pub fn is_window(name: &str) -> bool {
     is_label(name) || name == TOOLBAR_LABEL
 }
 
-/// The four tools, as the page names them (`DRAWING_TOOLS` in src/drawing/drawingState.ts); Arrow is the first.
-pub const TOOLS: [&str; 4] = ["arrow", "rect", "pen", "highlight"];
+/// The five tools, as the page names them (`DRAWING_TOOLS` in src/drawing/drawingState.ts); Arrow is the first.
+pub const TOOLS: [&str; 5] = ["arrow", "rect", "pen", "highlight", "eraser"];
 /// Every start of the mode is on Arrow; the pages decide that (nothing here uses the constant), so it is kept only as
 /// the checked mirror of `DEFAULT_TOOL` in drawingState.ts.
 #[allow(dead_code)]
@@ -35,7 +35,7 @@ pub fn is_tool(name: &str) -> bool {
 
 /// The toolbar's size in CSS pixels when expanded (`DRAWING_TOOLBAR_SIZE` in src/shared/constants.ts; the page
 /// asks for the collapsed size itself).
-pub const TOOLBAR_WIDTH: u32 = 356;
+pub const TOOLBAR_WIDTH: u32 = 396;
 pub const TOOLBAR_HEIGHT: u32 = 48;
 /// The gap between the top of the monitor and the toolbar, in CSS pixels.
 pub const TOOLBAR_TOP_GAP: u32 = 12;
@@ -120,8 +120,8 @@ mod tests {
     }
 
     #[test]
-    fn the_tools_are_the_pages_four_and_arrow_comes_first() {
-        assert_eq!(TOOLS, ["arrow", "rect", "pen", "highlight"]);
+    fn the_tools_are_the_pages_five_and_arrow_comes_first() {
+        assert_eq!(TOOLS, ["arrow", "rect", "pen", "highlight", "eraser"]);
         assert_eq!(DEFAULT_TOOL, "arrow");
         assert!(is_tool("pen"));
         for name in ["", "Pen", "line", "select", "arrow "] {
@@ -131,16 +131,16 @@ mod tests {
 
     #[test]
     fn the_toolbar_opens_top_centre_of_a_monitor_at_its_scale() {
-        // 1920x1080 at 100%: 356 wide, centred, 12 below the top.
-        assert_eq!(toolbar_placement((0, 0, 1920, 1080), 1.0), Placement { x: 782, y: 12, width: 356, height: 48 });
+        // 1920x1080 at 100%: 396 wide, centred, 12 below the top.
+        assert_eq!(toolbar_placement((0, 0, 1920, 1080), 1.0), Placement { x: 762, y: 12, width: 396, height: 48 });
         // 3840x2160 at 200%: twice the size, twice the gap, still centred.
         assert_eq!(toolbar_placement((0, 0, 3840, 2160), 2.0), Placement { x: 1564, y: 24, width: 712, height: 96 });
     }
 
     #[test]
     fn the_toolbar_follows_a_monitor_left_of_or_above_the_primary() {
-        assert_eq!(toolbar_placement((-1920, -200, 1920, 1080), 1.0), Placement { x: -1138, y: -188, width: 356, height: 48 });
-        assert_eq!(toolbar_placement((1920, 0, 1280, 1024), 1.25), Placement { x: 1920 + 417, y: 15, width: 445, height: 60 });
+        assert_eq!(toolbar_placement((-1920, -200, 1920, 1080), 1.0), Placement { x: -1158, y: -188, width: 396, height: 48 });
+        assert_eq!(toolbar_placement((1920, 0, 1280, 1024), 1.25), Placement { x: 1920 + 392, y: 15, width: 495, height: 60 });
     }
 
     #[test]
@@ -152,9 +152,9 @@ mod tests {
 
     #[test]
     fn the_toolbar_only_resizes_to_a_sane_size() {
-        assert_eq!(toolbar_request(356.0, 48.0), Some((356.0, 48.0)));
+        assert_eq!(toolbar_request(396.0, 48.0), Some((396.0, 48.0)));
         assert_eq!(toolbar_request(72.0, 48.0), Some((72.0, 48.0)));
-        for (w, h) in [(0.0, 48.0), (-5.0, 48.0), (356.0, f64::NAN), (f64::INFINITY, 48.0), (5000.0, 48.0)] {
+        for (w, h) in [(0.0, 48.0), (-5.0, 48.0), (396.0, f64::NAN), (f64::INFINITY, 48.0), (5000.0, 48.0)] {
             assert_eq!(toolbar_request(w, h), None, "{w} x {h}");
         }
     }

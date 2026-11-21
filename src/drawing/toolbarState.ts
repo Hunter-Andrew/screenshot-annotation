@@ -90,6 +90,7 @@ export const TOOLBAR_BUTTONS: readonly ToolbarButton[] = [
   button("rect", "Rectangle", "drawing.rect"),
   button("pen", "Pen", "drawing.pen"),
   button("highlight", "Highlighter", "drawing.highlight"),
+  button("eraser", "Eraser", "drawing.eraser"),
   { kind: "divider" },
   button("useApps", "Use apps"),
   button("undo", "Undo", "drawing.undo"),
