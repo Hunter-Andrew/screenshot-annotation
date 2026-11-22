@@ -66,6 +66,7 @@ export const SHORTCUT_REGISTRY: readonly ShortcutAction[] = [
   { id: "drawing.rect", label: "Rectangle", context: "drawing", defaultKey: "R", remappable: false },
   { id: "drawing.pen", label: "Pen", context: "drawing", defaultKey: "P", remappable: false },
   { id: "drawing.highlight", label: "Highlighter", context: "drawing", defaultKey: "H", remappable: false },
+  { id: "drawing.eraser", label: "Eraser", context: "drawing", defaultKey: "E", remappable: false },
   { id: "drawing.undo", label: "Undo the last drawing", context: "drawing", defaultKey: "Ctrl+Z", remappable: false },
   { id: "drawing.redo", label: "Redo", context: "drawing", defaultKey: "Ctrl+Y", remappable: false },
   { id: "drawing.exit", label: "Leave Drawing mode and clear the drawings", context: "drawing", defaultKey: "Escape", remappable: false },

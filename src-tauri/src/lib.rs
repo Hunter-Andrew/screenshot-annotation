@@ -99,18 +99,19 @@ impl hotkey::ShortcutRegistry for PluginRegistry<'_> {
     }
 }
 
-/// The three global hotkeys the plugin handler tells apart, parsed, so it can tell which one fired without
+/// The four global hotkeys the plugin handler tells apart, parsed, so it can tell which one fired without
 /// taking the settings lock (a command holds that lock while it registers, and the handler runs on the
-/// event loop). Slots: `LASER_POINTER_SLOT`, `DRAWING_MODE_SLOT` and `CAPTURE_SLOT`. A slot is updated
+/// event loop). Slots: `LASER_POINTER_SLOT`, `DRAWING_MODE_SLOT`, `CAPTURE_SLOT` and `EDITOR_SLOT`. A slot is updated
 /// after its new hotkey is registered and saved, so a press of a hotkey that is registered but not yet in
 /// its slot matches nothing and the handler ignores it (it must never fall through to a capture). Held only
 /// for a copy, never while registering.
 #[derive(Default)]
-struct DemoShortcuts(Mutex<[Option<Shortcut>; 3]>);
+struct DemoShortcuts(Mutex<[Option<Shortcut>; 4]>);
 
 const LASER_POINTER_SLOT: usize = 0;
 const DRAWING_MODE_SLOT: usize = 1;
 const CAPTURE_SLOT: usize = 2;
+const EDITOR_SLOT: usize = 3;
 
 impl DemoShortcuts {
     fn set(&self, index: usize, accelerator: &str) {
@@ -197,8 +198,10 @@ struct HotkeyState {
 struct DemoHotkeys {
     laser_pointer: String,
     drawing_mode: String,
+    editor: String,
     laser_pointer_registered: bool,
     drawing_mode_registered: bool,
+    editor_registered: bool,
 }
 
 #[derive(serde::Serialize)]
@@ -252,7 +255,7 @@ fn set_hotkey(
     let mut data = state.data.lock().unwrap();
     let old = data.hotkey.clone();
     diag::log(&format!("set_hotkey: requested {accelerator} (current {old})"));
-    if hotkey::clashes_with_demo(&accelerator, &data.laser_pointer_hotkey, &data.drawing_mode_hotkey) {
+    if hotkey::clashes_with_demo(&accelerator, &[&data.laser_pointer_hotkey, &data.drawing_mode_hotkey, &data.editor_hotkey]) {
         diag::log(&format!("set_hotkey: {accelerator} refused (a demo-tool hotkey uses it); {old} stays in force"));
         return Err("demo-hotkey".to_string());
     }
@@ -275,24 +278,25 @@ fn set_hotkey(
     }
 }
 
-/// The laser-pointer and drawing-mode hotkeys and whether the OS accepted each (false: another app has it).
+/// The laser-pointer, drawing-mode and editor hotkeys and whether the OS accepted each (false: another app has it).
 #[tauri::command]
 fn get_demo_hotkeys(app: AppHandle, state: tauri::State<'_, AppSettings>) -> DemoHotkeys {
     use hotkey::ShortcutRegistry;
-    let (laser_pointer, drawing_mode) = {
+    let (laser_pointer, drawing_mode, editor) = {
         let data = state.data.lock().unwrap();
-        (data.laser_pointer_hotkey.clone(), data.drawing_mode_hotkey.clone())
+        (data.laser_pointer_hotkey.clone(), data.drawing_mode_hotkey.clone(), data.editor_hotkey.clone())
     };
     let reg = registry(&app);
     let laser_pointer_registered = reg.is_registered(&laser_pointer);
     let drawing_mode_registered = reg.is_registered(&drawing_mode);
+    let editor_registered = reg.is_registered(&editor);
     diag::log(&format!(
-        "get_demo_hotkeys: laser pointer {laser_pointer} (registered by this app: {laser_pointer_registered}), drawing mode {drawing_mode} (registered by this app: {drawing_mode_registered})"
+        "get_demo_hotkeys: laser pointer {laser_pointer} (registered by this app: {laser_pointer_registered}), drawing mode {drawing_mode} (registered by this app: {drawing_mode_registered}), editor {editor} (registered by this app: {editor_registered})"
     ));
-    DemoHotkeys { laser_pointer, drawing_mode, laser_pointer_registered, drawing_mode_registered }
+    DemoHotkeys { laser_pointer, drawing_mode, editor, laser_pointer_registered, drawing_mode_registered, editor_registered }
 }
 
-/// Re-registers one demo hotkey (`action`: "laserPointer" or "drawingMode") and saves it, like `set_hotkey`.
+/// Re-registers one of the extra hotkeys (`action`: "laserPointer", "drawingMode" or "editor") and saves it, like `set_hotkey`.
 /// Errors: "print-screen", "capture-hotkey", "other-demo" (refused before anything changes), "conflict" (another
 /// app owns it), "invalid", "failed" (could not save); the old hotkey stays in force on every error.
 #[tauri::command]
@@ -304,26 +308,24 @@ fn set_demo_hotkey(
     accelerator: String,
 ) -> Result<(), String> {
     let mut data = state.data.lock().unwrap();
-    let is_laser_pointer = match action.as_str() {
-        "laserPointer" => true,
-        "drawingMode" => false,
+    let (old, others, slot) = match action.as_str() {
+        "laserPointer" => (&data.laser_pointer_hotkey, [&data.drawing_mode_hotkey, &data.editor_hotkey], LASER_POINTER_SLOT),
+        "drawingMode" => (&data.drawing_mode_hotkey, [&data.laser_pointer_hotkey, &data.editor_hotkey], DRAWING_MODE_SLOT),
+        "editor" => (&data.editor_hotkey, [&data.laser_pointer_hotkey, &data.drawing_mode_hotkey], EDITOR_SLOT),
         _ => return Err("invalid".to_string()),
     };
-    let (old, other) = if is_laser_pointer {
-        (data.laser_pointer_hotkey.clone(), data.drawing_mode_hotkey.clone())
-    } else {
-        (data.drawing_mode_hotkey.clone(), data.laser_pointer_hotkey.clone())
-    };
+    let old = old.clone();
+    let others: Vec<&str> = others.iter().map(|h| h.as_str()).collect();
     diag::log(&format!("set_demo_hotkey: {action} requested {accelerator} (current {old})"));
-    if let Some(code) = hotkey::demo_refusal(&accelerator, &data.hotkey, &other) {
+    if let Some(code) = hotkey::demo_refusal(&accelerator, &data.hotkey, &others) {
         diag::log(&format!("set_demo_hotkey: {accelerator} refused ({code}); {old} stays in force"));
         return Err(code.to_string());
     }
     let mut next = data.clone();
-    if is_laser_pointer {
-        next.laser_pointer_hotkey = accelerator.clone();
-    } else {
-        next.drawing_mode_hotkey = accelerator.clone();
+    match slot {
+        LASER_POINTER_SLOT => next.laser_pointer_hotkey = accelerator.clone(),
+        DRAWING_MODE_SLOT => next.drawing_mode_hotkey = accelerator.clone(),
+        _ => next.editor_hotkey = accelerator.clone(),
     }
     let outcome = hotkey::change_hotkey(&registry(&app), &old, &accelerator, || {
         settings::save(&state.dir, &next)
@@ -332,16 +334,16 @@ fn set_demo_hotkey(
     match outcome {
         Ok(()) => {
             diag::log(&format!("set_demo_hotkey: {accelerator} is now the {action} hotkey (saved)"));
-            if is_laser_pointer {
-                data.laser_pointer_hotkey = accelerator.clone();
-            } else {
-                data.drawing_mode_hotkey = accelerator.clone();
+            match slot {
+                LASER_POINTER_SLOT => data.laser_pointer_hotkey = accelerator.clone(),
+                DRAWING_MODE_SLOT => data.drawing_mode_hotkey = accelerator.clone(),
+                _ => data.editor_hotkey = accelerator.clone(),
             }
-            demo.set(if is_laser_pointer { LASER_POINTER_SLOT } else { DRAWING_MODE_SLOT }, &accelerator);
-            if is_laser_pointer {
-                laser_pointer::refresh_tray_label(&app, &accelerator);
-            } else {
-                drawing::update_tray_label(&app, &accelerator);
+            demo.set(slot, &accelerator);
+            match slot {
+                LASER_POINTER_SLOT => laser_pointer::refresh_tray_label(&app, &accelerator),
+                DRAWING_MODE_SLOT => drawing::update_tray_label(&app, &accelerator),
+                _ => {}
             }
             Ok(())
         }
@@ -1068,6 +1070,26 @@ fn request_editor(app: &AppHandle, source: &str) {
     on_worker_thread(app, show_editor);
 }
 
+/// The editor hotkey for callers on the event loop: close the editor to the tray if it is open, open it otherwise.
+fn request_editor_toggle(app: &AppHandle, source: &str) {
+    diag::log(&format!("editor toggle requested ({source})"));
+    on_worker_thread(app, toggle_editor);
+}
+
+/// A second launch: bring the running instance's editor up, except right after it started (see
+/// `editor_window::second_launch_opens_editor`). Called on the main thread.
+fn request_editor_for_second_launch(app: &AppHandle) {
+    let since_start = app.state::<StartedAt>().0.elapsed();
+    if editor_window::second_launch_opens_editor(since_start) {
+        request_editor(app, "second launch");
+    } else {
+        diag::log(&format!("second launch {} ms after startup: the editor stays closed", since_start.as_millis()));
+    }
+}
+
+/// When this instance started, for the startup grace of a second launch.
+struct StartedAt(std::time::Instant);
+
 /// Creates the window `label` with `create`, unless one already exists (then that one is returned,
 /// `false` for "not created now"). A window the user has just closed keeps its label for a moment;
 /// creating the same label then fails, so that is retried (see `window_open.rs`), looking for the
@@ -1189,8 +1211,15 @@ fn editor_builder<'a>(app: &'a AppHandle) -> WebviewWindowBuilder<'a, tauri::Wry
 fn prewarm_editor(app: &AppHandle) {
     let started = std::time::Instant::now();
     let make = || editor_builder(app).visible(false).build();
-    if let Some((_, true)) = create_or_existing(app, EDITOR_LABEL, make) {
-        diag::log(&format!("editor window pre-warmed in {} ms (hidden)", started.elapsed().as_millis()));
+    if let Some((win, created)) = create_or_existing(app, EDITOR_LABEL, make) {
+        // The editor never opens on its own at startup: whatever the window layer did, it is hidden now.
+        if created && win.is_visible().unwrap_or(false) {
+            diag::log("editor window was visible after its pre-warm: hiding it");
+            let _ = win.hide();
+        }
+        if created {
+            diag::log(&format!("editor window pre-warmed in {} ms (hidden)", started.elapsed().as_millis()));
+        }
     }
 }
 
@@ -1224,6 +1253,27 @@ fn show_editor(app: &AppHandle) {
     if let Some((win, created)) = create_or_existing(app, EDITOR_LABEL, make) {
         if !created {
             focus(&win);
+        }
+    }
+}
+
+/// The editor hotkey: hide the open editor to the tray (like closing it, without the first-close dialog), or show it.
+/// Never call from the main thread; use `request_editor_toggle`.
+fn toggle_editor(app: &AppHandle) {
+    let Some(win) = app.get_webview_window(EDITOR_LABEL) else {
+        show_editor(app);
+        return;
+    };
+    let visible = win.is_visible().unwrap_or(false);
+    let minimized = win.is_minimized().unwrap_or(false);
+    match editor_window::toggle_action(visible, minimized) {
+        editor_window::Toggle::Hide => {
+            hide_editor(&win);
+            diag::log("editor hotkey: editor hidden to the tray");
+        }
+        editor_window::Toggle::Show => {
+            show_editor(app);
+            diag::log("editor hotkey: editor shown");
         }
     }
 }
@@ -1278,6 +1328,7 @@ pub fn run() {
         .manage(PendingCapture::default())
         .manage(LibraryState::default())
         .manage(EditorMaximized::default())
+        .manage(StartedAt(std::time::Instant::now()))
         .manage(countdown::CountdownState::default())
         .on_window_event(|window, event| {
             // Closing the editor hides it to the tray (ticket 23) and keeps it loaded (ADR 0003), so the
@@ -1301,7 +1352,7 @@ pub fn run() {
         .manage(overlay::OverlayState::default())
         .manage(drawing::DrawingState::default())
         // A second launch focuses the running instance.
-        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| request_editor(app, "second launch")))
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| request_editor_for_second_launch(app)))
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
@@ -1399,6 +1450,10 @@ pub fn run() {
                                     diag::log("hotkey event: drawing mode hotkey pressed");
                                     drawing::toggle(app.clone(), "hotkey");
                                 }
+                                Some(EDITOR_SLOT) => {
+                                    diag::log("hotkey event: editor hotkey pressed");
+                                    request_editor_toggle(app, "hotkey");
+                                }
                                 Some(CAPTURE_SLOT) => capture_async(app.clone(), "hotkey"),
                                 // Registered a moment ago and not yet in its slot (a hotkey being changed): never a capture.
                                 _ => diag::log("hotkey event: not a known hotkey (being changed?), ignored"),
@@ -1416,6 +1471,7 @@ pub fn run() {
             demo_shortcuts.set(CAPTURE_SLOT, &loaded.hotkey);
             demo_shortcuts.set(LASER_POINTER_SLOT, &loaded.laser_pointer_hotkey);
             demo_shortcuts.set(DRAWING_MODE_SLOT, &loaded.drawing_mode_hotkey);
+            demo_shortcuts.set(EDITOR_SLOT, &loaded.editor_hotkey);
             app.manage(demo_shortcuts);
             app.manage(laser_pointer::LaserPointerState::new(&loaded.laser_pointer_settings()));
             // An earlier run killed while the laser pointer hid the mouse arrow may have left it hidden.
@@ -1425,6 +1481,7 @@ pub fn run() {
             // The demo-tool hotkeys the same way (ticket 49): a taken one is shown in Settings > Demo tools.
             let _ = hotkey::ShortcutRegistry::register(&registry(app.handle()), &loaded.laser_pointer_hotkey);
             let _ = hotkey::ShortcutRegistry::register(&registry(app.handle()), &loaded.drawing_mode_hotkey);
+            let _ = hotkey::ShortcutRegistry::register(&registry(app.handle()), &loaded.editor_hotkey);
             let reading = print_screen::read();
             diag::log(&format!(
                 "startup: hotkey {}, one-time notice answered: {}; {}",

@@ -93,24 +93,25 @@ fn same_accelerator(a: &str, b: &str) -> bool {
     normalize_accelerator(a) == normalize_accelerator(b)
 }
 
-/// Why a demo-tool hotkey (laser pointer, drawing mode; ticket 49) may not be `new`, as the wire code
-/// `src/platform/tauriBridge.ts` maps back to a message: Print Screen, the capture hotkey, or the other
-/// demo hotkey. `None` when it may (whether another app owns it is only known by registering it).
-pub fn demo_refusal(new: &str, capture: &str, other_demo: &str) -> Option<&'static str> {
+/// Why a hotkey of the extra kind (laser pointer, drawing mode, editor window; tickets 49 and 56) may not be
+/// `new`, as the wire code `src/platform/tauriBridge.ts` maps back to a message: Print Screen, the capture
+/// hotkey, or one of the `others` (the other extra hotkeys). `None` when it may (whether another app owns it
+/// is only known by registering it).
+pub fn demo_refusal(new: &str, capture: &str, others: &[&str]) -> Option<&'static str> {
     if uses_print_screen(new) {
         Some("print-screen")
     } else if same_accelerator(new, capture) {
         Some("capture-hotkey")
-    } else if same_accelerator(new, other_demo) {
+    } else if others.iter().any(|other| same_accelerator(new, other)) {
         Some("other-demo")
     } else {
         None
     }
 }
 
-/// The capture hotkey may not take a combination a demo tool already uses.
-pub fn clashes_with_demo(new: &str, laser_pointer: &str, drawing_mode: &str) -> bool {
-    same_accelerator(new, laser_pointer) || same_accelerator(new, drawing_mode)
+/// The capture hotkey may not take a combination one of the extra hotkeys (`extras`) already uses.
+pub fn clashes_with_demo(new: &str, extras: &[&str]) -> bool {
+    extras.iter().any(|extra| same_accelerator(new, extra))
 }
 
 /// Sends bare Print Screen to the Raw Input listener (RegisterHotKey never fires for it on
@@ -243,30 +244,30 @@ mod tests {
 
     #[test]
     fn a_free_combination_is_not_refused_for_a_demo_hotkey() {
-        assert_eq!(demo_refusal("ctrl+shift+l", "ctrl+shift+s", "ctrl+shift+d"), None);
+        assert_eq!(demo_refusal("ctrl+shift+l", "ctrl+shift+s", &["ctrl+shift+d"]), None);
     }
 
     #[test]
     fn print_screen_is_refused_for_a_demo_hotkey_bare_or_with_modifiers() {
-        assert_eq!(demo_refusal("PrintScreen", "ctrl+shift+s", "ctrl+shift+d"), Some("print-screen"));
-        assert_eq!(demo_refusal("ctrl+PrintScreen", "ctrl+shift+s", "ctrl+shift+d"), Some("print-screen"));
+        assert_eq!(demo_refusal("PrintScreen", "ctrl+shift+s", &["ctrl+shift+d"]), Some("print-screen"));
+        assert_eq!(demo_refusal("ctrl+PrintScreen", "ctrl+shift+s", &["ctrl+shift+d"]), Some("print-screen"));
         assert!(!uses_print_screen("ctrl+shift+s"));
         assert!(!uses_print_screen(""));
     }
 
     #[test]
     fn the_capture_hotkey_and_the_other_demo_hotkey_are_refused_for_a_demo_hotkey() {
-        assert_eq!(demo_refusal("ctrl+shift+s", "ctrl+shift+s", "ctrl+shift+d"), Some("capture-hotkey"));
-        assert_eq!(demo_refusal("CTRL+SHIFT+D", "ctrl+shift+s", "ctrl+shift+d"), Some("other-demo"));
+        assert_eq!(demo_refusal("ctrl+shift+s", "ctrl+shift+s", &["ctrl+shift+d"]), Some("capture-hotkey"));
+        assert_eq!(demo_refusal("CTRL+SHIFT+D", "ctrl+shift+s", &["ctrl+shift+d"]), Some("other-demo"));
     }
 
     #[test]
     fn a_differently_spelled_equivalent_combination_is_the_same_hotkey() {
-        assert_eq!(demo_refusal("Shift+Control+S", "ctrl+shift+s", "ctrl+shift+d"), Some("capture-hotkey"));
-        assert_eq!(demo_refusal("CommandOrControl+shift+D", "ctrl+shift+s", "ctrl+shift+d"), Some("other-demo"));
-        assert_eq!(demo_refusal("shift+ctrl+d", "ctrl+shift+s", "Ctrl+Shift+D"), Some("other-demo"));
-        assert!(clashes_with_demo("shift+ctrl+L", "ctrl+shift+l", "ctrl+shift+d"));
-        assert!(clashes_with_demo("Win+Alt+d", "ctrl+shift+l", "alt+super+D"));
+        assert_eq!(demo_refusal("Shift+Control+S", "ctrl+shift+s", &["ctrl+shift+d"]), Some("capture-hotkey"));
+        assert_eq!(demo_refusal("CommandOrControl+shift+D", "ctrl+shift+s", &["ctrl+shift+d"]), Some("other-demo"));
+        assert_eq!(demo_refusal("shift+ctrl+d", "ctrl+shift+s", &["Ctrl+Shift+D"]), Some("other-demo"));
+        assert!(clashes_with_demo("shift+ctrl+L", &["ctrl+shift+l", "ctrl+shift+d"]));
+        assert!(clashes_with_demo("Win+Alt+d", &["ctrl+shift+l", "alt+super+D"]));
         assert!(same_accelerator(" ctrl + shift + s ", "ctrl+shift+s"));
     }
 
@@ -276,14 +277,14 @@ mod tests {
         assert!(!same_accelerator("ctrl+shift+s", "ctrl+shift+d"));
         assert!(!same_accelerator("ctrl+shift+s", "ctrl+alt+s"));
         assert!(!same_accelerator("ctrl+s", "s"));
-        assert_eq!(demo_refusal("ctrl+alt+k", "ctrl+shift+s", "ctrl+shift+d"), None);
+        assert_eq!(demo_refusal("ctrl+alt+k", "ctrl+shift+s", &["ctrl+shift+d"]), None);
     }
 
     #[test]
     fn the_capture_hotkey_may_not_take_a_demo_combination() {
-        assert!(clashes_with_demo("ctrl+shift+l", "ctrl+shift+l", "ctrl+shift+d"));
-        assert!(clashes_with_demo("ctrl+shift+d", "ctrl+shift+l", "ctrl+shift+d"));
-        assert!(!clashes_with_demo("ctrl+alt+k", "ctrl+shift+l", "ctrl+shift+d"));
+        assert!(clashes_with_demo("ctrl+shift+l", &["ctrl+shift+l", "ctrl+shift+d"]));
+        assert!(clashes_with_demo("ctrl+shift+d", &["ctrl+shift+l", "ctrl+shift+d"]));
+        assert!(!clashes_with_demo("ctrl+alt+k", &["ctrl+shift+l", "ctrl+shift+d"]));
     }
 
     #[test]
@@ -396,5 +397,15 @@ mod tests {
         assert!(r.listener.is_registered(PS));
         assert!(r.plugin.held.borrow().is_empty(), "the fallback registration is dropped, else it fires twice");
         assert!(!degraded.load(Ordering::SeqCst));
+    }
+
+    #[test]
+    fn a_hotkey_of_the_extra_kind_is_refused_when_any_of_the_other_two_has_it() {
+        let others = ["alt+p", "alt+d"];
+        assert_eq!(demo_refusal("alt+p", "ctrl+shift+s", &others), Some("other-demo"));
+        assert_eq!(demo_refusal("Alt+D", "ctrl+shift+s", &others), Some("other-demo"));
+        assert_eq!(demo_refusal("alt+e", "ctrl+shift+s", &others), None);
+        assert!(clashes_with_demo("alt+e", &["alt+p", "alt+d", "alt+e"]));
+        assert!(!clashes_with_demo("alt+w", &["alt+p", "alt+d", "alt+e"]));
     }
 }

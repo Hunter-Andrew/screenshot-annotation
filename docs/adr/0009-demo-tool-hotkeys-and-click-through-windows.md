@@ -10,7 +10,7 @@ Ticket 28 set the rule that the capture hotkey is the only global registration. 
 
 ## Decision
 
-- **The rule is widened to exactly three global registrations:** the capture hotkey, the Laser pointer hotkey (default Alt+P) and the Drawing mode hotkey (default Alt+D). The two new ones use the standard `RegisterHotKey` method only (through `tauri-plugin-global-shortcut`), with the same register-first, roll-back-on-failed-save change as the capture hotkey (`hotkey::change_hotkey`). No low-level hooks, no key blocking. The one handler in `lib.rs` has a branch per hotkey.
+- **The rule is widened to exactly three global registrations:** the capture hotkey, the Laser pointer hotkey (default Alt+P) and the Drawing mode hotkey (default Alt+D). (Widened again to four by the Editor hotkey, see the amendment at the end.) The two new ones use the standard `RegisterHotKey` method only (through `tauri-plugin-global-shortcut`), with the same register-first, roll-back-on-failed-save change as the capture hotkey (`hotkey::change_hotkey`). No low-level hooks, no key blocking. The one handler in `lib.rs` has a branch per hotkey.
 - **Refused combinations:** Print Screen (bare or with modifiers: it belongs to the capture hotkey and its Raw Input listener, ADR 0007), the capture hotkey, and the other demo hotkey. Another app owning the combination is reported like a capture-hotkey conflict. The capture hotkey likewise cannot take a demo combination. The rules live in `hotkey::demo_refusal` and are mirrored in `src/settings/hotkey.ts`.
 - **Windows the demo tools draw into** are small or per-monitor, transparent, always on top and click-through (`WS_EX_TRANSPARENT`, not focusable), so clicks reach the apps below. Drawing mode's overlays take the mouse only while drawing and are click-through in its "Use apps" state. They are excluded from screen captures with `SetWindowDisplayAffinity(WDA_EXCLUDEFROMCAPTURE)` (Windows 10 2004 and later), except Drawing mode's drawing overlays, which a Capture deliberately includes.
 - **Polling, not hooks.** The pointer position and the left button state are read by polling (about every 16 ms) from the window's own loop (`GetCursorPos`, `GetAsyncKeyState`), never with `WH_MOUSE_LL` or any other hook. The in-window keys of Drawing mode are plain key events of the overlay window itself, not global.
@@ -22,3 +22,12 @@ Ticket 28 set the rule that the capture hotkey is the only global registration. 
 - Endpoint security software that objects to hooks has nothing new to object to.
 - Exclusive full-screen games are unsupported (the windows cannot be placed above them).
 - No network use (ADR 0006). The Windows-specific parts cannot be run on the Linux build machine and are covered by the release checklist (ticket 55).
+
+## Amendment (2026-11-21): a fourth global hotkey, the Editor hotkey
+
+The editor window gets its own global hotkey (default **Alt+E**) that opens it, or closes it to the tray when it is open (ticket 56). It follows the rules above in every way: registered with `RegisterHotKey` only, register-first and rolled back on a failed save (`hotkey::change_hotkey`), a branch of the one handler in `lib.rs` (`EDITOR_SLOT`), a taken combination reported in Settings but never stopping the app from starting, and it is refused Print Screen, the capture hotkey and the two demo hotkeys (and none of them may take its combination). The refusal rules now take a list of the other extra hotkeys (`hotkey::demo_refusal`, `clashes_with_demo`; mirrored in `src/settings/hotkey.ts`).
+
+**Print Screen is still refused**, so the default is not Alt+Print Screen, which was the first idea: every Print Screen combination belongs to the capture hotkey's Raw Input listener (ADR 0007), and Windows itself uses Alt+Print Screen to copy the active window. Andrew chose a different default over relaxing the rule.
+
+The same ticket makes the startup rule explicit: the editor never opens by itself at startup. It is still created hidden (ADR 0003) and is hidden again if the window layer shows it; a second start of the app within 15 seconds of the running instance's start does not open it (`editor_window::second_launch_opens_editor`), because a duplicate start racing the first one at sign-in or after an install would otherwise pop it open.
+

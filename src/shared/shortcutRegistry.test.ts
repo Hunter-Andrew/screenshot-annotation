@@ -16,7 +16,7 @@ const CONTEXTS: ShortcutContext[] = ["overlay", "editor", "drawing"];
 const FIXED_KEYS = ["escape", "ctrl+z", "ctrl+y", "ctrl+c", "ctrl+v", "ctrl+x", "ctrl+a", "delete", "backspace", "enter", "tab", "arrowup", "arrowdown", "arrowleft", "arrowright"];
 
 // Ticket 41 decision 4 / ticket 54: Arrow, Rectangle, Pen, Highlighter.
-const DRAWING_MODE_KEYS = ["A", "R", "P", "H"];
+const DRAWING_MODE_KEYS = ["A", "R", "P", "H", "E"];
 
 // Also fixed (2026-11-19): Line, Ellipse, Text, Callout, Blur, Crop, Bring forward, Send back.
 const OTHER_FIXED_IDS = ["tool.line", "tool.ellipse", "tool.text", "tool.callout", "tool.blur", "tool.crop", "editor.bringForward", "editor.sendBack"];
@@ -50,14 +50,14 @@ describe("the shortcut registry", () => {
       expect(a.remappable, a.id).toBe(!FIXED_KEYS.includes(a.defaultKey.toLowerCase()) && !DRAWING_MODE_KEYS.includes(a.defaultKey) && !OTHER_FIXED_IDS.includes(a.id));
     }
     const fixedIds = SHORTCUT_REGISTRY.filter((a) => !a.remappable).map((a) => a.id).sort();
-    expect(fixedIds).toEqual(["drawing.arrow", "drawing.exit", "drawing.highlight", "drawing.pen", "drawing.rect", "drawing.redo", "drawing.undo", "editor.copy", "editor.delete", "editor.deleteBackspace", "editor.deselect", "editor.redo", "editor.undo", "overlay.cancel", "tool.arrow", "tool.highlight", "tool.pen", "tool.rect", ...OTHER_FIXED_IDS].sort());
+    expect(fixedIds).toEqual(["drawing.arrow", "drawing.eraser", "drawing.exit", "drawing.highlight", "drawing.pen", "drawing.rect", "drawing.redo", "drawing.undo", "editor.copy", "editor.delete", "editor.deleteBackspace", "editor.deselect", "editor.redo", "editor.undo", "overlay.cancel", "tool.arrow", "tool.highlight", "tool.pen", "tool.rect", ...OTHER_FIXED_IDS].sort());
   });
 });
 
 describe("the Drawing mode rows (ticket 53)", () => {
-  it("are A, R, P, H, Ctrl+Z, Ctrl+Y and Esc, all fixed", () => {
+  it("are A, R, P, H, E, Ctrl+Z, Ctrl+Y and Esc, all fixed", () => {
     expect(shortcutsIn("drawing").map((a) => [a.defaultKey, a.remappable])).toEqual([
-      ["A", false], ["R", false], ["P", false], ["H", false], ["Ctrl+Z", false], ["Ctrl+Y", false], ["Escape", false],
+      ["A", false], ["R", false], ["P", false], ["H", false], ["E", false], ["Ctrl+Z", false], ["Ctrl+Y", false], ["Escape", false],
     ]);
   });
 });

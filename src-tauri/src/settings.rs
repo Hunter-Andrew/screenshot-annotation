@@ -65,6 +65,9 @@ pub const CORRUPT_FILE_NAME: &str = "settings.json.corrupt";
 pub const DEFAULT_HOTKEY: &str = "ctrl+shift+s";
 pub const DEFAULT_LASER_POINTER_HOTKEY: &str = "alt+p";
 pub const DEFAULT_DRAWING_MODE_HOTKEY: &str = "alt+d";
+/// Alt+Print Screen would be the natural pick, but every Print Screen combination belongs to the capture hotkey's
+/// Raw Input listener (ADR 0007, 0009) and Windows uses it itself; so Alt+E.
+pub const DEFAULT_EDITOR_HOTKEY: &str = "alt+e";
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
@@ -78,6 +81,9 @@ pub struct Settings {
     /// Global hotkey that starts and ends drawing mode (ticket 49); same rules.
     #[serde(deserialize_with = "drawing_mode_hotkey_or_default")]
     pub drawing_mode_hotkey: String,
+    /// Global hotkey that opens the editor window, or closes it to the tray when it is open (ticket 56); same rules.
+    #[serde(deserialize_with = "editor_hotkey_or_default")]
+    pub editor_hotkey: String,
     /// The laser pointer's colour, `#rrggbb` (`DEFAULT_LASER_POINTER_COLOR`).
     #[serde(deserialize_with = "laser_pointer_color_or_default")]
     pub laser_pointer_color: String,
@@ -309,14 +315,21 @@ fn drawing_mode_hotkey_or_default<'de, D: serde::Deserializer<'de>>(d: D) -> Res
     demo_hotkey_or(d, DEFAULT_DRAWING_MODE_HOTKEY)
 }
 
-/// A hand-edited file may give both demo tools, or a demo tool and the capture hotkey, the same
-/// combination: the later field falls back to its default so each combination has one action.
+fn editor_hotkey_or_default<'de, D: serde::Deserializer<'de>>(d: D) -> Result<String, D::Error> {
+    demo_hotkey_or(d, DEFAULT_EDITOR_HOTKEY)
+}
+
+/// A hand-edited file may give two of the extra hotkeys (laser pointer, drawing mode, editor), or one of them and
+/// the capture hotkey, the same combination: the earlier field falls back to its default so each combination has one action.
 fn resolve_demo_hotkey_clashes(s: &mut Settings) {
-    if crate::hotkey::demo_refusal(&s.laser_pointer_hotkey, &s.hotkey, &s.drawing_mode_hotkey).is_some() {
+    if crate::hotkey::demo_refusal(&s.laser_pointer_hotkey, &s.hotkey, &[&s.drawing_mode_hotkey, &s.editor_hotkey]).is_some() {
         s.laser_pointer_hotkey = DEFAULT_LASER_POINTER_HOTKEY.into();
     }
-    if crate::hotkey::demo_refusal(&s.drawing_mode_hotkey, &s.hotkey, &s.laser_pointer_hotkey).is_some() {
+    if crate::hotkey::demo_refusal(&s.drawing_mode_hotkey, &s.hotkey, &[&s.laser_pointer_hotkey, &s.editor_hotkey]).is_some() {
         s.drawing_mode_hotkey = DEFAULT_DRAWING_MODE_HOTKEY.into();
+    }
+    if crate::hotkey::demo_refusal(&s.editor_hotkey, &s.hotkey, &[&s.laser_pointer_hotkey, &s.drawing_mode_hotkey]).is_some() {
+        s.editor_hotkey = DEFAULT_EDITOR_HOTKEY.into();
     }
 }
 
@@ -358,6 +371,7 @@ impl Default for Settings {
             hotkey: DEFAULT_HOTKEY.into(),
             laser_pointer_hotkey: DEFAULT_LASER_POINTER_HOTKEY.into(),
             drawing_mode_hotkey: DEFAULT_DRAWING_MODE_HOTKEY.into(),
+            editor_hotkey: DEFAULT_EDITOR_HOTKEY.into(),
             laser_pointer_color: DEFAULT_LASER_POINTER_COLOR.into(),
             laser_pointer_size: DEFAULT_LASER_POINTER_SIZE.into(),
             laser_pointer_ripple: true,
@@ -658,6 +672,26 @@ mod tests {
         let s = load(&dir);
         assert_eq!(s.laser_pointer_hotkey, "alt+p");
         assert_eq!(s.drawing_mode_hotkey, "ctrl+alt+o");
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn the_editor_hotkey_defaults_to_alt_e_round_trips_and_falls_back_like_the_other_extra_hotkeys() {
+        assert_eq!(load(&temp_dir("editor-fresh")).editor_hotkey, "alt+e");
+        let dir = temp_dir("editor-file");
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(dir.join(FILE_NAME), br#"{"hotkey":"alt+x","laserPointerHotkey":"alt+p"}"#).unwrap();
+        assert_eq!(load(&dir).editor_hotkey, "alt+e");
+        save(&dir, &Settings { editor_hotkey: "ctrl+alt+w".into(), ..Settings::default() }).unwrap();
+        assert_eq!(load(&dir).editor_hotkey, "ctrl+alt+w");
+        // Print Screen (the default Alt+Print Screen too) is never kept, nor a combination another hotkey has.
+        fs::write(dir.join(FILE_NAME), br#"{"editorHotkey":"alt+PrintScreen"}"#).unwrap();
+        assert_eq!(load(&dir).editor_hotkey, "alt+e");
+        fs::write(dir.join(FILE_NAME), br#"{"hotkey":"ctrl+alt+w","editorHotkey":"ctrl+alt+w"}"#).unwrap();
+        assert_eq!(load(&dir).editor_hotkey, "alt+e");
+        fs::write(dir.join(FILE_NAME), br#"{"laserPointerHotkey":"ctrl+alt+w","editorHotkey":"ctrl+alt+w"}"#).unwrap();
+        let s = load(&dir);
+        assert_eq!((s.laser_pointer_hotkey.as_str(), s.editor_hotkey.as_str()), ("alt+p", "ctrl+alt+w"));
         fs::remove_dir_all(&dir).unwrap();
     }
 

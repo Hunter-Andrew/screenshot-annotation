@@ -1,4 +1,4 @@
-// The keys of Drawing mode (ticket 41 decision 4): A arrow, R rectangle, P pen, H highlighter, Ctrl+Z,
+// The keys of Drawing mode (ticket 41 decision 4): A arrow, R rectangle, P pen, H highlighter, E eraser, Ctrl+Z,
 // Ctrl+Y, Esc. They are fixed (not remappable, not in the shortcut registry) and plain in-window key
 // events of the drawing overlay, never global hotkeys, so they cannot reach another app. Pure.
 import type { DrawingTool } from "./drawingState";
@@ -17,7 +17,7 @@ export interface KeyLike {
   shiftKey: boolean;
 }
 
-const TOOL_KEYS: Readonly<Record<string, DrawingTool>> = { a: "arrow", r: "rect", p: "pen", h: "highlight" };
+const TOOL_KEYS: Readonly<Record<string, DrawingTool>> = { a: "arrow", r: "rect", p: "pen", h: "highlight", e: "eraser" };
 
 export function drawingKeyAction(event: KeyLike): DrawingKeyAction | null {
   if (event.altKey || event.metaKey) return null;

@@ -129,6 +129,7 @@ export interface FakeBridge extends PlatformBridge {
   /** The registered demo-tool hotkeys. */
   readonly laserPointerHotkey: string;
   readonly drawingModeHotkey: string;
+  readonly editorHotkey: string;
   /** Combinations "another app" owns; `setHotkey` reports a conflict for these. Mutable by tests. */
   readonly takenHotkeys: Set<string>;
   /** How many times the Bluetooth & devices settings deep link was opened. */
@@ -201,6 +202,7 @@ export function createFakeBridge(
   let hotkey = store.getItem("fake.hotkey") ?? "ctrl+shift+s";
   let laserPointerHotkey = store.getItem("fake.laserPointerHotkey") ?? "alt+p";
   let drawingModeHotkey = store.getItem("fake.drawingModeHotkey") ?? "alt+d";
+  let editorHotkey = store.getItem("fake.editorHotkey") ?? "alt+e";
   const takenHotkeys = new Set<string>();
   let keyboardSettingsOpened = 0;
   let snippingEnabled = options.printScreenSnippingEnabled ?? true;
@@ -411,6 +413,9 @@ export function createFakeBridge(
     get drawingModeHotkey() {
       return drawingModeHotkey;
     },
+    get editorHotkey() {
+      return editorHotkey;
+    },
     takenHotkeys,
     settingsLogs,
     setPrintScreenSnipping: (enabled) => {
@@ -429,7 +434,7 @@ export function createFakeBridge(
     setHotkey: async (accelerator) => {
       if (accelerator === hotkey) return { ok: true };
       if (takenHotkeys.has(accelerator)) return { ok: false, reason: "conflict" };
-      if ([laserPointerHotkey, drawingModeHotkey].some((d) => d.toLowerCase() === accelerator.toLowerCase()))
+      if ([laserPointerHotkey, drawingModeHotkey, editorHotkey].some((d) => d.toLowerCase() === accelerator.toLowerCase()))
         return { ok: false, reason: "demo-hotkey" };
       hotkey = accelerator;
       store.setItem("fake.hotkey", accelerator);
@@ -438,19 +443,22 @@ export function createFakeBridge(
     getDemoHotkeys: async () => ({
       laserPointer: laserPointerHotkey,
       drawingMode: drawingModeHotkey,
+      editor: editorHotkey,
       laserPointerRegistered: true,
       drawingModeRegistered: true,
+      editorRegistered: true,
     }),
     setDemoHotkey: async (action, accelerator) => {
-      const current = action === "laserPointer" ? laserPointerHotkey : drawingModeHotkey;
-      const other = action === "laserPointer" ? drawingModeHotkey : laserPointerHotkey;
-      if (accelerator === current) return { ok: true };
-      const refusal = demoHotkeyRefusal(accelerator, hotkey, other);
+      const all = { laserPointer: laserPointerHotkey, drawingMode: drawingModeHotkey, editor: editorHotkey };
+      const others = Object.entries(all).filter(([name]) => name !== action).map(([, key]) => key);
+      if (accelerator === all[action]) return { ok: true };
+      const refusal = demoHotkeyRefusal(accelerator, hotkey, others);
       if (refusal !== null) return { ok: false, reason: refusal };
       if (takenHotkeys.has(accelerator)) return { ok: false, reason: "conflict" };
       if (action === "laserPointer") laserPointerHotkey = accelerator;
-      else drawingModeHotkey = accelerator;
-      store.setItem(action === "laserPointer" ? "fake.laserPointerHotkey" : "fake.drawingModeHotkey", accelerator);
+      else if (action === "drawingMode") drawingModeHotkey = accelerator;
+      else editorHotkey = accelerator;
+      store.setItem(`fake.${action}Hotkey`, accelerator);
       return { ok: true };
     },
     get laserPointerSettings() {

@@ -11,12 +11,12 @@ import {
 } from "./toolbarState";
 
 describe("the toolbar's buttons", () => {
-  it("run Arrow, Rectangle, Pen, Highlighter, a divider, Use apps, Undo, Collapse, Exit, each with its key", () => {
+  it("run Arrow, Rectangle, Pen, Highlighter, Eraser, a divider, Use apps, Undo, Collapse, Exit, each with its key", () => {
     expect(TOOLBAR_BUTTONS.map((b) => (b.kind === "divider" ? "|" : b.id))).toEqual([
-      "arrow", "rect", "pen", "highlight", "|", "useApps", "undo", "collapse", "exit",
+      "arrow", "rect", "pen", "highlight", "eraser", "|", "useApps", "undo", "collapse", "exit",
     ]);
     const keys = Object.fromEntries(TOOLBAR_BUTTONS.flatMap((b) => (b.kind === "divider" ? [] : [[b.id, b.key]])));
-    expect(keys).toEqual({ arrow: "A", rect: "R", pen: "P", highlight: "H", useApps: undefined, undo: "Ctrl+Z", collapse: undefined, exit: "Esc" });
+    expect(keys).toEqual({ arrow: "A", rect: "R", pen: "P", highlight: "H", eraser: "E", useApps: undefined, undo: "Ctrl+Z", collapse: undefined, exit: "Esc" });
   });
 });
 
