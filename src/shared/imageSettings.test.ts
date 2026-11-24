@@ -12,13 +12,15 @@ describe("sanitizeImageSettings", () => {
       outsideDarkness: 95,
       showOutsideDefault: true,
       libraryStripCollapsed: false,
+      textAutoWiden: true,
+      textMaxHeightRatio: 4,
     });
     expect(sanitizeImageSettings({})).toEqual(DEFAULT_IMAGE_SETTINGS);
   });
 
   it("keeps valid values, clamps numbers into their range, and defaults anything that is not a whole number", () => {
     const value = sanitizeImageSettings({ background: "white", checkerboard: "dark", canvasMargin: 3, outsideDarkness: "x", showOutsideDefault: false });
-    expect(value).toEqual({ background: "white", checkerboard: "dark", canvasMargin: 3, cropMargin: 150, darkBackground: "#191919", outsideDarkness: 95, showOutsideDefault: false, libraryStripCollapsed: false });
+    expect(value).toEqual({ background: "white", checkerboard: "dark", canvasMargin: 3, cropMargin: 150, darkBackground: "#191919", outsideDarkness: 95, showOutsideDefault: false, libraryStripCollapsed: false, textAutoWiden: true, textMaxHeightRatio: 4 });
     expect(sanitizeImageSettings({ canvasMargin: 1.5, outsideDarkness: 100 })).toMatchObject({ canvasMargin: 16, outsideDarkness: 99.9 });
   });
 
@@ -47,5 +49,20 @@ describe("sanitizeImageSettings", () => {
     expect(inRange(OUTSIDE_DARKNESS, 100)).toBe(false);
     expect(inRange(OUTSIDE_DARKNESS, 50.05)).toBe(false);
     expect(inRange(CANVAS_MARGIN, 48.5)).toBe(false);
+  });
+});
+
+describe("the text box widening settings", () => {
+  it("widening is on by default, and only a boolean turns it off", () => {
+    expect(sanitizeImageSettings({}).textAutoWiden).toBe(true);
+    expect(sanitizeImageSettings({ textAutoWiden: false }).textAutoWiden).toBe(false);
+    expect(sanitizeImageSettings({ textAutoWiden: "no" }).textAutoWiden).toBe(true);
+  });
+
+  it("the ratio is a whole number from 2 to 20, 4 by default", () => {
+    expect(sanitizeImageSettings({ textMaxHeightRatio: 7 }).textMaxHeightRatio).toBe(7);
+    expect(sanitizeImageSettings({ textMaxHeightRatio: 1 }).textMaxHeightRatio).toBe(2);
+    expect(sanitizeImageSettings({ textMaxHeightRatio: 99 }).textMaxHeightRatio).toBe(20);
+    for (const bad of [4.5, "x", null]) expect(sanitizeImageSettings({ textMaxHeightRatio: bad }).textMaxHeightRatio).toBe(4);
   });
 });

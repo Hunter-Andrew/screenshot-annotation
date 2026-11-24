@@ -48,6 +48,9 @@
 //! - `showOutsideDefault` (true by default): whether a new image shows the area outside its canvas.
 //!   A number outside its range is brought into the range; anything that is not a number is the default.
 //!   (A whole-number setting also takes a fraction as the default.)
+//! - `textAutoWiden` (true by default): whether a Text box or Callout widens itself when its lines would be taller
+//!   than `textMaxHeightRatio` times its width.
+//! - `textMaxHeightRatio` (2 to 20, default 4): that ratio; a number outside the range is brought into it.
 //! - `libraryStripCollapsed` (false by default): whether the Library Strip along the bottom of the editor is
 //!   collapsed to a thin bar. The chevron on the strip's edge changes it; it is kept between launches.
 //! - `trayNoticeShown`: true once the one-time "still running in the tray" message, shown the first time
@@ -139,6 +142,12 @@ pub struct Settings {
     /// The Library Strip is collapsed to a thin bar (the chevron on its edge toggles it).
     #[serde(deserialize_with = "bool_or_false")]
     pub library_strip_collapsed: bool,
+    /// Whether a Text box or Callout widens itself when its lines are too tall for its width.
+    #[serde(deserialize_with = "bool_or_true")]
+    pub text_auto_widen: bool,
+    /// How many times taller than wide the lines of a Text box may be before it widens (`TEXT_MAX_HEIGHT_RATIO`).
+    #[serde(deserialize_with = "text_max_height_ratio_or_default")]
+    pub text_max_height_ratio: u32,
 }
 
 pub const BACKGROUNDS: [&str; 3] = ["white", "dark", "transparent"];
@@ -194,6 +203,7 @@ pub const CANVAS_MARGIN: Range = Range { min: 0, max: 200, default: 16 };
 /// Drawing mode's Highlighter opacity in percent; `DRAWING_HIGHLIGHTER_OPACITY` in src/drawing/drawingStyles.ts must match.
 pub const DRAWING_HIGHLIGHTER_OPACITY: Range = Range { min: 5, max: 60, default: 20 };
 pub const CROP_MARGIN: Range = Range { min: 0, max: 400, default: 150 };
+pub const TEXT_MAX_HEIGHT_RATIO: Range = Range { min: 2, max: 20, default: 4 };
 pub const DEFAULT_DARK_BACKGROUND: &str = "#191919";
 
 /// True for `#` followed by exactly six hex digits (either case).
@@ -215,6 +225,8 @@ pub struct ImageSettings {
     pub outside_darkness: f64,
     pub show_outside_default: bool,
     pub library_strip_collapsed: bool,
+    pub text_auto_widen: bool,
+    pub text_max_height_ratio: u32,
 }
 
 /// A stored choice that is not one of `allowed` (a hand edit, a newer version) is the default, not an error.
@@ -262,6 +274,10 @@ fn canvas_margin_or_default<'de, D: serde::Deserializer<'de>>(d: D) -> Result<u3
 
 fn drawing_highlighter_opacity_or_default<'de, D: serde::Deserializer<'de>>(d: D) -> Result<u32, D::Error> {
     number_in(d, DRAWING_HIGHLIGHTER_OPACITY)
+}
+
+fn text_max_height_ratio_or_default<'de, D: serde::Deserializer<'de>>(d: D) -> Result<u32, D::Error> {
+    number_in(d, TEXT_MAX_HEIGHT_RATIO)
 }
 
 fn crop_margin_or_default<'de, D: serde::Deserializer<'de>>(d: D) -> Result<u32, D::Error> {
@@ -361,6 +377,8 @@ impl Settings {
             outside_darkness: self.outside_darkness,
             show_outside_default: self.show_outside_default,
             library_strip_collapsed: self.library_strip_collapsed,
+            text_auto_widen: self.text_auto_widen,
+            text_max_height_ratio: self.text_max_height_ratio,
         }
     }
 }
@@ -391,6 +409,8 @@ impl Default for Settings {
             outside_darkness: OUTSIDE_DARKNESS.default,
             show_outside_default: DEFAULT_SHOW_OUTSIDE,
             library_strip_collapsed: false,
+            text_auto_widen: true,
+            text_max_height_ratio: TEXT_MAX_HEIGHT_RATIO.default,
         }
     }
 }
@@ -581,6 +601,21 @@ pub fn set_drawing_highlighter_opacity(dir: &Path, settings: &mut Settings, perc
 /// Sets whether new images show the area outside the canvas.
 pub fn set_show_outside_default(dir: &Path, settings: &mut Settings, show: bool) -> io::Result<()> {
     settings.show_outside_default = show;
+    save(dir, settings)
+}
+
+/// Sets whether narrow Text boxes widen themselves.
+pub fn set_text_auto_widen(dir: &Path, settings: &mut Settings, enabled: bool) -> io::Result<()> {
+    settings.text_auto_widen = enabled;
+    save(dir, settings)
+}
+
+/// Sets how many times taller than wide a Text box's lines may be before it widens; a value outside `TEXT_MAX_HEIGHT_RATIO` changes nothing.
+pub fn set_text_max_height_ratio(dir: &Path, settings: &mut Settings, value: u32) -> io::Result<()> {
+    if !TEXT_MAX_HEIGHT_RATIO.contains(value) {
+        return Err(out_of_range("text height ratio", value, TEXT_MAX_HEIGHT_RATIO));
+    }
+    settings.text_max_height_ratio = value;
     save(dir, settings)
 }
 
@@ -965,6 +1000,26 @@ mod tests {
     }
 
     #[test]
+    fn text_box_widening_is_on_at_4_times_by_default_and_the_ratio_stays_in_its_range() {
+        let dir = temp_dir("text-widen");
+        let mut s = load(&dir);
+        assert_eq!((s.text_auto_widen, s.text_max_height_ratio), (true, 4));
+        assert!(set_text_max_height_ratio(&dir, &mut s, 1).is_err());
+        assert!(set_text_max_height_ratio(&dir, &mut s, 21).is_err());
+        assert_eq!(s.text_max_height_ratio, 4);
+        set_text_max_height_ratio(&dir, &mut s, 20).unwrap();
+        set_text_auto_widen(&dir, &mut s, false).unwrap();
+        let back = load(&dir);
+        assert_eq!((back.text_auto_widen, back.text_max_height_ratio), (false, 20));
+        fs::write(dir.join(FILE_NAME), br#"{"textAutoWiden":"no","textMaxHeightRatio":99}"#).unwrap();
+        let back = load(&dir);
+        assert_eq!((back.text_auto_widen, back.text_max_height_ratio), (true, 20));
+        fs::write(dir.join(FILE_NAME), br#"{"textMaxHeightRatio":"x"}"#).unwrap();
+        assert_eq!(load(&dir).text_max_height_ratio, 4);
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
     fn a_fresh_install_starts_transparent_with_the_light_checkerboard_and_the_view_defaults() {
         let s = load(&temp_dir("fresh-image"));
         assert_eq!((s.image_background.as_str(), s.transparency_checkerboard.as_str()), ("transparent", "light"));
@@ -979,6 +1034,8 @@ mod tests {
                 outside_darkness: 95.0,
                 show_outside_default: true,
                 library_strip_collapsed: false,
+                text_auto_widen: true,
+                text_max_height_ratio: 4,
             }
         );
     }

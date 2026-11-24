@@ -204,6 +204,8 @@ export function createTauriBridge(): PlatformBridge {
     setDarkBackground: (color) => invoke<void>("set_dark_background", { color }),
     setOutsideDarkness: (percent) => invoke<void>("set_outside_darkness", { percent }),
     setShowOutsideDefault: (show) => invoke<void>("set_show_outside_default", { show }),
+    setTextAutoWiden: (enabled) => invoke<void>("set_text_auto_widen", { enabled }),
+    setTextMaxHeightRatio: (ratio) => invoke<void>("set_text_max_height_ratio", { ratio }),
     onImageSettings: (handler) => listen<unknown>("image-settings", (event) => handler(sanitizeImageSettings(event.payload))),
     getToolStyles: () => invoke<Record<string, unknown>>("get_tool_styles"),
     setToolStyles: (styles) => invoke<void>("set_tool_styles", { styles }),

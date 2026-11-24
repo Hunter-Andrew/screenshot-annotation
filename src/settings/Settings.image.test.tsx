@@ -152,6 +152,26 @@ describe("Settings > Image", () => {
     expect(bridge.imageSettings.outsideDarkness).toBe(40.3);
   });
 
+  it("stores whether narrow text boxes widen, and how tall they may get first (4 times their width by default)", async () => {
+    const bridge = createFakeBridge();
+    render(<Settings bridge={bridge} />);
+    const toggle = await screen.findByLabelText("Widen narrow text boxes");
+    const limit = screen.getByLabelText("Text box height limit (× its width)");
+    await waitFor(() => expect(limit).toBeEnabled());
+    expect(toggle).toBeChecked();
+    expect(limit).toHaveValue(4);
+    await userEvent.clear(limit);
+    await userEvent.type(limit, "8");
+    await userEvent.tab();
+    await userEvent.click(toggle);
+    expect(bridge.imageSettings).toMatchObject({ textAutoWiden: false, textMaxHeightRatio: 8 });
+    await userEvent.clear(limit);
+    await userEvent.type(limit, "1");
+    await userEvent.tab();
+    expect(bridge.imageSettings.textMaxHeightRatio).toBe(8); // under 2: nothing is stored
+    expect(limit).toHaveValue(8);
+  });
+
   it("a stored 60 is shown as 60", async () => {
     const bridge = createFakeBridge();
     await bridge.setOutsideDarkness(60);

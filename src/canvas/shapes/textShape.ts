@@ -13,7 +13,7 @@
 import { SELECTION_COLOR } from "../selectionColor";
 import { controlsUtils, Textbox } from "fabric";
 import { FONT_FAMILY, type TextAnnotation } from "../../core/annotations/text";
-import { dragTextBox, HANDLES, type HandleName } from "../../core/annotations/textBox";
+import { dragTextBox, HANDLES, type HandleName, widthForRatio } from "../../core/annotations/textBox";
 import { changedRunKeys, normalizeRuns, type Run, type RunFont, type RunKey, type SelectionFont, selectionFont, splitChars } from "../../core/annotations/runs";
 import { type Font, isUnderlined, type VerticalAlign, valignOf } from "../../core/propertyGroups";
 import { type CharStyle, type FabricStyles, runsToStyles, stylesToRuns, toCharStyle } from "./textStyles";
@@ -41,6 +41,11 @@ export class TextShape extends Textbox {
   declare private areaMinHeight?: number;
   /** Where the text sits when the box is taller than its lines. Fabric's Textbox has no such thing: see `_getTopOffset`. */
   private valign: VerticalAlign = "top";
+  /**
+   * "Widen narrow text boxes": the box widens itself (see `widenToRatio`) when its lines would be taller than this many
+   * times its width. Null: off. Set by the canvas from the Settings.
+   */
+  widenRatio: number | null = null;
   /** True for a Callout: an edit that leaves no words leaves it empty instead of restoring the old words. */
   protected keepsEmptyText = false;
   /** The box's or a selection's look was changed in this edit by something other than typing (Ctrl+U, B or I, the Style panel). */
@@ -92,6 +97,8 @@ export class TextShape extends Textbox {
     this.on("mousedown", ({ e }) => {
       if (this.isEditing) e.preventDefault();
     });
+    // Typing into a narrow box widens it as the lines grow tall; the width is saved with the rest of the edit.
+    this.on("changed", () => this.widenToRatio());
     this.on("editing:exited", () => {
       // A change of look alone (Ctrl+U, or the Style panel's Font on a selection) changes no words, so Fabric reports nothing: tell the canvas the Annotation was modified.
       if (this.underlineToggled) {
@@ -346,6 +353,28 @@ export class TextShape extends Textbox {
     if (drag.keepBottom) this.set({ top: before.top + before.height - this.height });
     this.setCoords();
     return before.left !== this.left || before.top !== this.top || before.width !== this.width || before.height !== this.height;
+  }
+
+  /**
+   * Widen the box (its right edge moves, the left stays) to the narrowest width at which its lines are no taller than
+   * `widenRatio` times that width; a box that is wide enough, or text no wider box would shorten, is left alone. The
+   * minimum height the user dragged out does not count, only the lines. Returns whether the width changed.
+   */
+  widenToRatio(): boolean {
+    const ratio = this.widenRatio;
+    if (!ratio) return false;
+    const before = this.width;
+    const linesHeightAt = (width: number) => {
+      this.set({ width });
+      this.initDimensions();
+      return super.calcTextHeight();
+    };
+    const wanted = widthForRatio(before, ratio, linesHeightAt);
+    this.set({ width: wanted });
+    this.initDimensions();
+    this.setCoords();
+    this.dirty = true;
+    return wanted !== before;
   }
 
   /** Start typing in place (select all of a new box's nothing, or put the caret at the end). */

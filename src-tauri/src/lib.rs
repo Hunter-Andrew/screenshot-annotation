@@ -561,6 +561,34 @@ fn set_library_strip_collapsed(app: AppHandle, state: tauri::State<'_, AppSettin
     saved.or_else(|e| if e.kind() == std::io::ErrorKind::InvalidInput { Err(e.to_string()) } else { Ok(()) })
 }
 
+/// Stores whether narrow Text boxes widen themselves; same rules as `set_show_outside_default`.
+#[tauri::command]
+fn set_text_auto_widen(app: AppHandle, state: tauri::State<'_, AppSettings>, enabled: bool) -> Result<(), String> {
+    let mut data = state.data.lock().unwrap();
+    let saved = settings::set_text_auto_widen(&state.dir, &mut data, enabled);
+    if let Err(e) = &saved {
+        diag::log(&format!("text auto-widen set to {enabled}; could not save settings.json (kept in memory): {e}"));
+    }
+    let now = data.image_settings();
+    drop(data);
+    let _ = app.emit(IMAGE_SETTINGS_EVENT, now);
+    saved.or_else(|e| if e.kind() == std::io::ErrorKind::InvalidInput { Err(e.to_string()) } else { Ok(()) })
+}
+
+/// Stores the text box height ratio; same rules as `set_canvas_margin` (a value outside its range is refused).
+#[tauri::command]
+fn set_text_max_height_ratio(app: AppHandle, state: tauri::State<'_, AppSettings>, ratio: u32) -> Result<(), String> {
+    let mut data = state.data.lock().unwrap();
+    let saved = settings::set_text_max_height_ratio(&state.dir, &mut data, ratio);
+    if let Err(e) = &saved {
+        diag::log(&format!("the text height ratio set to {ratio}; could not save settings.json (kept in memory): {e}"));
+    }
+    let now = data.image_settings();
+    drop(data);
+    let _ = app.emit(IMAGE_SETTINGS_EVENT, now);
+    saved.or_else(|e| if e.kind() == std::io::ErrorKind::InvalidInput { Err(e.to_string()) } else { Ok(()) })
+}
+
 /// Stores the outside darkness; same rules as `set_image_background` (a value outside its range is refused).
 #[tauri::command]
 fn set_outside_darkness(app: AppHandle, state: tauri::State<'_, AppSettings>, percent: f64) -> Result<(), String> {
@@ -1425,7 +1453,9 @@ pub fn run() {
             set_library_strip_collapsed,
             set_dark_background,
             set_outside_darkness,
-            set_show_outside_default
+            set_show_outside_default,
+            set_text_auto_widen,
+            set_text_max_height_ratio
         ])
         .setup(|app| {
             app.handle().plugin(

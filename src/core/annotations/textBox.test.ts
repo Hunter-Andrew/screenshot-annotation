@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dragTextBox, HANDLES, MIN_BOX_WIDTH } from "./textBox";
+import { dragTextBox, HANDLES, MIN_BOX_WIDTH, widthForRatio } from "./textBox";
 
 // A 200 x 60 box at (100, 50) with a 4 px outline: the visible box is 204 x 64, so its edges are at
 // x 100..304 and y 50..114.
@@ -62,5 +62,45 @@ describe("dragTextBox", () => {
 
   it("has the eight handles and no others", () => {
     expect(Object.keys(HANDLES).sort()).toEqual(["bl", "br", "mb", "ml", "mr", "mt", "tl", "tr"]);
+  });
+});
+
+describe("widthForRatio", () => {
+  // A stand-in for laying text out: `area` square pixels of text wrapped at a width, each line 10 px tall.
+  const linesAt = (area: number) => (w: number) => Math.ceil(area / w / 10) * 10;
+
+  it("keeps a width whose lines are not too tall for it", () => {
+    expect(widthForRatio(100, 4, linesAt(10000), 8192)).toBe(100); // 100 px tall at 100 wide: 1x
+  });
+
+  it("keeps a width that is exactly at the ratio", () => {
+    expect(widthForRatio(50, 4, () => 200, 8192)).toBe(50);
+  });
+
+  it("widens to the narrowest width that is within the ratio", () => {
+    const lines = linesAt(10000);
+    const width = widthForRatio(10, 4, lines, 8192);
+    expect(lines(width)).toBeLessThanOrEqual(4 * width);
+    expect(lines(width - 1)).toBeGreaterThan(4 * (width - 1));
+    expect(width).toBeGreaterThan(10);
+  });
+
+  it("never narrows a box", () => {
+    expect(widthForRatio(300, 4, () => 10, 8192)).toBe(300);
+  });
+
+  it("leaves text alone when no width would make its lines shorter (its own line breaks make it tall)", () => {
+    expect(widthForRatio(10, 4, () => 1e9, 500)).toBe(10);
+    expect(widthForRatio(150, 4, () => 760, 8192)).toBe(150); // twenty short lines in a narrow box: widening would not help
+  });
+
+  it("widens only as far as it helps, even when the unwrapped text is still taller than the ratio", () => {
+    // Wrapped text of 8 explicit lines (80 px) that wraps further at under 60 wide.
+    const lines = (w: number) => (w >= 60 ? 80 : 400);
+    expect(widthForRatio(20, 1, lines, 8192)).toBe(60);
+  });
+
+  it("does nothing when the ratio is not positive", () => {
+    expect(widthForRatio(10, 0, () => 1e9, 8192)).toBe(10);
   });
 });

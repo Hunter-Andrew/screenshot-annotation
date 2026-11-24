@@ -87,6 +87,18 @@ describe("the canvas margin and the outside darkness settings", () => {
   });
 });
 
+describe("the text box widening settings", () => {
+  it("tell the canvas to widen boxes taller than 4 times their width by default, follow a change, and turn it off", async () => {
+    const bridge = createFakeBridge();
+    const { kit } = await openWithCapture(bridge);
+    expect(kit.latest.layout.textWidenRatio).toBe(4);
+    await act(async () => bridge.setTextMaxHeightRatio(10));
+    expect(kit.latest.layout.textWidenRatio).toBe(10);
+    await act(async () => bridge.setTextAutoWiden(false));
+    expect(kit.latest.layout.textWidenRatio).toBeNull();
+  });
+});
+
 describe("Show outside the canvas", () => {
   it("is a toggle in the Image section with Select and nothing selected, and with the Crop tool; on unless the file says no", async () => {
     await openWithCapture();

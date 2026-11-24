@@ -309,6 +309,10 @@ export interface PlatformBridge {
   setOutsideDarkness(percent: number): Promise<void>;
   /** Store whether a new image shows the area outside its canvas. */
   setShowOutsideDefault(show: boolean): Promise<void>;
+  /** Store whether narrow Text boxes and Callouts widen themselves (see `textAutoWiden`). */
+  setTextAutoWiden(enabled: boolean): Promise<void>;
+  /** Store how many times taller than wide a Text box's lines may be before it widens (2 to 20). A value outside the range is refused. */
+  setTextMaxHeightRatio(ratio: number): Promise<void>;
   /** Store whether the Library Strip is collapsed to a thin bar (kept between launches). */
   setLibraryStripCollapsed(collapsed: boolean): Promise<void>;
   /** The image settings changed (from any window); delivers the new values. Returns an unsubscribe function. */
