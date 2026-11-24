@@ -62,3 +62,34 @@ export function dragTextBox(box: TextBoxGeometry, pad: number, edges: HandleEdge
   else if (edges.fy > 0) minHeight = Math.max(0, pointer.y - box.top - pad);
   return { left, width, minHeight, keepBottom: edges.fy < 0 };
 }
+
+/** No box is widened past this (the image size limit): a ratio no width can satisfy stops here. */
+export const MAX_AUTO_WIDTH = 8192;
+
+/**
+ * The width a box should have so its lines are not taller than `ratio` times its width: `width` itself when they
+ * already fit, otherwise the narrowest whole width above it that does (never past `limit`). `linesHeightAt(w)` is the
+ * height the text's lines need when wrapped at `w`; it only ever shrinks as `w` grows, which is what lets this search.
+ * Widening only happens where it makes the lines shorter: text whose own line breaks already make it taller than the
+ * ratio allows (a long list) is left as it is, since no width would help. A ratio of 0 or less turns the rule off.
+ */
+export function widthForRatio(width: number, ratio: number, linesHeightAt: (width: number) => number, limit: number = MAX_AUTO_WIDTH): number {
+  if (!(ratio > 0) || width >= limit) return width;
+  // The shortest the lines can get (no wrapping at all): a height wider boxes cannot improve on.
+  const floor = linesHeightAt(limit);
+  const fits = (w: number) => linesHeightAt(w) <= Math.max(ratio * w, floor);
+  if (fits(width)) return width;
+  // Double until it fits, then search the last doubling for the narrowest width that does.
+  let low = width;
+  let high = width;
+  while (high < limit && !fits(high)) {
+    low = high;
+    high = Math.min(limit, high * 2);
+  }
+  while (high - low > 1) {
+    const middle = Math.floor((low + high) / 2);
+    if (fits(middle)) high = middle;
+    else low = middle;
+  }
+  return high;
+}

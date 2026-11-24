@@ -81,7 +81,7 @@ test.describe("the Highlighter", () => {
     expect(pixel(250, 250)).toEqual([255, 255, 255, 255]); // untouched below the stroke
   });
 
-  test("the cursor is a ring as wide as the stroke in the highlighter's colour, scaled by the zoom, and goes with the tool", async ({ page }) => {
+  test("the cursor is a dark and white ring (readable on any background) as wide as the stroke, scaled by the zoom, and goes with the tool", async ({ page }) => {
     await page.goto("/");
     await capture(page, 300, 200);
     await page.keyboard.press("Control+1"); // 100%
@@ -94,7 +94,7 @@ test.describe("the Highlighter", () => {
           const c = canvas.getBoundingClientRect();
           const data = canvas.getContext("2d")!.getImageData(Math.round(area.left - c.left) + x - 3, Math.round(area.top - c.top) + y - 3, 7, 7).data;
           let marked = 0;
-          for (let i = 0; i < data.length; i += 4) if (data[i + 2]! < 200) marked++; // white Capture; the ring is yellow (blue channel 0)
+          for (let i = 0; i < data.length; i += 4) if (data[i + 2]! < 200) marked++; // white Capture; the ring's dark outline is not white
           return marked;
         },
         { x: cx + radius, y: cy },
@@ -121,7 +121,7 @@ test.describe("the Highlighter", () => {
     await page.mouse.move(zoomed.x + 100, zoomed.y + 100);
     await settle();
     expect(await ringPixels(100, 100, Math.round(10 * scale))).toBeGreaterThan(0);
-    expect(await ringPixels(100, 100, Math.round(5 * scale))).toBe(0);
+    expect(await ringPixels(100, 100, Math.round(4 * scale))).toBe(0); // well inside the ring (its dark line is 3 px wide)
 
     // Another tool: the ring goes.
     await page.keyboard.press("p");

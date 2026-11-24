@@ -7,7 +7,7 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { BACKGROUNDS } from "../core/area";
 import { CAPTURE_DELAYS } from "../platform/bridge";
-import { CANVAS_MARGIN, CHECKERBOARD_THEMES, CROP_MARGIN, DEFAULT_DARK_BACKGROUND, DEFAULT_IMAGE_SETTINGS, OUTSIDE_DARKNESS } from "./imageSettings";
+import { CANVAS_MARGIN, CHECKERBOARD_THEMES, CROP_MARGIN, DEFAULT_DARK_BACKGROUND, DEFAULT_IMAGE_SETTINGS, OUTSIDE_DARKNESS, TEXT_MAX_HEIGHT_RATIO } from "./imageSettings";
 import { COUNTDOWN_HASH, DRAWING_HASH_PREFIX, DRAWING_TOOLBAR_HASH, DRAWING_TOOLBAR_SIZE, OVERLAY_HASH_PREFIX, LASER_POINTER_HASH, RELEASES_URL, SETTINGS_HASH } from "./constants";
 import { DEFAULT_LASER_POINTER_SETTINGS, LASER_POINTER_SIZES } from "../platform/bridge";
 import { DRAWING_HIGHLIGHTER_OPACITY } from "../drawing/drawingStyles";
@@ -76,6 +76,7 @@ describe("TS/Rust shared constants", () => {
     };
     expect(range("CANVAS_MARGIN")).toEqual(CANVAS_MARGIN);
     expect(range("CROP_MARGIN")).toEqual(CROP_MARGIN);
+    expect(decimalRange("TEXT_MAX_HEIGHT_RATIO")).toEqual(TEXT_MAX_HEIGHT_RATIO);
     expect(text("DEFAULT_DARK_BACKGROUND")).toBe(DEFAULT_DARK_BACKGROUND);
     expect(decimalRange("OUTSIDE_DARKNESS")).toEqual(OUTSIDE_DARKNESS);
     expect(rust("settings.rs").match(/pub const DEFAULT_SHOW_OUTSIDE: bool = (\w+);/)?.[1]).toBe(String(DEFAULT_IMAGE_SETTINGS.showOutsideDefault));
@@ -91,6 +92,8 @@ describe("TS/Rust shared constants", () => {
       set_dark_background: "color: String",
       set_outside_darkness: "percent: f64",
       set_show_outside_default: "show: bool",
+      set_text_auto_widen: "enabled: bool",
+      set_text_max_height_ratio: "ratio: f64",
     };
     for (const [command, arg] of Object.entries(expected)) {
       const name = arg.split(":")[0];

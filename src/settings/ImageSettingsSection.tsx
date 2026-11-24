@@ -14,6 +14,7 @@ import {
   isDarkBackground,
   type NumberRange,
   OUTSIDE_DARKNESS,
+  TEXT_MAX_HEIGHT_RATIO,
 } from "../shared/imageSettings";
 
 const CHECKERBOARD_LABELS: Record<CheckerboardTheme, string> = { dark: "Dark", light: "Light" };
@@ -229,6 +230,29 @@ export function ImageSettingsSection({ bridge }: { bridge: PlatformBridge }) {
           Show outside the canvas on new images
         </label>
       </p>
+      <p>
+        <label>
+          <input
+            type="checkbox"
+            checked={settings?.textAutoWiden ?? true}
+            disabled={settings === null}
+            onChange={(event) => {
+              const enabled = event.target.checked;
+              save({ textAutoWiden: enabled }, () => bridge.setTextAutoWiden(enabled), "setTextAutoWiden");
+            }}
+          />{" "}
+          Widen narrow text boxes
+        </label>
+        <br />
+        <small>A Text box or Callout that gets too narrow for its words (its lines would be much taller than the box is wide) widens itself as you type. A box you resize by hand keeps the width you gave it.</small>
+      </p>
+      <NumberSetting
+        label="Text box height limit (× its width)"
+        hint="A text box widens once its lines are taller than this many times its width. Smaller widens sooner; 0.5 to 20, to a tenth. Only while typing: resizing by hand is never overridden."
+        range={TEXT_MAX_HEIGHT_RATIO}
+        value={settings?.textMaxHeightRatio}
+        onCommit={(value) => save({ textMaxHeightRatio: value }, () => bridge.setTextMaxHeightRatio(value), "setTextMaxHeightRatio")}
+      />
     </section>
   );
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CANVAS_MARGIN, DEFAULT_IMAGE_SETTINGS, inRange, OUTSIDE_DARKNESS, sanitizeImageSettings } from "./imageSettings";
+import { CANVAS_MARGIN, DEFAULT_IMAGE_SETTINGS, inRange, OUTSIDE_DARKNESS, sanitizeImageSettings, TEXT_MAX_HEIGHT_RATIO } from "./imageSettings";
 
 describe("sanitizeImageSettings", () => {
   it("gives the documented defaults for nothing", () => {
@@ -12,13 +12,15 @@ describe("sanitizeImageSettings", () => {
       outsideDarkness: 95,
       showOutsideDefault: true,
       libraryStripCollapsed: false,
+      textAutoWiden: true,
+      textMaxHeightRatio: 2,
     });
     expect(sanitizeImageSettings({})).toEqual(DEFAULT_IMAGE_SETTINGS);
   });
 
   it("keeps valid values, clamps numbers into their range, and defaults anything that is not a whole number", () => {
     const value = sanitizeImageSettings({ background: "white", checkerboard: "dark", canvasMargin: 3, outsideDarkness: "x", showOutsideDefault: false });
-    expect(value).toEqual({ background: "white", checkerboard: "dark", canvasMargin: 3, cropMargin: 150, darkBackground: "#191919", outsideDarkness: 95, showOutsideDefault: false, libraryStripCollapsed: false });
+    expect(value).toEqual({ background: "white", checkerboard: "dark", canvasMargin: 3, cropMargin: 150, darkBackground: "#191919", outsideDarkness: 95, showOutsideDefault: false, libraryStripCollapsed: false, textAutoWiden: true, textMaxHeightRatio: 2 });
     expect(sanitizeImageSettings({ canvasMargin: 1.5, outsideDarkness: 100 })).toMatchObject({ canvasMargin: 16, outsideDarkness: 99.9 });
   });
 
@@ -48,4 +50,25 @@ describe("sanitizeImageSettings", () => {
     expect(inRange(OUTSIDE_DARKNESS, 50.05)).toBe(false);
     expect(inRange(CANVAS_MARGIN, 48.5)).toBe(false);
   });
+});
+
+describe("the text box widening settings", () => {
+  it("widening is on by default, and only a boolean turns it off", () => {
+    expect(sanitizeImageSettings({}).textAutoWiden).toBe(true);
+    expect(sanitizeImageSettings({ textAutoWiden: false }).textAutoWiden).toBe(false);
+    expect(sanitizeImageSettings({ textAutoWiden: "no" }).textAutoWiden).toBe(true);
+  });
+
+  it("the ratio runs from 0.5 to 20 in tenths, 2 by default", () => {
+    expect(sanitizeImageSettings({ textMaxHeightRatio: 7 }).textMaxHeightRatio).toBe(7);
+    expect(sanitizeImageSettings({ textMaxHeightRatio: 0.5 }).textMaxHeightRatio).toBe(0.5);
+    expect(sanitizeImageSettings({ textMaxHeightRatio: 1.26 }).textMaxHeightRatio).toBe(1.3);
+    expect(sanitizeImageSettings({ textMaxHeightRatio: 0.1 }).textMaxHeightRatio).toBe(0.5);
+    expect(sanitizeImageSettings({ textMaxHeightRatio: 99 }).textMaxHeightRatio).toBe(20);
+    for (const bad of ["x", null, Number.NaN]) expect(sanitizeImageSettings({ textMaxHeightRatio: bad }).textMaxHeightRatio).toBe(2);
+    expect(inRange(TEXT_MAX_HEIGHT_RATIO, 1.5)).toBe(true);
+    expect(inRange(TEXT_MAX_HEIGHT_RATIO, 1.55)).toBe(false);
+    expect(inRange(TEXT_MAX_HEIGHT_RATIO, 0.4)).toBe(false);
+  });
+
 });

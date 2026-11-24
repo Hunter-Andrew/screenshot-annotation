@@ -825,3 +825,56 @@ test("Text: alignment left, centre and right moves the lines inside the box, in 
   await page.mouse.click(view.at(590, 100).x, view.at(590, 100).y);
   expect(((await saved(page))[0] as Text).font.align).toBe("right");
 });
+
+// A box being typed in whose lines would be taller than 2 times its width (Settings, "Widen narrow text boxes") widens itself.
+// The default 32 px font makes a line about 38 px tall.
+const WORDS = "Narrow boxes widen themselves";
+
+test("Text: typing into a very narrow box widens it as the lines grow tall, and the new width is saved", async ({ page }) => {
+  await page.goto("/");
+  await capture(page, 900, 500);
+  const view = await atActualSize(page, 900);
+  await page.keyboard.press("t");
+  await pressAndMove(page, view.at(200, 150), view.at(230, 230)); // 30 px wide
+  await page.mouse.up();
+  await page.keyboard.type(WORDS);
+  await page.keyboard.press("Escape");
+  await expectSaved(page, ([t]) => t?.text === WORDS, "created");
+  const [t] = (await saved(page)) as Text[];
+  expect(t!.width).toBeGreaterThan(30);
+  expect(t!.x).toBe(200); // the left edge stays
+  expect(t!.width).toBeGreaterThan(80); // a 30 px strip would be about 29 lines tall
+});
+
+test("Text: a box the user drags narrow by hand keeps that width, even though its words are too tall for it", async ({ page }) => {
+  await page.goto("/");
+  await capture(page, 900, 500);
+  const view = await atActualSize(page, 900);
+  await page.keyboard.press("t");
+  await pressAndMove(page, view.at(200, 150), view.at(600, 230));
+  await page.mouse.up();
+  await page.keyboard.type(WORDS);
+  await page.keyboard.press("Escape");
+  await expectSaved(page, ([t]) => t?.text === WORDS, "created");
+  const before = (await saved(page))[0]! as Text & Box;
+  const from = handlePoint(before, "mr", view);
+  await drag(page, from, { x: from.x - 380, y: from.y }); // leaves about 20 px
+  await expectSaved(page, ([t]) => !!t && t.width < 40, "resized");
+  const after = (await saved(page))[0]! as Text & Box;
+  expect(after.width).toBeLessThan(40); // not widened by the release
+  expect(close(after.x, before.x)).toBe(true);
+});
+
+test("Text: with widening turned off in the Settings, a narrow box stays as narrow as it was made", async ({ page }) => {
+  await page.goto("/");
+  await capture(page, 900, 500);
+  await page.evaluate(() => (window as unknown as { __fakeBridge: { setTextAutoWiden(on: boolean): Promise<void> } }).__fakeBridge.setTextAutoWiden(false));
+  const view = await atActualSize(page, 900);
+  await page.keyboard.press("t");
+  await pressAndMove(page, view.at(200, 150), view.at(230, 230));
+  await page.mouse.up();
+  await page.keyboard.type(WORDS);
+  await page.keyboard.press("Escape");
+  await expectSaved(page, ([t]) => t?.text === WORDS, "created");
+  expect(close(((await saved(page))[0] as Text).width, 30, 1)).toBe(true);
+});

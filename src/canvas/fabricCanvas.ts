@@ -14,15 +14,21 @@ import { newAnnotationId, type Annotation, type AnnotationType, type AnnotationM
 import { DEFAULT_ERASER_SIZE, type Style } from "../core/propertyGroups";
 import { Backdrop } from "./backdrop";
 import { CropFrame, OutsideDim } from "./chrome";
+import { strokeContrastRing } from "./contrastRing";
 import type { AnnotationCanvas, CanvasLayout, MountOptions } from "./types";
 import { watchTextSelection } from "./textSelection";
 import { adapterFor, ImageShape, type ShapeAssets } from "./shapes";
+import { TextShape } from "./shapes/textShape";
 
 const SELECT = "select";
 const CROP = "crop";
 
 export function createFabricCanvas(host: HTMLElement, { events, imageUrl, layout: firstLayout }: MountOptions): AnnotationCanvas {
   let layout = firstLayout;
+  /** Text boxes and Callouts widen themselves by the Settings' ratio (null: they do not). */
+  const giveWidening = (object: FabricObject) => {
+    if (object instanceof TextShape) object.widenRatio = layout.textWidenRatio ?? null;
+  };
   let scale = 1;
   // Its own mount point, so that tearing one canvas down (React StrictMode mounts, unmounts and
   // mounts again) never removes another canvas that was mounted into the same host meanwhile.
@@ -231,7 +237,7 @@ export function createFabricCanvas(host: HTMLElement, { events, imageUrl, layout
   const highlighting = () => tool === "highlight";
   /** A ring follows the pointer: the Eraser's circle, or the Highlighter's stroke width. */
   const ringed = () => erasing() || highlighting();
-  // The outline circle: a dark ring with a white one inside it, readable on any Capture, in the eraser's size at the current zoom.
+  // The outline circle (dark ring, white one inside it: readable on any Capture), in the tool's size at the current zoom.
   // `after:render` also fires for Fabric's overlay layer (`renderTop`, on the upper canvas). Drawing there left a ring
   // that nothing clears (Fabric only clears that layer when it drew a selection box or a brush): the stuck after-image.
   canvas.on("after:render", ({ ctx }) => {
@@ -241,23 +247,9 @@ export function createFabricCanvas(host: HTMLElement, { events, imageUrl, layout
     ctx.save();
     ctx.transform(scene[0], scene[1], scene[2], scene[3], scene[4], scene[5]);
     const pixel = 1 / (canvas.getZoom() || 1);
-    ctx.beginPath();
-    if (highlighting()) {
-      // The stroke's own width in Capture pixels (so the zoom scales it), as a thin outline in the marker's colour.
-      const stroke = drawStyle.stroke ?? highlightKind.defaultStyle.stroke!;
-      ctx.arc(pointer.x, pointer.y, stroke.width / 2, 0, Math.PI * 2);
-      ctx.lineWidth = 1.5 * pixel;
-      ctx.strokeStyle = stroke.color;
-      ctx.stroke();
-    } else {
-      ctx.arc(pointer.x, pointer.y, eraserRadius(), 0, Math.PI * 2);
-      ctx.lineWidth = 3 * pixel;
-      ctx.strokeStyle = "rgba(17, 24, 39, 0.9)";
-      ctx.stroke();
-      ctx.lineWidth = 1.5 * pixel;
-      ctx.strokeStyle = "#ffffff";
-      ctx.stroke();
-    }
+    // The Highlighter's ring is its stroke's own width in Capture pixels (so the zoom scales it); the Eraser's is its size.
+    const radius = highlighting() ? (drawStyle.stroke ?? highlightKind.defaultStyle.stroke!).width / 2 : eraserRadius();
+    strokeContrastRing(ctx, pointer, radius, pixel);
     ctx.restore();
   });
   canvas.upperCanvasEl.addEventListener("mouseleave", () => {
@@ -416,6 +408,7 @@ export function createFabricCanvas(host: HTMLElement, { events, imageUrl, layout
     if (!adapter?.beginEdit) return;
     const kind = kindOf(annotation.type);
     const object = adapter.create(annotation);
+    giveWidening(object);
     pending = object;
     restylePending = (font) => adapter.update(object, { ...annotation, font } as Annotation);
     canvas.add(object);
@@ -561,6 +554,7 @@ export function createFabricCanvas(host: HTMLElement, { events, imageUrl, layout
         let object = objectsById.get(annotation.id);
         if (!object) {
           object = adapter.create(annotation, assets);
+          giveWidening(object);
           objectsById.set(annotation.id, object);
           object.evented = !(interactive && tool === CROP);
           idOf.set(object, annotation.id);
@@ -632,6 +626,8 @@ export function createFabricCanvas(host: HTMLElement, { events, imageUrl, layout
     },
     setLayout(next: CanvasLayout) {
       layout = next;
+      for (const object of objectsById.values()) giveWidening(object);
+      if (pending) giveWidening(pending);
       if (backdrop) {
         backdrop.area = next.area;
         backdrop.fill = backgroundFill(next.background, next.darkBackground);

@@ -27,6 +27,8 @@ export interface CanvasLayout {
   darkness: number;
   /** False: nothing of the cropped-out Capture or of Annotations outside the area is drawn (the outside is only the dark fill). */
   showOutside: boolean;
+  /** Text boxes and Callouts widen when their lines are taller than this many times their width (Settings); null or absent: they do not. */
+  textWidenRatio?: number | null;
 }
 
 /** The characters selected while a Text or Callout is typed in: what they look like (a property's value, or "mixed"). */

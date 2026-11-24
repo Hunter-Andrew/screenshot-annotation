@@ -818,6 +818,7 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
               darkBackground={imageSettings.darkBackground}
               darkness={imageSettings.outsideDarkness}
               showOutside={showOutside}
+              textWidenRatio={imageSettings.textAutoWiden ? imageSettings.textMaxHeightRatio : null}
               margin={view.margin}
               scale={view.scale}
               interactive={!readOnly && !mode.laserPointerOn}
