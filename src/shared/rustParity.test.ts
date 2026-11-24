@@ -76,7 +76,7 @@ describe("TS/Rust shared constants", () => {
     };
     expect(range("CANVAS_MARGIN")).toEqual(CANVAS_MARGIN);
     expect(range("CROP_MARGIN")).toEqual(CROP_MARGIN);
-    expect(range("TEXT_MAX_HEIGHT_RATIO")).toEqual(TEXT_MAX_HEIGHT_RATIO);
+    expect(decimalRange("TEXT_MAX_HEIGHT_RATIO")).toEqual(TEXT_MAX_HEIGHT_RATIO);
     expect(text("DEFAULT_DARK_BACKGROUND")).toBe(DEFAULT_DARK_BACKGROUND);
     expect(decimalRange("OUTSIDE_DARKNESS")).toEqual(OUTSIDE_DARKNESS);
     expect(rust("settings.rs").match(/pub const DEFAULT_SHOW_OUTSIDE: bool = (\w+);/)?.[1]).toBe(String(DEFAULT_IMAGE_SETTINGS.showOutsideDefault));
@@ -93,7 +93,7 @@ describe("TS/Rust shared constants", () => {
       set_outside_darkness: "percent: f64",
       set_show_outside_default: "show: bool",
       set_text_auto_widen: "enabled: bool",
-      set_text_max_height_ratio: "ratio: u32",
+      set_text_max_height_ratio: "ratio: f64",
     };
     for (const [command, arg] of Object.entries(expected)) {
       const name = arg.split(":")[0];

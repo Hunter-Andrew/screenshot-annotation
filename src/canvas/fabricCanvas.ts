@@ -330,8 +330,6 @@ export function createFabricCanvas(host: HTMLElement, { events, imageUrl, layout
       endGesture();
       return;
     }
-    // A handle drag let go: a box left too narrow for its words widens before its new width is read.
-    if (target instanceof TextShape) target.widenToRatio();
     const id = target && idOf.get(target);
     const annotation = id ? applied.get(id) : undefined;
     if (!id || !annotation) return;

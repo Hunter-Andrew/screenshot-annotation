@@ -48,9 +48,9 @@
 //! - `showOutsideDefault` (true by default): whether a new image shows the area outside its canvas.
 //!   A number outside its range is brought into the range; anything that is not a number is the default.
 //!   (A whole-number setting also takes a fraction as the default.)
-//! - `textAutoWiden` (true by default): whether a Text box or Callout widens itself when its lines would be taller
-//!   than `textMaxHeightRatio` times its width.
-//! - `textMaxHeightRatio` (2 to 20, default 4): that ratio; a number outside the range is brought into it.
+//! - `textAutoWiden` (true by default): whether a Text box or Callout widens itself while it is typed in, when its
+//!   lines would be taller than `textMaxHeightRatio` times its width.
+//! - `textMaxHeightRatio` (0.5 to 20, to a tenth, default 2): that ratio; a number outside the range is brought into it.
 //! - `libraryStripCollapsed` (false by default): whether the Library Strip along the bottom of the editor is
 //!   collapsed to a thin bar. The chevron on the strip's edge changes it; it is kept between launches.
 //! - `trayNoticeShown`: true once the one-time "still running in the tray" message, shown the first time
@@ -147,7 +147,7 @@ pub struct Settings {
     pub text_auto_widen: bool,
     /// How many times taller than wide the lines of a Text box may be before it widens (`TEXT_MAX_HEIGHT_RATIO`).
     #[serde(deserialize_with = "text_max_height_ratio_or_default")]
-    pub text_max_height_ratio: u32,
+    pub text_max_height_ratio: f64,
 }
 
 pub const BACKGROUNDS: [&str; 3] = ["white", "dark", "transparent"];
@@ -203,7 +203,7 @@ pub const CANVAS_MARGIN: Range = Range { min: 0, max: 200, default: 16 };
 /// Drawing mode's Highlighter opacity in percent; `DRAWING_HIGHLIGHTER_OPACITY` in src/drawing/drawingStyles.ts must match.
 pub const DRAWING_HIGHLIGHTER_OPACITY: Range = Range { min: 5, max: 60, default: 20 };
 pub const CROP_MARGIN: Range = Range { min: 0, max: 400, default: 150 };
-pub const TEXT_MAX_HEIGHT_RATIO: Range = Range { min: 2, max: 20, default: 4 };
+pub const TEXT_MAX_HEIGHT_RATIO: DecimalRange = DecimalRange { min: 0.5, max: 20.0, default: 2.0 };
 pub const DEFAULT_DARK_BACKGROUND: &str = "#191919";
 
 /// True for `#` followed by exactly six hex digits (either case).
@@ -226,7 +226,7 @@ pub struct ImageSettings {
     pub show_outside_default: bool,
     pub library_strip_collapsed: bool,
     pub text_auto_widen: bool,
-    pub text_max_height_ratio: u32,
+    pub text_max_height_ratio: f64,
 }
 
 /// A stored choice that is not one of `allowed` (a hand edit, a newer version) is the default, not an error.
@@ -276,8 +276,8 @@ fn drawing_highlighter_opacity_or_default<'de, D: serde::Deserializer<'de>>(d: D
     number_in(d, DRAWING_HIGHLIGHTER_OPACITY)
 }
 
-fn text_max_height_ratio_or_default<'de, D: serde::Deserializer<'de>>(d: D) -> Result<u32, D::Error> {
-    number_in(d, TEXT_MAX_HEIGHT_RATIO)
+fn text_max_height_ratio_or_default<'de, D: serde::Deserializer<'de>>(d: D) -> Result<f64, D::Error> {
+    tenths_in(d, TEXT_MAX_HEIGHT_RATIO)
 }
 
 fn crop_margin_or_default<'de, D: serde::Deserializer<'de>>(d: D) -> Result<u32, D::Error> {
@@ -611,9 +611,12 @@ pub fn set_text_auto_widen(dir: &Path, settings: &mut Settings, enabled: bool) -
 }
 
 /// Sets how many times taller than wide a Text box's lines may be before it widens; a value outside `TEXT_MAX_HEIGHT_RATIO` changes nothing.
-pub fn set_text_max_height_ratio(dir: &Path, settings: &mut Settings, value: u32) -> io::Result<()> {
+pub fn set_text_max_height_ratio(dir: &Path, settings: &mut Settings, value: f64) -> io::Result<()> {
     if !TEXT_MAX_HEIGHT_RATIO.contains(value) {
-        return Err(out_of_range("text height ratio", value, TEXT_MAX_HEIGHT_RATIO));
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            format!("{value} is not a text height ratio ({} to {}, to a tenth)", TEXT_MAX_HEIGHT_RATIO.min, TEXT_MAX_HEIGHT_RATIO.max),
+        ));
     }
     settings.text_max_height_ratio = value;
     save(dir, settings)
@@ -1000,22 +1003,25 @@ mod tests {
     }
 
     #[test]
-    fn text_box_widening_is_on_at_4_times_by_default_and_the_ratio_stays_in_its_range() {
+    fn text_box_widening_is_on_at_2_times_by_default_and_the_ratio_stays_in_its_range() {
         let dir = temp_dir("text-widen");
         let mut s = load(&dir);
-        assert_eq!((s.text_auto_widen, s.text_max_height_ratio), (true, 4));
-        assert!(set_text_max_height_ratio(&dir, &mut s, 1).is_err());
-        assert!(set_text_max_height_ratio(&dir, &mut s, 21).is_err());
-        assert_eq!(s.text_max_height_ratio, 4);
-        set_text_max_height_ratio(&dir, &mut s, 20).unwrap();
+        assert_eq!((s.text_auto_widen, s.text_max_height_ratio), (true, 2.0));
+        assert!(set_text_max_height_ratio(&dir, &mut s, 0.4).is_err());
+        assert!(set_text_max_height_ratio(&dir, &mut s, 21.0).is_err());
+        assert!(set_text_max_height_ratio(&dir, &mut s, 1.25).is_err());
+        assert_eq!(s.text_max_height_ratio, 2.0);
+        set_text_max_height_ratio(&dir, &mut s, 0.5).unwrap();
+        assert_eq!(load(&dir).text_max_height_ratio, 0.5);
+        set_text_max_height_ratio(&dir, &mut s, 20.0).unwrap();
         set_text_auto_widen(&dir, &mut s, false).unwrap();
         let back = load(&dir);
-        assert_eq!((back.text_auto_widen, back.text_max_height_ratio), (false, 20));
+        assert_eq!((back.text_auto_widen, back.text_max_height_ratio), (false, 20.0));
         fs::write(dir.join(FILE_NAME), br#"{"textAutoWiden":"no","textMaxHeightRatio":99}"#).unwrap();
         let back = load(&dir);
-        assert_eq!((back.text_auto_widen, back.text_max_height_ratio), (true, 20));
+        assert_eq!((back.text_auto_widen, back.text_max_height_ratio), (true, 20.0));
         fs::write(dir.join(FILE_NAME), br#"{"textMaxHeightRatio":"x"}"#).unwrap();
-        assert_eq!(load(&dir).text_max_height_ratio, 4);
+        assert_eq!(load(&dir).text_max_height_ratio, 2.0);
         fs::remove_dir_all(&dir).unwrap();
     }
 
@@ -1035,7 +1041,7 @@ mod tests {
                 show_outside_default: true,
                 library_strip_collapsed: false,
                 text_auto_widen: true,
-                text_max_height_ratio: 4,
+                text_max_height_ratio: 2.0,
             }
         );
     }

@@ -24,9 +24,9 @@ export interface ImageSettings {
   showOutsideDefault: boolean;
   /** The Library Strip is collapsed to a thin bar (a view preference of the editor, kept between launches). */
   libraryStripCollapsed: boolean;
-  /** A Text box or Callout widens itself when its lines would be taller than `textMaxHeightRatio` times its width. */
+  /** A Text box or Callout widens itself while it is typed in when its lines would be taller than `textMaxHeightRatio` times its width. */
   textAutoWiden: boolean;
-  /** How many times taller than wide the lines of a Text box may be before it widens itself (whole numbers). */
+  /** How many times taller than wide the lines of a Text box may be before it widens itself while typing (0.5 to 20, to a tenth). */
   textMaxHeightRatio: number;
 }
 
@@ -45,7 +45,7 @@ export const CANVAS_MARGIN: NumberRange = { min: 0, max: 200, default: 16 };
 /** The Canvas margin while the Crop tool is active (room to drag the handles outwards). */
 export const CROP_MARGIN: NumberRange = { min: 0, max: 400, default: 150 };
 /** The tallest a Text box's lines may be, as a multiple of its width, before "Widen narrow text boxes" widens it. */
-export const TEXT_MAX_HEIGHT_RATIO: NumberRange = { min: 2, max: 20, default: 4 };
+export const TEXT_MAX_HEIGHT_RATIO: NumberRange = { min: 0.5, max: 20, default: 2, decimals: 1 };
 export { DEFAULT_DARK_BACKGROUND };
 const HEX_COLOR = /^#[0-9a-f]{6}$/i;
 /** True for a `#RRGGBB` string (either case). */

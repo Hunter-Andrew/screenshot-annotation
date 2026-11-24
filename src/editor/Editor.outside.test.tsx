@@ -88,10 +88,10 @@ describe("the canvas margin and the outside darkness settings", () => {
 });
 
 describe("the text box widening settings", () => {
-  it("tell the canvas to widen boxes taller than 4 times their width by default, follow a change, and turn it off", async () => {
+  it("tell the canvas to widen boxes taller than 2 times their width by default, follow a change, and turn it off", async () => {
     const bridge = createFakeBridge();
     const { kit } = await openWithCapture(bridge);
-    expect(kit.latest.layout.textWidenRatio).toBe(4);
+    expect(kit.latest.layout.textWidenRatio).toBe(2);
     await act(async () => bridge.setTextMaxHeightRatio(10));
     expect(kit.latest.layout.textWidenRatio).toBe(10);
     await act(async () => bridge.setTextAutoWiden(false));

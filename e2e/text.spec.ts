@@ -826,7 +826,7 @@ test("Text: alignment left, centre and right moves the lines inside the box, in 
   expect(((await saved(page))[0] as Text).font.align).toBe("right");
 });
 
-// A box whose lines would be taller than 4 times its width (Settings, "Widen narrow text boxes") widens itself.
+// A box being typed in whose lines would be taller than 2 times its width (Settings, "Widen narrow text boxes") widens itself.
 // The default 32 px font makes a line about 38 px tall.
 const WORDS = "Narrow boxes widen themselves";
 
@@ -843,10 +843,10 @@ test("Text: typing into a very narrow box widens it as the lines grow tall, and 
   const [t] = (await saved(page)) as Text[];
   expect(t!.width).toBeGreaterThan(30);
   expect(t!.x).toBe(200); // the left edge stays
-  expect(t!.width).toBeGreaterThan(80); // a 30 px strip would be about 29 lines tall; 4 times the width needs far more room
+  expect(t!.width).toBeGreaterThan(80); // a 30 px strip would be about 29 lines tall
 });
 
-test("Text: dragging a handle until the box is too narrow for its words widens it when the pointer is let go", async ({ page }) => {
+test("Text: a box the user drags narrow by hand keeps that width, even though its words are too tall for it", async ({ page }) => {
   await page.goto("/");
   await capture(page, 900, 500);
   const view = await atActualSize(page, 900);
@@ -859,9 +859,9 @@ test("Text: dragging a handle until the box is too narrow for its words widens i
   const before = (await saved(page))[0]! as Text & Box;
   const from = handlePoint(before, "mr", view);
   await drag(page, from, { x: from.x - 380, y: from.y }); // leaves about 20 px
-  await expectSaved(page, ([t]) => !!t && t.width < before.width, "resized");
+  await expectSaved(page, ([t]) => !!t && t.width < 40, "resized");
   const after = (await saved(page))[0]! as Text & Box;
-  expect(after.width).toBeGreaterThan(60); // not left at the 20 px floor
+  expect(after.width).toBeLessThan(40); // not widened by the release
   expect(close(after.x, before.x)).toBe(true);
 });
 

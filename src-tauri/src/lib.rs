@@ -575,9 +575,9 @@ fn set_text_auto_widen(app: AppHandle, state: tauri::State<'_, AppSettings>, ena
     saved.or_else(|e| if e.kind() == std::io::ErrorKind::InvalidInput { Err(e.to_string()) } else { Ok(()) })
 }
 
-/// Stores the text box height ratio; same rules as `set_canvas_margin` (a value outside its range is refused).
+/// Stores the text box height ratio; same rules as `set_outside_darkness` (a value outside its range, or with more than one decimal, is refused).
 #[tauri::command]
-fn set_text_max_height_ratio(app: AppHandle, state: tauri::State<'_, AppSettings>, ratio: u32) -> Result<(), String> {
+fn set_text_max_height_ratio(app: AppHandle, state: tauri::State<'_, AppSettings>, ratio: f64) -> Result<(), String> {
     let mut data = state.data.lock().unwrap();
     let saved = settings::set_text_max_height_ratio(&state.dir, &mut data, ratio);
     if let Err(e) = &saved {
