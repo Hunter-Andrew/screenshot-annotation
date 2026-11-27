@@ -543,3 +543,35 @@
   border-color: var(--toast-accent);
   font-weight: 600;
 }
+
+/* --- The canvas's right-click menu ------------------------------------------------------------------ */
+.editor .context-menu {
+  position: fixed;
+  z-index: 50;
+  min-width: 220px;
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  background: var(--chrome);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+}
+.editor .context-menu button {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  text-align: left;
+  border: 0;
+  background: transparent;
+}
+.editor .context-menu button:hover:not(:disabled) {
+  background: var(--line);
+}
+.editor .context-menu button:disabled {
+  opacity: 0.45;
+}
+.editor .context-menu kbd {
+  font: 12px ui-monospace, monospace;
+  color: var(--muted);
+}

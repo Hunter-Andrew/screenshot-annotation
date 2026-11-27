@@ -9,6 +9,7 @@ import {
   IMAGE_FORMAT_VERSION,
   SUPPORTED_FORMAT_VERSION,
 } from "./annotation";
+import { tailOffToTextBox } from "./annotations/callout";
 import { tidyRuns } from "./annotations/runs";
 import { contentHash } from "./hash";
 import { addChunk, findChunk, findChunks, insertChunk, isPng, removeChunks } from "./png";
@@ -125,7 +126,7 @@ function unpackEmbedded(data: Uint8Array): AnnotatedImage {
     new TextDecoder().decode(data.subarray(4, 4 + jsonLength)),
   ) as AnnotationModel;
   // Runs in a file are untrusted (older, newer or damaged): only well-formed ones reach the editor.
-  if (Array.isArray(model.annotations)) model.annotations = model.annotations.map(tidyRuns);
+  if (Array.isArray(model.annotations)) model.annotations = model.annotations.map((a) => tidyRuns(tailOffToTextBox(a)));
   return { model, capture: data.slice(4 + jsonLength) };
 }
 

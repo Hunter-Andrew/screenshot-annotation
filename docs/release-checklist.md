@@ -281,3 +281,9 @@ If Print Screen is the hotkey and does nothing: Windows may still be giving the 
 
 - [ ] The version in `package.json` and `src-tauri/tauri.conf.json` matches the tag.
 - [ ] CI is green on the commit being tagged.
+
+## Right-click menu, Text box, Callout moves (Windows only parts)
+
+- [ ] **Right-click Paste.** Copy a picture (Snipping Tool, or "Copy image" in a browser), right-click the canvas, choose Paste: the picture lands on the image exactly as Ctrl+V does. The webview reads the clipboard here, so watch for a Windows permission prompt; if Paste only ever says "Could not read the clipboard: use Ctrl+V instead", the menu item needs a native clipboard command instead. Copy puts the annotated image on the clipboard, and Copy original image puts the untouched Capture there (paste each into Paint to check).
+- [ ] **Text box tool (X).** A drag narrower than the minimum, and a click, give a box 240 px wide; change "Text box minimum width" in Settings (0 to 2000) and the next placement follows it; 0 keeps a narrow drag narrow. A box resized by hand stays as narrow as you make it. A Callout has no Tail option; an old image whose Callout had the tail switched off opens with a Text box there.
+- [ ] **Callout.** Dragging the box leaves the tail's tip where it was; Shift+drag carries the tip along. Place a Callout (or Text box) and, while the cursor is still blinking in it, press Ctrl+Z: it disappears; Ctrl+Y does not bring it back.

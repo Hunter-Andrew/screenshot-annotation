@@ -1,16 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { sanitizeStyle } from "../propertyGroups";
-import { calloutKind, DEFAULT_CALLOUT_MIN_HEIGHT } from "./callout";
+import { calloutKind, DEFAULT_CALLOUT_MIN_HEIGHT, tailOffToTextBox } from "./callout";
 
 describe("Callout", () => {
-  it("starts at size 32, centred both ways, with the tail on", () => {
+  it("starts at size 32, centred both ways", () => {
     expect(calloutKind.defaultStyle.font).toMatchObject({ size: 32, align: "center", valign: "middle" });
-    expect(calloutKind.defaultStyle.tail).toEqual({ enabled: true });
   });
 
-  it("uses Font, Text outline, Stroke, Fill and the Tail switch, with the tail on by default", () => {
-    expect(calloutKind.groups).toEqual(["font", "textOutline", "stroke", "fill", "tail"]);
-    expect(calloutKind.defaultStyle.tail).toEqual({ enabled: true });
+  it("uses Font, Text outline, Stroke and Fill, with no Tail switch (the tailless one is the Text box tool)", () => {
+    expect(calloutKind.groups).toEqual(["font", "textOutline", "stroke", "fill"]);
+    expect(calloutKind.defaultStyle).not.toHaveProperty("tail");
     expect(calloutKind.shortcutAction).toBe("tool.callout");
     expect(calloutKind.typedInPlace).toBe(true);
   });
@@ -23,21 +22,38 @@ describe("Callout", () => {
 
   it("starts as an empty text box at the click with the default look and no tip yet", () => {
     const a = calloutKind.fromDrag("c", { x: 50, y: 60 }, { x: 50, y: 60 }, {}, { width: 600, height: 400 })!;
-    expect(a).toMatchObject({ type: "callout", x: 50, y: 60, text: "", tail: { enabled: true } });
+    expect(a).toMatchObject({ type: "callout", x: 50, y: 60, text: "" });
+    expect(a).not.toHaveProperty("tail");
     expect(a.tip).toBeUndefined();
     expect(a.fill.mode).toBe("solid");
   });
 
   it("takes a restyled tool's groups", () => {
-    const a = calloutKind.fromDrag("c", { x: 0, y: 0 }, { x: 0, y: 0 }, { tail: { enabled: false } })!;
-    expect(a.tail.enabled).toBe(false);
+    const a = calloutKind.fromDrag("c", { x: 0, y: 0 }, { x: 0, y: 0 }, { stroke: { color: "#112233", width: 5 } })!;
+    expect(a.stroke).toEqual({ color: "#112233", width: 5 });
   });
 });
 
-describe("tail group in a stored style", () => {
-  it("keeps a boolean and drops anything else", () => {
-    expect(sanitizeStyle({ tail: { enabled: false } })).toEqual({ tail: { enabled: false } });
-    expect(sanitizeStyle({ tail: { enabled: "no" } })).toEqual({});
+describe("a stored style from before the Tail switch was removed", () => {
+  it("drops the old tail group", () => {
+    expect(sanitizeStyle({ tail: { enabled: false } })).toEqual({});
+  });
+});
+
+describe("a saved Callout whose tail was switched off", () => {
+  const saved = { id: "c", type: "callout", x: 1, y: 2, width: 200, text: "hi", tail: { enabled: false }, tip: { x: 5, y: 60 }, font: {}, stroke: {}, fill: {}, textOutline: {} };
+  it("becomes a Text box without its tail or tip", () => {
+    const box = tailOffToTextBox(saved) as unknown as Record<string, unknown>;
+    expect(box).toMatchObject({ type: "textbox", x: 1, y: 2, width: 200, text: "hi" });
+    expect(box).not.toHaveProperty("tail");
+    expect(box).not.toHaveProperty("tip");
+  });
+  it("stays a Callout, minus the old field, when the tail was on; other types are untouched", () => {
+    const callout = tailOffToTextBox({ ...saved, tail: { enabled: true } }) as unknown as Record<string, unknown>;
+    expect(callout).toMatchObject({ type: "callout", tip: { x: 5, y: 60 } });
+    expect(callout).not.toHaveProperty("tail");
+    const rect = { id: "r", type: "rect" };
+    expect(tailOffToTextBox(rect)).toBe(rect);
   });
 });
 
@@ -94,9 +110,4 @@ describe("Callout draw gesture with the tail on", () => {
     expect(a.tip).toBeUndefined();
   });
 
-  it("with the tail off, press and release stay opposite corners of the text area", () => {
-    const a = draw({ x: 100, y: 100 }, { x: 300, y: 160 }, { tail: { enabled: false } });
-    expect(a).toMatchObject({ x: 100, y: 100, width: 200, minHeight: 60 });
-    expect(a.tip).toBeUndefined();
-  });
 });

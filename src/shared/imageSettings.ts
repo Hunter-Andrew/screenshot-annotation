@@ -28,6 +28,8 @@ export interface ImageSettings {
   textAutoWiden: boolean;
   /** How many times taller than wide the lines of a Text box may be before it widens itself while typing (0.5 to 20, to a tenth). */
   textMaxHeightRatio: number;
+  /** The least width (Capture pixels) a Text box gets when it is placed: a narrower drag, or a click, widens to it. Placing only; 0 is no minimum. */
+  textBoxMinWidth: number;
 }
 
 /**
@@ -46,6 +48,8 @@ export const CANVAS_MARGIN: NumberRange = { min: 0, max: 200, default: 16 };
 export const CROP_MARGIN: NumberRange = { min: 0, max: 400, default: 150 };
 /** The tallest a Text box's lines may be, as a multiple of its width, before "Widen narrow text boxes" widens it. */
 export const TEXT_MAX_HEIGHT_RATIO: NumberRange = { min: 0.5, max: 20, default: 2, decimals: 1 };
+/** The least width of a Text box when it is placed (the width of a placed Callout until changed). */
+export const TEXT_BOX_MIN_WIDTH: NumberRange = { min: 0, max: 2000, default: 240 };
 export { DEFAULT_DARK_BACKGROUND };
 const HEX_COLOR = /^#[0-9a-f]{6}$/i;
 /** True for a `#RRGGBB` string (either case). */
@@ -64,6 +68,7 @@ export const DEFAULT_IMAGE_SETTINGS: ImageSettings = {
   libraryStripCollapsed: false,
   textAutoWiden: true,
   textMaxHeightRatio: TEXT_MAX_HEIGHT_RATIO.default,
+  textBoxMinWidth: TEXT_BOX_MIN_WIDTH.default,
 };
 
 /** `value` rounded to the decimal places the range keeps (whole numbers when it says none). */
@@ -102,5 +107,6 @@ export function sanitizeImageSettings(raw: unknown): ImageSettings {
     libraryStripCollapsed: value.libraryStripCollapsed === true,
     textAutoWiden: typeof value.textAutoWiden === "boolean" ? value.textAutoWiden : DEFAULT_IMAGE_SETTINGS.textAutoWiden,
     textMaxHeightRatio: clampToRange(TEXT_MAX_HEIGHT_RATIO, value.textMaxHeightRatio),
+    textBoxMinWidth: clampToRange(TEXT_BOX_MIN_WIDTH, value.textBoxMinWidth),
   };
 }

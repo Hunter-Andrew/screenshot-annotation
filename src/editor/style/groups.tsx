@@ -182,19 +182,6 @@ function FillEditor({ value, onChange }: GroupEditorProps<"fill">) {
   );
 }
 
-function TailEditor({ value, onChange }: GroupEditorProps<"tail">) {
-  return (
-    <div className="presets" role="group" aria-label="Tail">
-      <button type="button" aria-pressed={value.enabled} onClick={() => onChange({ enabled: true })}>
-        On
-      </button>
-      <button type="button" aria-pressed={!value.enabled} onClick={() => onChange({ enabled: false })}>
-        Off
-      </button>
-    </div>
-  );
-}
-
 function OpacityEditor({ value, onChange }: GroupEditorProps<"opacity">) {
   // A stored value that is not a preset (an older stroke) leaves every button un-pressed; it is kept until one is picked.
   return (
@@ -288,7 +275,6 @@ export const GROUP_EDITORS: { [K in GroupId]: GroupEditor<K> } = {
   strength: { title: "Strength", Editor: StrengthEditor },
   stroke: { title: "Stroke", Editor: StrokeEditor },
   border: { title: "Border", Editor: BorderEditor },
-  tail: { title: "Tail", Editor: TailEditor },
   opacity: { title: "Opacity", Editor: OpacityEditor },
   arrowheads: { title: "Arrowheads", Editor: ArrowheadsEditor },
   fill: { title: "Fill", Editor: FillEditor },

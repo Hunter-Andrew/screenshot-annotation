@@ -10,6 +10,7 @@ import { lineKind } from "./line";
 import { penKind } from "./pen";
 import { rectKind } from "./rect";
 import { textKind } from "./text";
+import { textBoxKind } from "./textBoxTool";
 import type { AnnotationKind } from "./kind";
 
 export const ANNOTATION_KINDS: readonly AnnotationKind<any>[] = [
@@ -18,6 +19,7 @@ export const ANNOTATION_KINDS: readonly AnnotationKind<any>[] = [
   rectKind,
   ellipseKind,
   textKind,
+  textBoxKind,
   calloutKind,
   penKind,
   highlightKind,
@@ -29,4 +31,4 @@ export function kindOf(type: AnnotationType | string): AnnotationKind<Annotation
   return ANNOTATION_KINDS.find((k) => k.type === type);
 }
 
-export type { AnnotationKind, Point } from "./kind";
+export type { AnnotationKind, DrawOptions, Point } from "./kind";

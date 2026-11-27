@@ -87,12 +87,12 @@ test("click with the Text tool, type on the image: red text with a white outline
 
   // T picks the tool; typing T, A, V and E into the box must not switch tools (bare keys are suspended).
   await page.keyboard.press("t");
-  await expect(page.getByRole("button", { name: /^Text/ })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByRole("button", { name: /^Text \(T\)/ })).toHaveAttribute("aria-pressed", "true");
   const at = view.at(60, 80);
   await page.mouse.click(at.x, at.y);
   await expect(page.locator("textarea")).toBeFocused();
   await page.keyboard.type("tave Text");
-  await expect(page.getByRole("button", { name: /^Text/ })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByRole("button", { name: /^Text \(T\)/ })).toHaveAttribute("aria-pressed", "true");
   // Nothing is an Annotation until the typing ends.
   expect(await saved(page)).toEqual([]);
 
@@ -114,7 +114,7 @@ test("click with the Text tool, type on the image: red text with a white outline
 
   // Typing and pressing T is the text's again once the box is gone: now T picks the tool.
   await page.keyboard.press("t");
-  await expect(page.getByRole("button", { name: /^Text/ })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByRole("button", { name: /^Text \(T\)/ })).toHaveAttribute("aria-pressed", "true");
 });
 
 test("a click that types nothing makes no Annotation", async ({ page }) => {
@@ -634,7 +634,7 @@ test("Text set to keep drawing: drag out one box, click away, drag out another",
   await page.keyboard.type("One");
   await page.mouse.click(view.at(500, 250).x, view.at(500, 250).y); // clicking away ends the typing
   await expectSaved(page, (texts) => texts.length === 1, "first text created");
-  await expect(page.getByRole("button", { name: /^Text/ })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByRole("button", { name: /^Text \(T\)/ })).toHaveAttribute("aria-pressed", "true");
 
   await drag(page, view.at(300, 150), view.at(500, 200));
   await page.keyboard.type("Two");

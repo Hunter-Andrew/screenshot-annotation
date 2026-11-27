@@ -8,7 +8,7 @@ import { backgroundFill, growsArea, limitPoint, shiftIntoLimit } from "../core/a
 import { kindOf } from "../core/annotations";
 import { erasePieces } from "../core/annotations/erase";
 import { highlightKind } from "../core/annotations/highlight";
-import type { Point } from "../core/annotations";
+import type { DrawOptions, Point } from "../core/annotations";
 import { cropFromDrag, MIN_CROP } from "../core/crop";
 import { newAnnotationId, type Annotation, type AnnotationType, type AnnotationModel, type Crop } from "../core/annotation";
 import { DEFAULT_ERASER_SIZE, type Style } from "../core/propertyGroups";
@@ -18,6 +18,7 @@ import { strokeContrastRing } from "./contrastRing";
 import type { AnnotationCanvas, CanvasLayout, MountOptions } from "./types";
 import { watchTextSelection } from "./textSelection";
 import { adapterFor, ImageShape, type ShapeAssets } from "./shapes";
+import { CalloutShape } from "./shapes/calloutShape";
 import { TextShape } from "./shapes/textShape";
 
 const SELECT = "select";
@@ -48,7 +49,8 @@ export function createFabricCanvas(host: HTMLElement, { events, imageUrl, layout
     selectionBorderColor: SELECTION_COLOR,
     selectionLineWidth: 1,
     preserveObjectStacking: true,
-    stopContextMenu: true,
+    // The editor's own right-click menu listens above the canvas, so the event must get through to it (it prevents the browser's menu).
+    stopContextMenu: false,
     fireRightClick: false,
   });
   canvas.setTargetFindTolerance(6); // thin arrows stay easy to grab
@@ -178,6 +180,8 @@ export function createFabricCanvas(host: HTMLElement, { events, imageUrl, layout
   let pending: FabricObject | null = null;
   /** The Font the box being typed in should show when the Style panel changes it (it is not in the model yet). */
   let restylePending: ((font: NonNullable<Style["font"]>) => void) | null = null;
+  /** Ends the box being typed in without a trace (see `cancelTyping`); null when none is. */
+  let cancelPending: (() => void) | null = null;
   const textStyling = watchTextSelection(canvas, (selection) => events.onTextSelection?.(selection));
 
   // --- the Pen's Eraser mode ---------------------------------------------------------------------
@@ -336,8 +340,15 @@ export function createFabricCanvas(host: HTMLElement, { events, imageUrl, layout
     events.onUpdate(id, adapterFor(annotation.type)!.read(target), boundsOf(target));
     endGesture();
   });
+  // Dragging a Callout moves its box and leaves the tip of its tail where it was; Shift carries the tail along.
+  canvas.on("mouse:down", ({ target }) => {
+    if (target instanceof CalloutShape) target.beginMove();
+  });
+  canvas.on("mouse:up", () => {
+    for (const object of objectsById.values()) if (object instanceof CalloutShape) object.endMove();
+  });
   // An Annotation may be moved anywhere the pointer goes, until the visible area would pass the 8192 px limit.
-  canvas.on("object:moving", ({ target }) => {
+  canvas.on("object:moving", ({ target, e }) => {
     if (!target || target === frame || !idOf.has(target)) return;
     const type = applied.get(idOf.get(target)!)?.type;
     if (type && !growsArea(type)) return;
@@ -347,6 +358,7 @@ export function createFabricCanvas(host: HTMLElement, { events, imageUrl, layout
       target.set({ left: target.left + dx, top: target.top + dy });
       target.setCoords();
     }
+    if (target instanceof CalloutShape) target.moveTip((e as MouseEvent | undefined)?.shiftKey === true);
   });
 
   /** A handle of the Crop tool's frame was released: the dragged rectangle is the new area (a step of its own). */
@@ -367,6 +379,8 @@ export function createFabricCanvas(host: HTMLElement, { events, imageUrl, layout
     to: { x: number; y: number },
     shift: boolean,
   ) => (kind.horizontalWithShift && shift ? [gesture.from, { x: to.x, y: gesture.from.y }] : gesture.path);
+  /** What the Settings add to a placement (the Text box's minimum width). */
+  const drawOptions = (): DrawOptions => ({ textBoxMinWidth: layout.textBoxMinWidth ?? 0 });
   let drag: { from: { x: number; y: number }; path: { x: number; y: number }[]; ghost: FabricObject | null } | null = null;
   const dropGhost = () => {
     if (drag?.ghost) canvas.remove(drag.ghost);
@@ -410,11 +424,21 @@ export function createFabricCanvas(host: HTMLElement, { events, imageUrl, layout
     const object = adapter.create(annotation);
     giveWidening(object);
     pending = object;
+    let cancelled = false;
+    // Only a box that is kept even when empty (Callout, Text box) can be taken back with Undo while it is typed in; a
+    // plain Text keeps the text input's own Ctrl+Z (it only exists once it has words).
+    if (kind?.keepsEmptyText) {
+      cancelPending = () => {
+        cancelled = true;
+        (object as unknown as { exitEditing(): void }).exitEditing();
+      };
+    }
     restylePending = (font) => adapter.update(object, { ...annotation, font } as Annotation);
     canvas.add(object);
     (object as unknown as { once(event: string, handler: () => void): void }).once("editing:exited", () => {
       const typed = { ...annotation, ...adapter.read(object) } as Annotation;
       pending = null;
+      cancelPending = null;
       restylePending = null;
       const bounds = boundsOf(object);
       silently(() => canvas.remove(object));
@@ -422,6 +446,7 @@ export function createFabricCanvas(host: HTMLElement, { events, imageUrl, layout
       refreshMode();
       canvas.requestRenderAll();
       // No empty Text Annotation; a Callout stays with no text (its speech box and tail still say something).
+      if (cancelled) return;
       if ("text" in typed && (typed.text.trim() !== "" || kind?.keepsEmptyText)) events.onCreate(typed, bounds);
     });
     refreshMode();
@@ -460,14 +485,14 @@ export function createFabricCanvas(host: HTMLElement, { events, imageUrl, layout
     const adapter = adapterFor(tool);
     if (!drag || !kind || !adapter) return;
     const to = reach(canvas.getScenePoint(event.e), drag.from);
-    // A Callout with its tail on previews the speech box and tail as they will be; other typed-in tools, a dashed area.
-    const showsShape = kind.type === "callout" && drawStyle.tail?.enabled !== false;
+    // A Callout previews the speech box and tail as they will be; other typed-in tools, a dashed area.
+    const showsShape = kind.type === "callout";
     if (kind.typedInPlace && !showsShape) return previewArea(drag, to);
     drag.path.push(to);
     // A freehand kind (Pen) gets every point the pointer passed; the others only the two ends.
     const preview = kind.fromPath
       ? kind.fromPath("preview", pathFor(kind, drag, to, (event.e as MouseEvent).shiftKey), drawStyle)
-      : kind.fromDrag("preview", drag.from, to, drawStyle, layout.area);
+      : kind.fromDrag("preview", drag.from, to, drawStyle, layout.area, drawOptions());
     if (!preview) return dropGhost();
     if (drag.ghost) adapter.update(drag.ghost, preview);
     else {
@@ -505,7 +530,7 @@ export function createFabricCanvas(host: HTMLElement, { events, imageUrl, layout
     const to = reach(canvas.getScenePoint(event.e), gesture.from);
     const annotation = kind.fromPath
       ? kind.fromPath(newAnnotationId(), pathFor(kind, { ...gesture, path: [...gesture.path, to] }, to, (event.e as MouseEvent).shiftKey), drawStyle)
-      : kind.fromDrag(newAnnotationId(), gesture.from, to, drawStyle, layout.area);
+      : kind.fromDrag(newAnnotationId(), gesture.from, to, drawStyle, layout.area, drawOptions());
     canvas.requestRenderAll();
     if (!annotation) return;
     if (kind.typedInPlace) startTyping(annotation);
@@ -589,6 +614,13 @@ export function createFabricCanvas(host: HTMLElement, { events, imageUrl, layout
       updateMarquee();
       refreshMode();
       canvas.requestRenderAll();
+    },
+    cancelTyping(from) {
+      if (!pending || !cancelPending) return false;
+      const input = (pending as unknown as { hiddenTextarea?: HTMLTextAreaElement | null }).hiddenTextarea;
+      if (from !== undefined && from !== null && from !== input) return false;
+      cancelPending();
+      return true;
     },
     styleTextSelection: (patch) => textStyling.style(patch),
     focusText: () => textStyling.focus(),

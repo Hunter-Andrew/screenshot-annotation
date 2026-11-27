@@ -12,7 +12,6 @@ interface Callout {
   y: number;
   width: number;
   text: string;
-  tail: { enabled: boolean };
   tip?: { x: number; y: number };
   stroke: { color: string; width: number };
   fill: { mode: string; color: string };
@@ -63,7 +62,7 @@ async function copyPixels(page: Page) {
   return { png, at: (x: number, y: number) => Array.from(px.rgba.slice((y * px.width + x) * 4, (y * px.width + x) * 4 + 4)) };
 }
 
-test("O draws a callout: text in a speech box, a tail you can drag and switch off", async ({ page }) => {
+test("O draws a callout: text in a speech box and a tail you can drag", async ({ page }) => {
   await legacyTextStyles(page);
   await page.goto("/");
   await capture(page, 600, 400);
@@ -82,11 +81,12 @@ test("O draws a callout: text in a speech box, a tail you can drag and switch of
 
   await expectSaved(page, ([c]) => c?.text === "Look here", "the callout is saved");
   const [made] = await saved(page);
-  expect(made).toMatchObject({ type: "callout", tail: { enabled: true }, fill: { mode: "solid", color: "#ffffff" } });
-  for (const name of ["Font", "Text outline", "Stroke", "Fill", "Tail"]) await expect(page.getByRole("region", { name })).toBeVisible();
+  expect(made).toMatchObject({ type: "callout", fill: { mode: "solid", color: "#ffffff" } });
+  for (const name of ["Font", "Text outline", "Stroke", "Fill"]) await expect(page.getByRole("region", { name })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Tail" })).toHaveCount(0); // the tailless one is the Text box tool
 
   // Burned in: white speech box around the text on the grey capture, and a tail below it.
-  let pixels = await copyPixels(page);
+  const pixels = await copyPixels(page);
   expect(pixels.at(100 - 5, 100 - 5)).toEqual([255, 255, 255, 255]); // inside the padding, left of the text
   const tailX = Math.round(made!.x + Math.min(32, made!.width / 4));
   // The tail narrows to its tip: white just under the box, and the last white row in this column is the tip.
@@ -106,12 +106,6 @@ test("O draws a callout: text in a speech box, a tail you can drag and switch of
   await expectSaved(page, ([c]) => !!c?.tip && c.tip.x > Math.min(32, made!.width / 4) + 80, "the dragged tip is saved");
   const [dragged] = await saved(page);
   expect(dragged!.x).toBe(made!.x); // the box did not move
-
-  // Switch the tail off: no white below the box any more.
-  await page.getByRole("region", { name: "Tail" }).getByRole("button", { name: "Off" }).click();
-  await expectSaved(page, ([c]) => c?.tail.enabled === false, "the tail switch is saved");
-  pixels = await copyPixels(page);
-  expect(pixels.at(tailX, Math.round(made!.y) + 40)).toEqual([200, 200, 200, 255]);
 });
 
 /** The red outline of a callout on the live canvas: the box and tail's extent (the text inside is within it). */

@@ -86,7 +86,7 @@ test("Ctrl+U underlines the whole text while typing, and again on a saved box, w
   await expect(page.locator("textarea")).toBeFocused();
   await page.keyboard.type("Hi there");
   await page.keyboard.press("Control+u");
-  await expect(page.getByRole("button", { name: /^Text/ })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByRole("button", { name: /^Text \(T\)/ })).toHaveAttribute("aria-pressed", "true");
   await page.keyboard.press("Escape");
   await expect.poll(async () => (await savedTexts(page))[0]?.font.underline).toBe(true);
   await expect(page.getByRole("button", { name: "Underline" })).toHaveAttribute("aria-pressed", "true");

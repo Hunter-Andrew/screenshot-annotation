@@ -100,7 +100,7 @@ describe("Settings > Image", () => {
     await userEvent.tab();
     expect(bridge.imageSettings.canvasMargin).toBe(100);
     expect(field).toHaveValue(100);
-    expect(screen.getByText(/0 to 200/)).toBeVisible();
+    expect(screen.getByText(/0 to 200\./)).toBeVisible();
   });
 
   it("stores the margin, the darkness and the show-outside choice", async () => {

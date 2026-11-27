@@ -17,7 +17,6 @@ const base = {
   textOutline: { enabled: false, color: "#ffffff", width: 2 },
   stroke: { color: "#e02424", width: 3 },
   fill: { mode: "solid", color: "#ffffff", opacity: 0.4 },
-  tail: { enabled: true },
 };
 
 const HANDLES = ["tl", "mt", "tr", "ml", "mr", "bl", "mb", "br"] as const;

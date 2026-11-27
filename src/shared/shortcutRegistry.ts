@@ -40,6 +40,7 @@ export const SHORTCUT_REGISTRY: readonly ShortcutAction[] = [
   { id: "tool.rect", label: "Rectangle", context: "editor", defaultKey: "R", remappable: false },
   { id: "tool.ellipse", label: "Ellipse", context: "editor", defaultKey: "E", remappable: false },
   { id: "tool.text", label: "Text", context: "editor", defaultKey: "T", remappable: false },
+  { id: "tool.textbox", label: "Text box", context: "editor", defaultKey: "X", remappable: false },
   { id: "tool.callout", label: "Callout", context: "editor", defaultKey: "O", remappable: false },
   { id: "tool.highlight", label: "Highlighter", context: "editor", defaultKey: "H", remappable: false },
   { id: "tool.blur", label: "Blur", context: "editor", defaultKey: "B", remappable: false },

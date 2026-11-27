@@ -38,7 +38,8 @@ import { formatCombo } from "../settings/hotkey";
 import "./editor.css";
 import { createPersister, type Persister } from "./persister";
 import { createHistoryStore } from "./historyStore";
-import { imageOnClipboard, pictureAsPng } from "./clipboardImage";
+import { imageOnClipboard, pictureAsPng, readClipboardImage } from "./clipboardImage";
+import { CanvasContextMenu } from "./CanvasContextMenu";
 import { actionForKeyEvent, keyLabel } from "../shared/shortcutRegistry";
 import { useShortcutBindings } from "../shared/useShortcutBindings";
 import { allowedWhileTyping, isTypingTarget } from "./shortcuts";
@@ -461,7 +462,7 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
       const patch: Record<string, unknown> = { [group]: value };
       // A change of the whole box's size, Bold, Italic, Underline or color means all of the text, so no character keeps
       // its own value of what changed. It is one edit, so one undo step restores both.
-      if (group === "font" && (selected.type === "text" || selected.type === "callout") && selected.runs?.length) {
+      if (group === "font" && (selected.type === "text" || selected.type === "textbox" || selected.type === "callout") && selected.runs?.length) {
         const kept = resetRunKeys(selected.runs, changedRunKeys(selected.font, value as Font));
         if (JSON.stringify(kept) !== JSON.stringify(selected.runs)) patch.runs = kept;
       }
@@ -495,7 +496,12 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
 
   // Undo, redo, delete and stacking order all go through the edit session (the one choke point),
   // so they are recorded and saved like any other change. Each does nothing for a read-only image.
-  const undo = () => void (!readOnly && current?.session.undo());
+  // A Text box or Callout that was just placed and is still being typed in is not in the history yet: Undo takes
+  // the placing back (which is the same as deleting it), and leaves the history alone.
+  const undo = () => {
+    if (canvas?.cancelTyping()) return;
+    if (!readOnly) current?.session.undo();
+  };
   const redo = () => void (!readOnly && current?.session.redo());
   const selectedIndex = image?.model.annotations.findIndex((a) => a.id === selectedId) ?? -1;
   const stackSize = image?.model.annotations.length ?? 0;
@@ -540,6 +546,17 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
     try {
       await bridge.copyImage(await exportPng(current.session.image, renderForExport));
       setStatus("Copied");
+    } catch (e) {
+      setStatus(`Could not copy: ${String(e)}`);
+    }
+  };
+
+  /** The right-click menu's "Copy original image": the Capture as taken, with no Annotation, Crop or Background. */
+  const copyOriginal = async () => {
+    if (!current) return;
+    try {
+      await bridge.copyImage(current.session.image.capture);
+      setStatus("Copied the original image");
     } catch (e) {
       setStatus(`Could not copy: ${String(e)}`);
     }
@@ -672,6 +689,20 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
       setStatus("The clipboard picture could not be read as an image");
     }
   };
+  /** The right-click menu's "Paste": what Ctrl+V does with a picture on the clipboard, read on request. */
+  const pasteFromClipboard = async () => {
+    if (!currentRef.current) return setStatus(NOTHING_OPEN_NOTICE);
+    if (currentRef.current.readOnly) return setStatus(READ_ONLY_NOTICE);
+    try {
+      const file = await readClipboardImage();
+      if (file) await pasteImage(file);
+      else setStatus("The clipboard has no picture to paste");
+    } catch {
+      setStatus("Could not read the clipboard: use Ctrl+V instead");
+    }
+  };
+  const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
+  const closeMenu = useCallback(() => setMenu(null), []);
   const pasteRef = useRef(pasteImage);
   pasteRef.current = pasteImage;
   useEffect(() => {
@@ -691,7 +722,7 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
   // --- keyboard: every key goes through the one shortcut table ------------------------------------
 
   const selectionSize = selection.selected.size;
-  const keys = { laserPointerOn: mode.laserPointerOn, chooseTool, copy, discard, view, selectedId, hasImage: image !== null, selectedCount: selectedIds.length, undo, redo, deleteSelected, moveSelected, selectionSize, deleteSelection, clearSelection };
+  const keys = { laserPointerOn: mode.laserPointerOn, chooseTool, copy, cancelTyping: (from: EventTarget | null) => canvas?.cancelTyping(from) ?? false, discard, view, selectedId, hasImage: image !== null, selectedCount: selectedIds.length, undo, redo, deleteSelected, moveSelected, selectionSize, deleteSelection, clearSelection };
   const latest = useRef(keys);
   latest.current = keys;
   useEffect(() => {
@@ -699,8 +730,12 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
       const action = actionForKeyEvent(event, bindings);
       if (!action) return;
       // Typing in a text field or in the Text tool's box: bare keys are the text's, not shortcuts.
-      if (isTypingTarget(event.target as HTMLElement | null) && !allowedWhileTyping(action, event)) return;
       const now = latest.current;
+      if (isTypingTarget(event.target as HTMLElement | null) && !allowedWhileTyping(action, event)) {
+        // Ctrl+Z in the box just placed takes the placing back; in any other field it stays that field's own.
+        if (action === "editor.undo" && screenRef.current !== "grid" && now.cancelTyping(event.target)) event.preventDefault();
+        return;
+      }
       if (screenRef.current === "grid") {
         // The grid replaces the whole window: only leaving it and deleting what is selected apply there.
         if (action === "editor.deselect") setScreen("editor");
@@ -806,7 +841,14 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
           </button>
         </header>
         <ToolColumn tools={TOOLS} active={tool} disabled={!image || readOnly} bindings={bindings} onPick={chooseTool} laserPointer={{ on: mode.laserPointerOn, hotkey: laserPointerHotkey, onToggle: toggleLaserPointer }} />
-        <main className="well" ref={view.wellRef} style={{ "--outside-darkness": Number((imageSettings.outsideDarkness / 100).toFixed(4)) } as CSSProperties}>
+        <main
+          className="well"
+          ref={view.wellRef}
+          onContextMenu={(event) => {
+            // Over the image only (not the empty well before a capture), and never on a text field in it.
+            event.preventDefault();
+            if (image && !isTypingTarget(event.target as HTMLElement)) setMenu({ x: event.clientX, y: event.clientY });
+          }} style={{ "--outside-darkness": Number((imageSettings.outsideDarkness / 100).toFixed(4)) } as CSSProperties}>
           {image && imageUrl && size && area ? (
             <Stage
               key={current!.id}
@@ -819,6 +861,7 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
               darkness={imageSettings.outsideDarkness}
               showOutside={showOutside}
               textWidenRatio={imageSettings.textAutoWiden ? imageSettings.textMaxHeightRatio : null}
+              textBoxMinWidth={imageSettings.textBoxMinWidth}
               margin={view.margin}
               scale={view.scale}
               interactive={!readOnly && !mode.laserPointerOn}
@@ -931,6 +974,17 @@ export function Editor({ bridge, kit = fabricKit }: { bridge: PlatformBridge; ki
           onDeleteSelected={deleteSelection}
           onClearSelection={clearSelection}
           onBack={() => setScreen("editor")}
+        />
+      )}
+      {menu && image && (
+        <CanvasContextMenu
+          at={menu}
+          onClose={closeMenu}
+          items={[
+            { label: "Paste", hint: "Ctrl+V", disabled: readOnly, onPick: () => void pasteFromClipboard() },
+            { label: "Copy", hint: keyLabel("editor.copy", bindings), onPick: () => void copy() },
+            { label: "Copy original image", onPick: () => void copyOriginal() },
+          ]}
         />
       )}
       {del.notice && <UndoNotice count={del.notice.count} onUndo={() => void del.undo()} />}

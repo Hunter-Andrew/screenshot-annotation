@@ -313,6 +313,8 @@ export interface PlatformBridge {
   setTextAutoWiden(enabled: boolean): Promise<void>;
   /** Store how many times taller than wide a Text box's lines may be before it widens (2 to 20). A value outside the range is refused. */
   setTextMaxHeightRatio(ratio: number): Promise<void>;
+  /** Store the least width of a Text box when it is placed (0 to 2000 px). */
+  setTextBoxMinWidth(pixels: number): Promise<void>;
   /** Store whether the Library Strip is collapsed to a thin bar (kept between launches). */
   setLibraryStripCollapsed(collapsed: boolean): Promise<void>;
   /** The image settings changed (from any window); delivers the new values. Returns an unsubscribe function. */

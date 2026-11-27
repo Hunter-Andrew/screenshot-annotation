@@ -14,13 +14,14 @@ describe("sanitizeImageSettings", () => {
       libraryStripCollapsed: false,
       textAutoWiden: true,
       textMaxHeightRatio: 2,
+      textBoxMinWidth: 240,
     });
     expect(sanitizeImageSettings({})).toEqual(DEFAULT_IMAGE_SETTINGS);
   });
 
   it("keeps valid values, clamps numbers into their range, and defaults anything that is not a whole number", () => {
     const value = sanitizeImageSettings({ background: "white", checkerboard: "dark", canvasMargin: 3, outsideDarkness: "x", showOutsideDefault: false });
-    expect(value).toEqual({ background: "white", checkerboard: "dark", canvasMargin: 3, cropMargin: 150, darkBackground: "#191919", outsideDarkness: 95, showOutsideDefault: false, libraryStripCollapsed: false, textAutoWiden: true, textMaxHeightRatio: 2 });
+    expect(value).toEqual({ background: "white", checkerboard: "dark", canvasMargin: 3, cropMargin: 150, darkBackground: "#191919", outsideDarkness: 95, showOutsideDefault: false, libraryStripCollapsed: false, textAutoWiden: true, textMaxHeightRatio: 2, textBoxMinWidth: 240 });
     expect(sanitizeImageSettings({ canvasMargin: 1.5, outsideDarkness: 100 })).toMatchObject({ canvasMargin: 16, outsideDarkness: 99.9 });
   });
 

@@ -19,7 +19,7 @@ const FIXED_KEYS = ["escape", "ctrl+z", "ctrl+y", "ctrl+c", "ctrl+v", "ctrl+x", 
 const DRAWING_MODE_KEYS = ["A", "R", "P", "H", "E"];
 
 // Also fixed (2026-11-19): Line, Ellipse, Text, Callout, Blur, Crop, Bring forward, Send back.
-const OTHER_FIXED_IDS = ["tool.line", "tool.ellipse", "tool.text", "tool.callout", "tool.blur", "tool.crop", "editor.bringForward", "editor.sendBack"];
+const OTHER_FIXED_IDS = ["tool.line", "tool.ellipse", "tool.text", "tool.textbox", "tool.callout", "tool.blur", "tool.crop", "editor.bringForward", "editor.sendBack"];
 
 describe("the shortcut registry", () => {
   it("gives every action a unique id, a label and a context", () => {

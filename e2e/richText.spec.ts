@@ -66,7 +66,6 @@ test.describe("runs on the real shape", () => {
       type: "callout",
       stroke: { color: "#000000", width: 2 },
       fill: { mode: "none", color: "#ffffff", opacity: 1 },
-      tail: { enabled: false },
       runs: [{ from: 0, to: 5, font: { bold: true } }],
     };
     const info = await shapeInfo(page, callout, "callout");

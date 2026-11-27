@@ -45,3 +45,15 @@ export async function pictureAsPng(file: Blob): Promise<Uint8Array> {
     bitmap.close();
   }
 }
+
+/**
+ * The first picture on the clipboard, read on request (the editor's right-click "Paste"; Ctrl+V gets it from the paste
+ * event instead). Null when the clipboard holds no picture; rejects when the webview does not let the page read it.
+ */
+export async function readClipboardImage(): Promise<Blob | null> {
+  for (const item of await navigator.clipboard.read()) {
+    const type = item.types.find((t) => t.startsWith("image/"));
+    if (type) return item.getType(type);
+  }
+  return null;
+}

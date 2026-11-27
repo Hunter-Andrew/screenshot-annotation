@@ -45,6 +45,10 @@ export interface StubCanvas extends AnnotationCanvas {
   textStyled: RunFont[];
   /** How many times the editor handed the keyboard back to the text. */
   textFocused: number;
+  /** True while a test pretends a new box is being typed in; `cancelTyping` then ends it (and says so). */
+  typing: boolean;
+  /** How many times the editor ended the box being typed in (Undo of placing it). */
+  typingCancelled: number;
 }
 
 export interface StubKit extends CanvasKit {
@@ -80,6 +84,8 @@ export function createStubKit(): StubKit {
         disposed: false,
         textStyled: [],
         textFocused: 0,
+        typing: false,
+        typingCancelled: 0,
         sync(model, images) {
           canvas.model = model;
           canvas.images = images;
@@ -104,6 +110,12 @@ export function createStubKit(): StubKit {
         },
         styleTextSelection(patch) {
           canvas.textStyled.push(patch);
+        },
+        cancelTyping() {
+          if (!canvas.typing) return false;
+          canvas.typing = false;
+          canvas.typingCancelled++;
+          return true;
         },
         focusText() {
           canvas.textFocused++;

@@ -12,6 +12,12 @@ export interface Size {
   height: number;
 }
 
+/** Settings that shape a drawn Annotation as it is placed (never applied to one that already exists). */
+export interface DrawOptions {
+  /** The least width of a Text box when it is placed, in Capture pixels (0 or absent: none). */
+  textBoxMinWidth?: number;
+}
+
 export interface AnnotationKind<A extends Annotation = Annotation> {
   readonly type: A["type"];
   /** The tool's name in the tool column. */
@@ -36,6 +42,7 @@ export interface AnnotationKind<A extends Annotation = Annotation> {
     to: Point,
     style: Style,
     area?: { x?: number; y?: number; width: number; height: number },
+    options?: DrawOptions,
   ): A | null;
   /** Freehand tools only (Pen): the Annotation for all the points a drag passed through; the canvas prefers it to `fromDrag`. */
   fromPath?(id: string, points: readonly Point[], style: Style): A | null;
@@ -47,7 +54,7 @@ export interface AnnotationKind<A extends Annotation = Annotation> {
    */
   readonly typedInPlace?: boolean;
   /**
-   * True when the Annotation stays with no text (the Callout: a speech box and tail are worth keeping empty); a
+   * True when the Annotation stays with no text (the Callout and Text box: the box itself is worth keeping empty); a
    * typed-in Annotation without it (Text) is not made when nothing was typed, and keeps its old words when cleared.
    */
   readonly keepsEmptyText?: boolean;

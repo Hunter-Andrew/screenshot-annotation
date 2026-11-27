@@ -29,6 +29,8 @@ export interface CanvasLayout {
   showOutside: boolean;
   /** Text boxes and Callouts widen when their lines are taller than this many times their width (Settings); null or absent: they do not. */
   textWidenRatio?: number | null;
+  /** The least width (Capture pixels) a Text box gets when it is placed (Settings); 0 or absent: none. Placing only. */
+  textBoxMinWidth?: number;
 }
 
 /** The characters selected while a Text or Callout is typed in: what they look like (a property's value, or "mixed"). */
@@ -99,6 +101,12 @@ export interface AnnotationCanvas {
   styleTextSelection(patch: RunFont): void;
   /** Put the keyboard back into the text being typed in, keeping its selection (after a Style panel button was used). */
   focusText(): void;
+  /**
+   * End the Text box or Callout that has just been placed and is still being typed in, as if it had never been
+   * placed (Undo of the placing): nothing reaches the model. True when there was one. With `from` (where a key press
+   * went), only when that is the box's own text input, so a number field elsewhere keeps its own Undo.
+   */
+  cancelTyping(from?: EventTarget | null): boolean;
   /** False for a read-only image: nothing can be drawn or selected. */
   setInteractive(interactive: boolean): void;
   dispose(): void;

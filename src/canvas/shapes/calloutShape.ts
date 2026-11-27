@@ -1,22 +1,27 @@
-// The Fabric object for a Callout: a Text box (typing, wrapping and the eight box handles come from
-// TextShape) drawn inside a speech box with a pointer tail. The tail's tip has its own handle.
+// The Fabric object for a Callout or a Text box: a text box (typing, wrapping and the eight box handles come from
+// TextShape) drawn inside a speech box, with a pointer tail for a Callout and none for a Text box. The tail's tip has
+// its own handle.
 // The speech box and tail are painted by `_renderBackground`, before the letters, so Export draws
 // them exactly as the screen does. `padding` makes the selection border and handles hug the speech box.
 import { Control, Point } from "fabric";
 import type { CalloutAnnotation } from "../../core/annotations/callout";
+import type { TextBoxAnnotation } from "../../core/annotations/textBoxTool";
 import { bubbleBox, CALLOUT_PAD, defaultTip, outlinePath, tailTo } from "../../core/annotations/calloutGeometry";
 import { fillPaint } from "../../core/propertyGroups";
 import type { HandleName } from "../../core/annotations/textBox";
 import { TextShape } from "./textShape";
 
+/** What the shape draws: a Callout, or the tailless Text box. */
+type Boxed = CalloutAnnotation | TextBoxAnnotation;
+
 export class CalloutShape extends TextShape {
   static override type = "CalloutShape";
 
-  declare private callout: CalloutAnnotation;
+  declare private callout: Boxed;
   /** Tail tip as an offset from the text box's top-left corner; null until the tip is first needed. */
   declare private tip: { x: number; y: number } | null;
 
-  constructor(annotation: CalloutAnnotation) {
+  constructor(annotation: Boxed) {
     super({ ...annotation, type: "text" });
     this.keepsEmptyText = true;
     this.padding = CALLOUT_PAD;
@@ -45,6 +50,33 @@ export class CalloutShape extends TextShape {
     this.setCallout(annotation);
   }
 
+  /** While the whole shape is dragged: where its tail's tip is on the canvas, and its offset when the drag began. */
+  private moveStart: { spot: { x: number; y: number }; offset: { x: number; y: number } } | null = null;
+
+  /** A drag of the whole shape is about to start: remember where its tail points. A Text box has no tail, so nothing. */
+  beginMove(): void {
+    if (!this.hasTail()) return;
+    const offset = this.tipOffset();
+    this.moveStart = { spot: { x: this.left + offset.x, y: this.top + offset.y }, offset };
+  }
+
+  /**
+   * The shape is being dragged. By default the tail's tip stays where it was on the canvas, so the box moves and the
+   * tail stretches to it; with `tailFollows` (Shift held) the tip moves along with the box. Either way the stored tip
+   * is an offset from the box's corner, so it is re-aimed here, on every step of the drag.
+   */
+  moveTip(tailFollows: boolean): void {
+    const start = this.moveStart;
+    if (!start) return;
+    this.tip = tailFollows ? { ...start.offset } : { x: start.spot.x - this.left, y: start.spot.y - this.top };
+    this.dirty = true;
+  }
+
+  /** The drag is over. */
+  endMove(): void {
+    this.moveStart = null;
+  }
+
   /** The tip as an offset from the text box's top-left corner (the default when the user has not set one). */
   private tipOffset(): { x: number; y: number } {
     return this.tip ?? defaultTip({ width: this.width, height: this.height });
@@ -63,24 +95,32 @@ export class CalloutShape extends TextShape {
     return changed;
   }
 
+  /** A Callout has a tail (an older one saved with the tail switched off has none); a Text box never does. */
+  private hasTail(): boolean {
+    const callout = this.callout;
+    return callout?.type === "callout" && callout.tail?.enabled !== false;
+  }
+
   override isControlVisible(control: string): boolean {
-    if (control === "tail") return this.callout?.tail.enabled !== false && !this.isEditing;
+    if (control === "tail") return this.hasTail() && !this.isEditing;
     return super.isControlVisible(control);
   }
 
   /** Make the shape show `annotation` (a restyle, an undo...); the text part goes through TextShape. */
-  setCallout(annotation: CalloutAnnotation): void {
+  setCallout(annotation: Boxed): void {
     this.callout = annotation;
-    this.tip = annotation.tip ? { ...annotation.tip } : null;
+    this.tip = annotation.type === "callout" && annotation.tip ? { ...annotation.tip } : null;
     // Fabric's own stroke belongs to the letters (the text outline); the speech box is drawn in `_renderBackground`.
     this.setModel({ ...annotation, type: "text" });
   }
 
   /** The Annotation as it is on screen now: its box, words and tail tip. */
-  toCallout(): CalloutAnnotation {
+  toCallout(): Boxed {
     const { type: _type, ...text } = this.toModel();
-    const { tip: _old, runs: _runs, ...kept } = this.callout;
-    return { ...kept, ...text, type: "callout", ...(this.tip ? { tip: { x: this.tip.x, y: this.tip.y } } : {}) };
+    const { runs: _runs, ...kept } = this.callout;
+    if (this.callout.type === "textbox") return { ...(kept as TextBoxAnnotation), ...text, type: "textbox" };
+    const { tip: _old, ...callout } = kept as CalloutAnnotation;
+    return { ...callout, ...text, type: "callout", ...(this.tip ? { tip: { x: this.tip.x, y: this.tip.y } } : {}) };
   }
 
   override _renderBackground(ctx: CanvasRenderingContext2D): void {
@@ -88,7 +128,7 @@ export class CalloutShape extends TextShape {
     if (!callout) return;
     const box = bubbleBox({ left: -this.width / 2, top: -this.height / 2, width: this.width, height: this.height });
     const tip = this.tipOffset();
-    const tail = callout.tail.enabled
+    const tail = this.hasTail()
       ? tailTo(box, { x: -this.width / 2 + tip.x, y: -this.height / 2 + tip.y })
       : null;
     ctx.save();

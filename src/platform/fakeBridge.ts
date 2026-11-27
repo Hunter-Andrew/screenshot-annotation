@@ -1,5 +1,5 @@
 import { encodeRgbaPng, readSize } from "../core/png";
-import { CANVAS_MARGIN, CROP_MARGIN, DEFAULT_IMAGE_SETTINGS, type ImageSettings, inRange, isDarkBackground, OUTSIDE_DARKNESS, sanitizeImageSettings, TEXT_MAX_HEIGHT_RATIO } from "../shared/imageSettings";
+import { CANVAS_MARGIN, CROP_MARGIN, DEFAULT_IMAGE_SETTINGS, type ImageSettings, inRange, isDarkBackground, OUTSIDE_DARKNESS, sanitizeImageSettings, TEXT_BOX_MIN_WIDTH, TEXT_MAX_HEIGHT_RATIO } from "../shared/imageSettings";
 import { DEFAULT_TOOL, type DrawingTool } from "../drawing/drawingState";
 import { drawingHighlighterOpacityPercent } from "../drawing/drawingStyles";
 import type { DrawingEdit } from "../drawing/toolbarState";
@@ -850,6 +850,10 @@ export function createFakeBridge(
     setTextMaxHeightRatio: async (ratio) => {
       if (!inRange(TEXT_MAX_HEIGHT_RATIO, ratio)) throw new Error(`${ratio} is not a text height ratio`);
       writeImageSettings({ ...readImageSettings(), textMaxHeightRatio: ratio });
+    },
+    setTextBoxMinWidth: async (pixels) => {
+      if (!inRange(TEXT_BOX_MIN_WIDTH, pixels)) throw new Error(`${pixels} is not a text box minimum width`);
+      writeImageSettings({ ...readImageSettings(), textBoxMinWidth: pixels });
     },
     setShowOutsideDefault: async (show) => {
       writeImageSettings({ ...readImageSettings(), showOutsideDefault: show });

@@ -37,8 +37,12 @@ A mode of the Pen tool (chosen in its Style panel's Mode group, with a size of 4
 _Avoid_: Rubber, undo brush
 
 **Callout**:
-An Annotation of boxed text with an optional pointer tail that can be dragged to point anywhere. Resizing the box never moves where the tail points. Drawing one only places the tail: the press is the tip, the release is where the tail ends and the box starts (in the box corner nearest the tip, extending away from it), at a default size that grows with the text. It may have no text: an empty Callout stays (a Text Annotation with no text is not made).
+An Annotation of boxed text with a pointer tail that can be dragged to point anywhere. Resizing the box never moves where the tail points, and neither does moving it: dragging the box leaves the tail's tip where it was (the tail stretches), and holding Shift while dragging carries the tip along. Drawing one only places the tail: the press is the tip, the release is where the tail ends and the box starts (in the box corner nearest the tip, extending away from it), at a default size that grows with the text. It may have no text: an empty Callout stays (a Text Annotation with no text is not made). Its tailless sibling is the Text box. While a just-placed Callout is still being typed in, Undo takes the placing back.
 _Avoid_: Speech bubble, note
+
+**Text box**:
+An Annotation of boxed text with no tail: the Callout's box (Stroke, Fill, Font, Text outline) as a tool of its own, drawn like Text by a click or a dragged-out area. When placed it is at least as wide as the "Text box minimum width" Setting (240 px, the width of a placed Callout, until changed; 0 means none): a narrower drag, or a click, widens to it. The minimum applies only at placement, never to resizing by hand. It may have no text, like a Callout. (A Callout saved with its tail switched off, from before the two were split, opens as a Text box.)
+_Avoid_: Callout without a tail, label
 
 **Styled text** (run):
 Part of the text of a Text or Callout that has its own size, Bold, Italic, Underline or color, chosen while editing the box with the characters selected. Each such range of characters is a run (stored in the Annotation's `runs`, the text itself stays plain) and overrides only the properties it names; the rest follows the box's Font. Characters are selected with the keyboard or the mouse (a drag, a double-click on a word) and the Font controls then change only them; with a caret only they change the whole box. Alignment and the Text outline always belong to the whole box. A change of the whole box's size, Bold, Italic, Underline or color clears that property on every run, so "make everything 24 px" does what it says. A bigger run makes its line taller.

@@ -152,7 +152,7 @@ export function selectionFont(runs: readonly Run[], base: Font, text: string, fr
  * an edit that adds or updates a box, and the reader of a saved image, both call it.
  */
 export function tidyRuns<A extends { type: string }>(annotation: A): A {
-  if (annotation.type !== "text" && annotation.type !== "callout") return annotation;
+  if (annotation.type !== "text" && annotation.type !== "callout" && annotation.type !== "textbox") return annotation;
   const box = annotation as unknown as { text: unknown; runs?: unknown };
   if (!("runs" in box)) return annotation;
   const { runs, ...rest } = box;

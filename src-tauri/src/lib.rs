@@ -575,6 +575,20 @@ fn set_text_auto_widen(app: AppHandle, state: tauri::State<'_, AppSettings>, ena
     saved.or_else(|e| if e.kind() == std::io::ErrorKind::InvalidInput { Err(e.to_string()) } else { Ok(()) })
 }
 
+/// Stores the least width of a Text box when it is placed; same rules as `set_crop_margin`.
+#[tauri::command]
+fn set_text_box_min_width(app: AppHandle, state: tauri::State<'_, AppSettings>, pixels: u32) -> Result<(), String> {
+    let mut data = state.data.lock().unwrap();
+    let saved = settings::set_text_box_min_width(&state.dir, &mut data, pixels);
+    if let Err(e) = &saved {
+        diag::log(&format!("the Text box minimum width set to {pixels}; could not save settings.json (kept in memory): {e}"));
+    }
+    let now = data.image_settings();
+    drop(data);
+    let _ = app.emit(IMAGE_SETTINGS_EVENT, now);
+    saved.or_else(|e| if e.kind() == std::io::ErrorKind::InvalidInput { Err(e.to_string()) } else { Ok(()) })
+}
+
 /// Stores the text box height ratio; same rules as `set_outside_darkness` (a value outside its range, or with more than one decimal, is refused).
 #[tauri::command]
 fn set_text_max_height_ratio(app: AppHandle, state: tauri::State<'_, AppSettings>, ratio: f64) -> Result<(), String> {
@@ -1455,7 +1469,8 @@ pub fn run() {
             set_outside_darkness,
             set_show_outside_default,
             set_text_auto_widen,
-            set_text_max_height_ratio
+            set_text_max_height_ratio,
+            set_text_box_min_width
         ])
         .setup(|app| {
             app.handle().plugin(

@@ -15,6 +15,7 @@ import type { LineAnnotation } from "./annotations/line";
 import type { PenAnnotation } from "./annotations/pen";
 import type { RectAnnotation } from "./annotations/rect";
 import type { TextAnnotation } from "./annotations/text";
+import type { TextBoxAnnotation } from "./annotations/textBoxTool";
 
 /** The format version of a file with no pasted image. A file numbered above what the reader supports opens read-only.
  *  Adding a tool or property group is additive and needs no bump (the app only ever moves forward), except the `image` type: see below and ADR 0004. */
@@ -27,7 +28,7 @@ export const SUPPORTED_FORMAT_VERSION = IMAGE_FORMAT_VERSION;
 
 export type { ArrowAnnotation, EllipseAnnotation, LineAnnotation, RectAnnotation };
 export type { BlurAnnotation, CalloutAnnotation, HighlightAnnotation, PenAnnotation };
-export type { ImageAnnotation, TextAnnotation };
+export type { ImageAnnotation, TextAnnotation, TextBoxAnnotation };
 
 export type Annotation =
   | ArrowAnnotation
@@ -39,7 +40,8 @@ export type Annotation =
   | BlurAnnotation
   | CalloutAnnotation
   | ImageAnnotation
-  | TextAnnotation;
+  | TextAnnotation
+  | TextBoxAnnotation;
 
 export type AnnotationType = Annotation["type"];
 

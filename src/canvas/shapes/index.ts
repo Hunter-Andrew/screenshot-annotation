@@ -2,7 +2,7 @@
 import type { Annotation } from "../../core/annotation";
 import { arrowAdapter } from "./arrow";
 import { blurAdapter } from "./blur";
-import { calloutAdapter } from "./callout";
+import { calloutAdapter, textBoxAdapter } from "./callout";
 import { ellipseAdapter } from "./ellipse";
 import { highlightAdapter } from "./highlight";
 import { imageAdapter } from "./image";
@@ -18,6 +18,7 @@ const ADAPTERS: readonly ShapeAdapter<any>[] = [
   rectAdapter,
   ellipseAdapter,
   textAdapter,
+  textBoxAdapter,
   calloutAdapter,
   penAdapter,
   highlightAdapter,

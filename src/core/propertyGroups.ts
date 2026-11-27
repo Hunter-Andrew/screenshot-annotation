@@ -90,11 +90,6 @@ export interface Border {
   width: number;
 }
 
-export interface Tail {
-  /** The Callout's pointer; on by default, and the tip stays where it was while it is off. */
-  enabled: boolean;
-}
-
 /** The Blur's pixel block size in Capture pixels: bigger blocks hide more. */
 export const MIN_STRENGTH = 4;
 export const MAX_STRENGTH = 40;
@@ -119,7 +114,6 @@ export interface Eraser {
 export interface PropertyGroups {
   eraser: Eraser;
   strength: Strength;
-  tail: Tail;
   stroke: Stroke;
   border: Border;
   opacity: Opacity;
@@ -177,7 +171,6 @@ const GROUP_READERS: { [K in GroupId]: (raw: unknown) => PropertyGroups[K] | und
     const width = Math.round(stored.width);
     return width >= MIN_STROKE_WIDTH && width <= MAX_STROKE_WIDTH ? { enabled: stored.enabled, color: stored.color, width } : undefined;
   },
-  tail: (raw) => (isRecord(raw) && typeof raw.enabled === "boolean" ? { enabled: raw.enabled } : undefined),
   opacity: (raw) =>
     isRecord(raw) && typeof raw.value === "number" && raw.value >= MIN_OPACITY && raw.value <= MAX_OPACITY
       ? { value: raw.value }

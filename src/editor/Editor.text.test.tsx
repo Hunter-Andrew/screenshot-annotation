@@ -45,7 +45,7 @@ describe("the Text tool in the editor", () => {
 
     await userEvent.keyboard("t");
 
-    expect(screen.getByRole("button", { name: /^Text/ })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: /^Text(?! box)/ })).toHaveAttribute("aria-pressed", "true");
     expect(kit.latest.tool).toBe("text");
     expect(screen.getByRole("region", { name: "Font" })).toBeVisible();
     expect(screen.getByRole("region", { name: "Text outline" })).toBeVisible();

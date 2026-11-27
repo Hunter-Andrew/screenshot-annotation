@@ -29,6 +29,13 @@ export const TOOL_ICONS: Readonly<Record<string, ReactNode>> = {
       <path d="M9 20 L15 20" />
     </>
   ),
+  // A rounded box with a line of text in it.
+  textbox: (
+    <>
+      <rect x="3" y="5" width="18" height="14" rx="2" />
+      <path d="M8 10 L16 10 M8 14 L13 14" />
+    </>
+  ),
   // Speech bubble with a tail.
   callout: <path d="M4 5 L20 5 L20 16 L11 16 L6 21 L6 16 L4 16 Z" />,
   // Marker with a highlighted band under it.

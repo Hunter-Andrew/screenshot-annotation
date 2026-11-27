@@ -20,6 +20,8 @@ interface Props {
   showOutside: boolean;
   /** Text boxes widen when their lines are taller than this many times their width; null: never. */
   textWidenRatio: number | null;
+  /** The least width of a Text box when it is placed (Settings). */
+  textBoxMinWidth: number;
   /** The dark margin shown around the area, in screen pixels per side. */
   margin: { x: number; y: number };
   scale: number;
@@ -35,7 +37,7 @@ interface Props {
  * dark margin, and the annotation canvas laid over all of it. Mount one per image (`key` it by the image):
  * the canvas is created for that Capture and disposed with it.
  */
-export function Stage({ kit, imageUrl, size, area, background, darkBackground, darkness, showOutside, textWidenRatio, margin, scale, interactive, events, onCanvas }: Props) {
+export function Stage({ kit, imageUrl, size, area, background, darkBackground, darkness, showOutside, textWidenRatio, textBoxMinWidth, margin, scale, interactive, events, onCanvas }: Props) {
   const host = useRef<HTMLDivElement>(null);
   const canvas = useRef<AnnotationCanvas | null>(null);
   // The canvas covers the area and its margin, as Capture pixels (the margin is whole screen pixels).
@@ -49,10 +51,11 @@ export function Stage({ kit, imageUrl, size, area, background, darkBackground, d
       darkness,
       showOutside,
       textWidenRatio,
+      textBoxMinWidth,
       workspace: { x: area.x - mx, y: area.y - my, width: area.width + 2 * mx, height: area.height + 2 * my },
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [area.x, area.y, area.width, area.height, background, darkBackground, darkness, showOutside, textWidenRatio, margin.x, margin.y, scale]);
+  }, [area.x, area.y, area.width, area.height, background, darkBackground, darkness, showOutside, textWidenRatio, textBoxMinWidth, margin.x, margin.y, scale]);
   const latest = useRef({ events, onCanvas, scale, interactive, imageUrl, layout });
   latest.current = { events, onCanvas, scale, interactive, imageUrl, layout };
 
