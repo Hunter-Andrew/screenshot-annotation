@@ -14,8 +14,8 @@ export interface Size {
 
 /** Settings that shape a drawn Annotation as it is placed (never applied to one that already exists). */
 export interface DrawOptions {
-  /** The least width of a Text box when it is placed, in Capture pixels (0 or absent: none). */
-  textBoxMinWidth?: number;
+  /** The least width of a Text when it is placed, in Capture pixels (0 or absent: none). */
+  textMinWidth?: number;
 }
 
 export interface AnnotationKind<A extends Annotation = Annotation> {

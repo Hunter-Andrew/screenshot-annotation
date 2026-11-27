@@ -29,8 +29,8 @@ export interface CanvasLayout {
   showOutside: boolean;
   /** Text boxes and Callouts widen when their lines are taller than this many times their width (Settings); null or absent: they do not. */
   textWidenRatio?: number | null;
-  /** The least width (Capture pixels) a Text box gets when it is placed (Settings); 0 or absent: none. Placing only. */
-  textBoxMinWidth?: number;
+  /** The least width (Capture pixels) a Text gets when it is placed (Settings); 0 or absent: none. Placing only. */
+  textMinWidth?: number;
 }
 
 /** The characters selected while a Text or Callout is typed in: what they look like (a property's value, or "mixed"). */

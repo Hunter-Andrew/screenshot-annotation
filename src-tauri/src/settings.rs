@@ -51,7 +51,7 @@
 //! - `textAutoWiden` (true by default): whether a Text box or Callout widens itself while it is typed in, when its
 //!   lines would be taller than `textMaxHeightRatio` times its width.
 //! - `textMaxHeightRatio` (0.5 to 20, to a tenth, default 2): that ratio; a number outside the range is brought into it.
-//! - `textBoxMinWidth` (0 to 2000 pixels, default 240): the least width a Text box gets when it is placed (a narrower
+//! - `textMinWidth` (0 to 2000 pixels, default 240): the least width a Text gets when it is placed (a narrower
 //!   drag, or a click, widens to it). It applies only while placing; 0 means no minimum.
 //! - `libraryStripCollapsed` (false by default): whether the Library Strip along the bottom of the editor is
 //!   collapsed to a thin bar. The chevron on the strip's edge changes it; it is kept between launches.
@@ -150,9 +150,9 @@ pub struct Settings {
     /// How many times taller than wide the lines of a Text box may be before it widens (`TEXT_MAX_HEIGHT_RATIO`).
     #[serde(deserialize_with = "text_max_height_ratio_or_default")]
     pub text_max_height_ratio: f64,
-    /// The least width of a Text box when it is placed, in pixels (`TEXT_BOX_MIN_WIDTH`).
-    #[serde(deserialize_with = "text_box_min_width_or_default")]
-    pub text_box_min_width: u32,
+    /// The least width of a Text when it is placed, in pixels (`TEXT_MIN_WIDTH`).
+    #[serde(deserialize_with = "text_min_width_or_default")]
+    pub text_min_width: u32,
 }
 
 pub const BACKGROUNDS: [&str; 3] = ["white", "dark", "transparent"];
@@ -208,8 +208,8 @@ pub const CANVAS_MARGIN: Range = Range { min: 0, max: 200, default: 16 };
 /// Drawing mode's Highlighter opacity in percent; `DRAWING_HIGHLIGHTER_OPACITY` in src/drawing/drawingStyles.ts must match.
 pub const DRAWING_HIGHLIGHTER_OPACITY: Range = Range { min: 5, max: 60, default: 20 };
 pub const CROP_MARGIN: Range = Range { min: 0, max: 400, default: 150 };
-/// The least width of a Text box when it is placed; `TEXT_BOX_MIN_WIDTH` in src/shared/imageSettings.ts must match.
-pub const TEXT_BOX_MIN_WIDTH: Range = Range { min: 0, max: 2000, default: 240 };
+/// The least width of a Text when it is placed; `TEXT_MIN_WIDTH` in src/shared/imageSettings.ts must match.
+pub const TEXT_MIN_WIDTH: Range = Range { min: 0, max: 2000, default: 240 };
 pub const TEXT_MAX_HEIGHT_RATIO: DecimalRange = DecimalRange { min: 0.5, max: 20.0, default: 2.0 };
 pub const DEFAULT_DARK_BACKGROUND: &str = "#191919";
 
@@ -234,7 +234,7 @@ pub struct ImageSettings {
     pub library_strip_collapsed: bool,
     pub text_auto_widen: bool,
     pub text_max_height_ratio: f64,
-    pub text_box_min_width: u32,
+    pub text_min_width: u32,
 }
 
 /// A stored choice that is not one of `allowed` (a hand edit, a newer version) is the default, not an error.
@@ -288,8 +288,8 @@ fn text_max_height_ratio_or_default<'de, D: serde::Deserializer<'de>>(d: D) -> R
     tenths_in(d, TEXT_MAX_HEIGHT_RATIO)
 }
 
-fn text_box_min_width_or_default<'de, D: serde::Deserializer<'de>>(d: D) -> Result<u32, D::Error> {
-    number_in(d, TEXT_BOX_MIN_WIDTH)
+fn text_min_width_or_default<'de, D: serde::Deserializer<'de>>(d: D) -> Result<u32, D::Error> {
+    number_in(d, TEXT_MIN_WIDTH)
 }
 
 fn crop_margin_or_default<'de, D: serde::Deserializer<'de>>(d: D) -> Result<u32, D::Error> {
@@ -391,7 +391,7 @@ impl Settings {
             library_strip_collapsed: self.library_strip_collapsed,
             text_auto_widen: self.text_auto_widen,
             text_max_height_ratio: self.text_max_height_ratio,
-            text_box_min_width: self.text_box_min_width,
+            text_min_width: self.text_min_width,
         }
     }
 }
@@ -424,7 +424,7 @@ impl Default for Settings {
             library_strip_collapsed: false,
             text_auto_widen: true,
             text_max_height_ratio: TEXT_MAX_HEIGHT_RATIO.default,
-            text_box_min_width: TEXT_BOX_MIN_WIDTH.default,
+            text_min_width: TEXT_MIN_WIDTH.default,
         }
     }
 }
@@ -636,12 +636,12 @@ pub fn set_text_max_height_ratio(dir: &Path, settings: &mut Settings, value: f64
     save(dir, settings)
 }
 
-/// Sets the least width of a Text box when it is placed; a value outside `TEXT_BOX_MIN_WIDTH` changes nothing.
-pub fn set_text_box_min_width(dir: &Path, settings: &mut Settings, value: u32) -> io::Result<()> {
-    if !TEXT_BOX_MIN_WIDTH.contains(value) {
-        return Err(out_of_range("Text box minimum width", value, TEXT_BOX_MIN_WIDTH));
+/// Sets the least width of a Text when it is placed; a value outside `TEXT_MIN_WIDTH` changes nothing.
+pub fn set_text_min_width(dir: &Path, settings: &mut Settings, value: u32) -> io::Result<()> {
+    if !TEXT_MIN_WIDTH.contains(value) {
+        return Err(out_of_range("Text minimum width", value, TEXT_MIN_WIDTH));
     }
-    settings.text_box_min_width = value;
+    settings.text_min_width = value;
     save(dir, settings)
 }
 
@@ -1052,17 +1052,17 @@ mod tests {
     fn the_text_box_minimum_width_is_240_by_default_and_takes_0_to_2000() {
         let dir = temp_dir("text-box-min-width");
         let mut s = Settings::default();
-        assert_eq!(s.text_box_min_width, 240);
-        assert!(set_text_box_min_width(&dir, &mut s, 2001).is_err());
-        assert_eq!(s.text_box_min_width, 240);
-        set_text_box_min_width(&dir, &mut s, 0).unwrap();
-        assert_eq!(load(&dir).text_box_min_width, 0);
-        set_text_box_min_width(&dir, &mut s, 2000).unwrap();
-        assert_eq!(load(&dir).text_box_min_width, 2000);
-        fs::write(dir.join(FILE_NAME), br#"{"textBoxMinWidth":9999}"#).unwrap();
-        assert_eq!(load(&dir).text_box_min_width, 2000);
-        fs::write(dir.join(FILE_NAME), br#"{"textBoxMinWidth":"x"}"#).unwrap();
-        assert_eq!(load(&dir).text_box_min_width, 240);
+        assert_eq!(s.text_min_width, 240);
+        assert!(set_text_min_width(&dir, &mut s, 2001).is_err());
+        assert_eq!(s.text_min_width, 240);
+        set_text_min_width(&dir, &mut s, 0).unwrap();
+        assert_eq!(load(&dir).text_min_width, 0);
+        set_text_min_width(&dir, &mut s, 2000).unwrap();
+        assert_eq!(load(&dir).text_min_width, 2000);
+        fs::write(dir.join(FILE_NAME), br#"{"textMinWidth":9999}"#).unwrap();
+        assert_eq!(load(&dir).text_min_width, 2000);
+        fs::write(dir.join(FILE_NAME), br#"{"textMinWidth":"x"}"#).unwrap();
+        assert_eq!(load(&dir).text_min_width, 240);
         fs::remove_dir_all(&dir).unwrap();
     }
 
@@ -1083,7 +1083,7 @@ mod tests {
                 library_strip_collapsed: false,
                 text_auto_widen: true,
                 text_max_height_ratio: 2.0,
-                text_box_min_width: 240,
+                text_min_width: 240,
             }
         );
     }

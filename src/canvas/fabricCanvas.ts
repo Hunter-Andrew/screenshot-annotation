@@ -380,7 +380,7 @@ export function createFabricCanvas(host: HTMLElement, { events, imageUrl, layout
     shift: boolean,
   ) => (kind.horizontalWithShift && shift ? [gesture.from, { x: to.x, y: gesture.from.y }] : gesture.path);
   /** What the Settings add to a placement (the Text box's minimum width). */
-  const drawOptions = (): DrawOptions => ({ textBoxMinWidth: layout.textBoxMinWidth ?? 0 });
+  const drawOptions = (): DrawOptions => ({ textMinWidth: layout.textMinWidth ?? 0 });
   let drag: { from: { x: number; y: number }; path: { x: number; y: number }[]; ghost: FabricObject | null } | null = null;
   const dropGhost = () => {
     if (drag?.ghost) canvas.remove(drag.ghost);

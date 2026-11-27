@@ -1,6 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
 
-// The Text box tool (with its minimum width), Ctrl+Z on a box just placed, moving a Callout without or with its tail,
+// The Text minimum width and the Text box tool, Ctrl+Z on a box just placed, moving a Callout without or with its tail,
 // and the right-click menu: in real Chromium with the real Fabric canvas and the fake bridge.
 
 interface Saved {
@@ -47,14 +47,11 @@ async function saved(page: Page): Promise<Saved[]> {
 const expectSaved = (page: Page, check: (all: Saved[]) => boolean, message: string) =>
   expect.poll(async () => check(await saved(page)), { message, timeout: 6000, intervals: [200] }).toBe(true);
 
-test("X draws a Text box with no tail; a narrow drag widens to the minimum width, only at placement", async ({ page }) => {
+test("a narrow drag with the Text tool widens to the minimum width, only at placement; the Text box tool is not affected", async ({ page }) => {
   const at = await open(page);
-  await page.keyboard.press("x");
-  await expect(page.getByRole("button", { name: /^Text box/ })).toHaveAttribute("aria-pressed", "true");
-  for (const name of ["Font", "Text outline", "Stroke", "Fill"]) await expect(page.getByRole("region", { name })).toBeVisible();
-  await expect(page.getByRole("region", { name: "Tail" })).toHaveCount(0);
 
-  // A narrow drag (60 px) becomes the 240 px default minimum.
+  // Text (T): a 60 px drag becomes the 240 px default minimum.
+  await page.keyboard.press("t");
   const from = at(100, 100);
   const to = at(160, 180);
   await page.mouse.move(from.x, from.y);
@@ -64,11 +61,9 @@ test("X draws a Text box with no tail; a narrow drag widens to the minimum width
   await expect(page.locator("textarea")).toBeFocused();
   await page.keyboard.type("Note");
   await page.keyboard.press("Escape");
-  await expectSaved(page, ([t]) => t?.text === "Note", "the text box is saved");
-  const [made] = await saved(page);
-  expect(made).toMatchObject({ type: "textbox", width: 240 });
-  expect(made!.x).toBeCloseTo(100, -1); // the stage sits on a half pixel
-  expect(made).not.toHaveProperty("tip");
+  await expectSaved(page, ([t]) => t?.text === "Note", "the text is saved");
+  const [text] = await saved(page);
+  expect(text).toMatchObject({ type: "text", width: 240 });
 
   // Resizing by hand below the minimum is never overridden: drag the right-middle handle in.
   await page.keyboard.press("Escape");
@@ -78,7 +73,25 @@ test("X draws a Text box with no tail; a narrow drag widens to the minimum width
   await page.mouse.down();
   await page.mouse.move(handle.x - 150, handle.y, { steps: 5 });
   await page.mouse.up();
-  await expectSaved(page, ([t]) => (t?.width ?? 999) < 240, "a hand-narrowed box stays narrow");
+  await expectSaved(page, ([t]) => (t?.width ?? 999) < 240, "a hand-narrowed text stays narrow");
+
+  // Text box (X): no tail, same four style groups, and the narrow drag stays narrow.
+  await page.keyboard.press("x");
+  await expect(page.getByRole("button", { name: /^Text box/ })).toHaveAttribute("aria-pressed", "true");
+  for (const name of ["Font", "Text outline", "Stroke", "Fill"]) await expect(page.getByRole("region", { name })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Tail" })).toHaveCount(0);
+  const from2 = at(300, 250);
+  const to2 = at(360, 330);
+  await page.mouse.move(from2.x, from2.y);
+  await page.mouse.down();
+  await page.mouse.move(to2.x, to2.y, { steps: 5 });
+  await page.mouse.up();
+  await page.keyboard.type("Box");
+  await page.keyboard.press("Escape");
+  await expectSaved(page, (all) => all.some((a) => a.type === "textbox"), "the text box is saved");
+  const box = (await saved(page)).find((a) => a.type === "textbox")!;
+  expect(box.width).toBeLessThan(100);
+  expect(box).not.toHaveProperty("tip");
 });
 
 test("Ctrl+Z while typing in a box just placed takes the placing back", async ({ page }) => {

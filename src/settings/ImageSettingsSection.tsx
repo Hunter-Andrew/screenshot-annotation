@@ -14,7 +14,7 @@ import {
   isDarkBackground,
   type NumberRange,
   OUTSIDE_DARKNESS,
-  TEXT_BOX_MIN_WIDTH,
+  TEXT_MIN_WIDTH,
   TEXT_MAX_HEIGHT_RATIO,
 } from "../shared/imageSettings";
 
@@ -255,11 +255,11 @@ export function ImageSettingsSection({ bridge }: { bridge: PlatformBridge }) {
         onCommit={(value) => save({ textMaxHeightRatio: value }, () => bridge.setTextMaxHeightRatio(value), "setTextMaxHeightRatio")}
       />
       <NumberSetting
-        label="Text box minimum width (px)"
-        hint="A Text box you place is at least this wide: a narrower drag, or a click, widens it to this. It applies only when placing; resizing by hand is never overridden. 0 means no minimum. The default is the width of a placed Callout. Range:"
-        range={TEXT_BOX_MIN_WIDTH}
-        value={settings?.textBoxMinWidth}
-        onCommit={(value) => save({ textBoxMinWidth: value }, () => bridge.setTextBoxMinWidth(value), "setTextBoxMinWidth")}
+        label="Text minimum width (px)"
+        hint="Text you place with the Text tool is at least this wide: a narrower drag, or a click, widens it to this. It applies only when placing; resizing by hand is never overridden. 0 means no minimum. The default is the width of a placed Callout. Range:"
+        range={TEXT_MIN_WIDTH}
+        value={settings?.textMinWidth}
+        onCommit={(value) => save({ textMinWidth: value }, () => bridge.setTextMinWidth(value), "setTextMinWidth")}
       />
     </section>
   );

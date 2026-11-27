@@ -41,7 +41,7 @@ An Annotation of boxed text with a pointer tail that can be dragged to point any
 _Avoid_: Speech bubble, note
 
 **Text box**:
-An Annotation of boxed text with no tail: the Callout's box (Stroke, Fill, Font, Text outline) as a tool of its own, drawn like Text by a click or a dragged-out area. When placed it is at least as wide as the "Text box minimum width" Setting (240 px, the width of a placed Callout, until changed; 0 means none): a narrower drag, or a click, widens to it. The minimum applies only at placement, never to resizing by hand. It may have no text, like a Callout. (A Callout saved with its tail switched off, from before the two were split, opens as a Text box.)
+An Annotation of boxed text with no tail: the Callout's box (Stroke, Fill, Font, Text outline) as a tool of its own, drawn like Text by a click or a dragged-out area. It may have no text, like a Callout. (A Callout saved with its tail switched off, from before the two were split, opens as a Text box.)
 _Avoid_: Callout without a tail, label
 
 **Styled text** (run):

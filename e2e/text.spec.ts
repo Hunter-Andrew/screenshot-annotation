@@ -25,6 +25,14 @@ type InPage = { __fakeBridge: Bridge };
 
 test.use({ viewport: { width: 1100, height: 760 } });
 
+// These specs measure the area a drag draws, so they run with no minimum width (that setting is tested in textBoxAndMove.spec.ts).
+test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() => {
+    const stored = JSON.parse(localStorage.getItem("fake.imageSettings") ?? "{}");
+    localStorage.setItem("fake.imageSettings", JSON.stringify({ ...stored, textMinWidth: 0 }));
+  });
+});
+
 /** A flat grey (200) Capture, so any pixel's expected value is known. */
 async function capture(page: Page, width: number, height: number) {
   await page.waitForFunction(() => Boolean((window as unknown as { __fakeBridge?: unknown }).__fakeBridge)); // the app installs the fake bridge a moment after load

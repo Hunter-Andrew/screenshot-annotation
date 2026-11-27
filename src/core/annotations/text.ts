@@ -4,7 +4,7 @@
 // height of the area the user dragged out (ticket 35). Absent in images saved before that (and after
 // a plain click), which means no minimum.
 import type { PropertyGroups, Style } from "../propertyGroups";
-import type { AnnotationKind, Point, Size } from "./kind";
+import type { AnnotationKind, DrawOptions, Point, Size } from "./kind";
 import type { Run } from "./runs";
 
 export interface TextAnnotation extends Pick<PropertyGroups, "font" | "textOutline"> {
@@ -79,6 +79,28 @@ export function textAreaFromDrag(from: Point, to: Point, capture: Size & { x?: n
   };
 }
 
+/**
+ * The area a press at `from` and a release at `to` place a Text in, widened to `minWidth` (0: no minimum) when it is
+ * narrower. Only the PLACEMENT is widened, never a box that exists. It grows away from the press: a drag that went
+ * left keeps its right edge, any other keeps its left edge; the box then slides to stay inside `capture` (the visible
+ * area), and is no wider than it.
+ */
+export function minWidthAreaFromDrag(
+  from: Point,
+  to: Point,
+  capture: Size & { x?: number; y?: number },
+  minWidth = 0,
+): TextArea {
+  const area = textAreaFromDrag(from, to, capture);
+  if (area.width >= minWidth) return area;
+  const left = capture.x ?? 0;
+  const right = left + capture.width;
+  const width = Math.min(minWidth, capture.width);
+  const leftward = to.x < from.x && area.minHeight > 0;
+  const x = leftward ? area.x + area.width - width : area.x;
+  return { ...area, width, x: Math.max(left, Math.min(x, right - width)) };
+}
+
 export const textKind: AnnotationKind<TextAnnotation> = {
   type: "text",
   label: "Text",
@@ -89,10 +111,10 @@ export const textKind: AnnotationKind<TextAnnotation> = {
     textOutline: { enabled: true, color: "#ffffff", width: 2 },
   },
   typedInPlace: true,
-  fromDrag(id, from, to, style: Style, area) {
+  fromDrag(id, from, to, style: Style, area, options?: DrawOptions) {
     const base = textKind.defaultStyle;
     // Without the Capture's size (a bare call) nothing is clamped.
-    const { x, y, width, minHeight } = textAreaFromDrag(from, to, area ?? { width: Infinity, height: Infinity });
+    const { x, y, width, minHeight } = minWidthAreaFromDrag(from, to, area ?? { width: Infinity, height: Infinity }, options?.textMinWidth ?? 0);
     return {
       id,
       type: "text",

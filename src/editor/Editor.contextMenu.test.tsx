@@ -1,5 +1,5 @@
 // The editor's right-click menu (Paste, Copy, Copy original image), Ctrl+Z on a box that was just placed, and the
-// Text box minimum width reaching the canvas. The canvas is the stub kit's; the real one is in e2e/.
+// Text minimum width reaching the canvas. The canvas is the stub kit's; the real one is in e2e/.
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
@@ -123,14 +123,14 @@ describe("Ctrl+Z on a box that was just placed", () => {
   });
 });
 
-describe("the Text box minimum width setting", () => {
+describe("the Text minimum width setting", () => {
   it("is told to the canvas, starting at 240 and following the setting", async () => {
     const bridge = createFakeBridge();
     const kit = await openWithCapture(bridge);
-    expect(kit.latest.layout.textBoxMinWidth).toBe(240);
-    await act(async () => bridge.setTextBoxMinWidth(0));
-    expect(kit.latest.layout.textBoxMinWidth).toBe(0);
-    await act(async () => bridge.setTextBoxMinWidth(500));
-    expect(kit.latest.layout.textBoxMinWidth).toBe(500);
+    expect(kit.latest.layout.textMinWidth).toBe(240);
+    await act(async () => bridge.setTextMinWidth(0));
+    expect(kit.latest.layout.textMinWidth).toBe(0);
+    await act(async () => bridge.setTextMinWidth(500));
+    expect(kit.latest.layout.textMinWidth).toBe(500);
   });
 });
